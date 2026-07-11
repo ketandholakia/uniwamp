@@ -1,4 +1,6 @@
-# Source control: keep the repository lean and reproducible.
+# ============================================================
+# UniWamp – project-specific ignores
+# ============================================================
 /bin/
 /runtime/
 /logs/*
@@ -6,20 +8,63 @@
 /tmp/*
 !/tmp/.gitkeep
 
-# Third-party dashboard template artifacts.
+# Third-party dashboard template artifacts
 /tailadmin-free-tailwind-dashboard-template-main/node_modules/
 /tailadmin-free-tailwind-dashboard-template-main/build/
 
-# Common generated files.
+# ============================================================
+# Delphi / RAD Studio
+# ============================================================
+
+# Compiled units & binaries
+*.dcu
 *.exe
 *.dll
-*.dcu
 *.bpl
-*.obj
+*.dcp
+*.so
+*.apk
+*.drc
+*.map
+*.dres
+*.rsm
+*.tds
+*.dcu
+*.lib
+*.a
 *.o
+*.obj
+
+# Delphi temp / cache files
+*.identcache
+*.local
+*.stat
+*.~*
+*.cfg.unused
+*.skincfg
+
+# __history and __recovery folders (Delphi IDE)
+__history/
+__recovery/
+
+# Delphi project desktop state (user-specific)
+*.dsk
+
+# ModelSupport (Delphi modeling)
+ModelSupport/
+
+# ============================================================
+# Common generated / temp files
+# ============================================================
 *.tmp
 *.log
 *.pid
-*.identcache
-*.local
-*.~*
+*.bak
+*.swp
+*~
+
+# OS junk
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
