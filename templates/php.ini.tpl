@@ -1,0 +1,16 @@
+﻿[PHP]
+display_errors={{DISPLAY_ERRORS}}
+error_reporting={{ERROR_REPORTING}}
+log_errors={{LOG_ERRORS}}
+short_open_tag={{SHORT_OPEN_TAG}}
+expose_php={{EXPOSE_PHP}}
+memory_limit={{MEMORY_LIMIT}}
+upload_max_filesize={{UPLOAD_MAX_FILESIZE}}
+post_max_size={{POST_MAX_SIZE}}
+max_execution_time={{MAX_EXECUTION_TIME}}
+max_input_vars={{MAX_INPUT_VARS}}
+extension_dir="{{PHP_EXT_DIR}}"
+{{PHP_EXTENSION_LINES}}
+upload_tmp_dir="{{TMP_DIR}}"
+sys_temp_dir="{{TMP_DIR}}"
+error_log="{{LOGS_DIR}}\php-error.log"

@@ -1,0 +1,87 @@
+﻿{
+  "httpPort": 8080,
+  "httpsPort": 8443,
+  "databasePort": 3309,
+  "hostName": "localhost",
+  "documentRoot": "D:\\ketan\\github\\uniservernxt\\uniwamp\\www",
+  "selectedPhpVersion": "php85",
+  "selectedNodeVersion": "node-v22.23.1-win-x64",
+  "terminalExePath": "bin\\cmder\\Cmder.exe",
+  "phpProfile": "development",
+  "enableSsl": false,
+  "apachePid": 5856,
+  "mariaDbPid": 29564,
+  "apacheRunning": true,
+  "mariaDbRunning": true,
+  "lastApacheError": "",
+  "lastMariaDbError": "",
+  "lastHostsSyncStatus": "Hosts synced",
+  "apacheEnabledModules": [
+    "mod_access_compat.so",
+    "mod_alias.so",
+    "mod_auth_basic.so",
+    "mod_authn_core.so",
+    "mod_authn_file.so",
+    "mod_authz_core.so",
+    "mod_authz_host.so",
+    "mod_authz_user.so",
+    "mod_dir.so",
+    "mod_env.so",
+    "mod_headers.so",
+    "mod_include.so",
+    "mod_log_config.so",
+    "mod_mime.so",
+    "mod_rewrite.so",
+    "mod_setenvif.so",
+    "mod_ssl.so",
+    "mod_socache_shmcb.so",
+    "mod_unixd.so"
+  ],
+  "phpVersions": [
+    "php82",
+    "php83",
+    "php84",
+    "php85"
+  ],
+  "phpEnabledExtensions": [
+    "php_bz2.dll",
+    "php_curl.dll",
+    "php_exif.dll",
+    "php_fileinfo.dll",
+    "php_ftp.dll",
+    "php_gd.dll",
+    "php_gettext.dll",
+    "php_intl.dll",
+    "php_mbstring.dll",
+    "php_mysqli.dll",
+    "php_openssl.dll",
+    "php_pdo_mysql.dll",
+    "php_pdo_sqlite.dll",
+    "php_sqlite3.dll",
+    "php_zip.dll"
+  ],
+  "phpSettings": {
+    "upload_max_filesize": "32M",
+    "max_input_vars": "3000",
+    "display_errors": "On",
+    "expose_php": "Off",
+    "memory_limit": "256M",
+    "max_execution_time": "120",
+    "short_open_tag": "Off",
+    "post_max_size": "32M",
+    "log_errors": "On",
+    "error_reporting": "E_ALL"
+  },
+  "vhosts": [
+    {
+      "serverName": "test1",
+      "documentRoot": "D:\\ketan\\github\\uniservernxt\\uniwamp\\www\\test1",
+      "enableSsl": false
+    },
+    {
+      "serverName": "alliancelifescience.com",
+      "documentRoot": "D:\\ketan\\github\\uniservernxt\\uniwamp\\www\\alliancelifescience.com",
+      "enableSsl": false
+    }
+  ]
+}

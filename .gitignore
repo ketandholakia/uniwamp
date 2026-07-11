@@ -1,0 +1,25 @@
+# Source control: keep the repository lean and reproducible.
+/bin/
+/runtime/
+/logs/*
+!/logs/.gitkeep
+/tmp/*
+!/tmp/.gitkeep
+
+# Third-party dashboard template artifacts.
+/tailadmin-free-tailwind-dashboard-template-main/node_modules/
+/tailadmin-free-tailwind-dashboard-template-main/build/
+
+# Common generated files.
+*.exe
+*.dll
+*.dcu
+*.bpl
+*.obj
+*.o
+*.tmp
+*.log
+*.pid
+*.identcache
+*.local
+*.~*
