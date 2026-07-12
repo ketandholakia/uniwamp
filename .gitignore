@@ -13,6 +13,9 @@
 /tailadmin-free-tailwind-dashboard-template-main/build/
 /installer/Output/
 
+# Generated website worktrees under www/
+/www/*/
+
 # ============================================================
 # Delphi / RAD Studio
 # ============================================================
