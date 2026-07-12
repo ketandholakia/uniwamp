@@ -25,14 +25,14 @@ object MainForm: TMainForm
     object Label18: TPanel
       Left = 17
       Top = 4
-      Width = 103
-      Height = 25
+      Width = 200
+      Height = 34
       BevelOuter = bvNone
-      Caption = 'UniWamp'
+      Caption = 'UNIWAMP'
       Color = 6229470
       Font.Charset = DEFAULT_CHARSET
       Font.Color = clWhite
-      Font.Height = -19
+      Font.Height = -24
       Font.Name = 'Segoe UI'
       Font.Style = [fsBold]
       ParentBackground = False

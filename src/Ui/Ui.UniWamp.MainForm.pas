@@ -9,11 +9,13 @@ uses
   System.Generics.Collections,
   System.SysUtils,
   System.Types,
+  Vcl.Imaging.pngimage,
   Vcl.Controls,
   Vcl.ExtCtrls,
   Vcl.Forms,
   Vcl.Graphics,
   Vcl.Grids,
+  Vcl.ImgList,
   Vcl.Menus,
   Vcl.StdCtrls,
   Vcl.ComCtrls,
@@ -23,6 +25,14 @@ uses
   Core.UniWamp.Runtime;
 
 type
+  THeaderStatusCard = record
+    Panel: TPanel;
+    Dot: TShape;
+    Title: TLabel;
+    Detail1: TLabel;
+    Detail2: TLabel;
+  end;
+
   TServiceMenuSet = record
     StartItem: TMenuItem;
     StopItem: TMenuItem;
@@ -103,9 +113,9 @@ type
     FTrayIcon: TTrayIcon;
     FMainApacheMenu: TServiceMenuSet;
     FMainPhpMenu: TMenuItem;
-    FMainMariaMenu: TServiceMenuSet;
-    FTrayApacheMenu: TServiceMenuSet;
-    FTrayMariaMenu: TServiceMenuSet;
+  FMainMariaMenu: TServiceMenuSet;
+  FTrayApacheMenu: TServiceMenuSet;
+  FTrayMariaMenu: TServiceMenuSet;
     FMainPhpVersionItems: TList<TMenuItem>;
     FMainPhpProfileItems: TList<TMenuItem>;
     FMainWindowToggleItem: TMenuItem;
@@ -119,6 +129,10 @@ type
     FMainAutoStartItem: TMenuItem;
     FTrayAutoStartItem: TMenuItem;
     FStatusRefreshTimer: TTimer;
+    FIconDir: string;
+    FIconCache: TObjectDictionary<string, TPngImage>;
+    FMenuImages: TImageList;
+    FMenuIconIndices: TDictionary<string, Integer>;
     FHttpPortOwnerLabel: TLabel;
     FHttpsPortOwnerLabel: TLabel;
     FDbPortOwnerLabel: TLabel;
@@ -130,9 +144,25 @@ type
     FActivityCard: TPanel;
     FActivityLabel: TPanel;
     FActivityMemo: TMemo;
+    FHeaderLogo: TImage;
+    FHeaderCards: array[0..2] of THeaderStatusCard;
     procedure FormCreate(Sender: TObject);
+    procedure FormResize(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure BuildMenus;
+    function IconFileName(const IconName: string): string;
+    function LoadIconGraphic(const IconName: string): TPngImage;
+    function LoadTintedIconBitmap(const IconName: string; const IconColor: TColor;
+      const IconSize: Integer = 24): TBitmap;
+    function GetButtonTextLabel(Button: TPanel): TLabel;
+    procedure SetButtonCaption(Button: TPanel; const CaptionText: string);
+    procedure UpdateButtonIcons(Button: TPanel; const IconColor: TColor);
+    procedure ApplyPanelIcon(Button: TPanel; const IconName: string; const IconSize: Integer = 14);
+    procedure ApplyMenuIcon(Item: TMenuItem; const IconName: string);
+    procedure DrawIconInRect(Canvas: TCanvas; const IconName: string; const Bounds: TRect;
+      const IconSize: Integer);
+    procedure CreateHeaderStatusCards;
+    procedure LayoutDashboard;
     procedure PhpVersionMenuClick(Sender: TObject);
     procedure PhpProfileMenuClick(Sender: TObject);
     procedure LoadStateIntoUi;
@@ -140,6 +170,8 @@ type
     procedure AppendStatus(const Text: string);
     procedure RefreshStatus;
     procedure UpdateHeaderStateColors;
+    procedure UpdateHeaderStatusCards;
+    procedure CreateHeaderLogo;
     procedure UpdateServiceButtonState;
     procedure UpdateDashboardLabels;
     procedure UpdatePortConflictLabels;
@@ -226,20 +258,384 @@ uses
 
 {$R *.dfm}
 
+const
+  AppBackgroundColor = $00FAF7F4;
+  HeaderOnlineColor = $006E760F;
+  HeaderOfflineColor = $005F3A1E;
+  HeaderTextColor = clWhite;
+  HeaderSubTextColor = $00EFE7D4;
+  ButtonNeutralColor = $00F7F5F3;
+  ButtonMutedTextColor = clGrayText;
+  ButtonPositiveColor = $00EBF8E7;
+  ButtonNegativeColor = $00E8E8FD;
+  ButtonWarningColor = $00CCF2FF;
+  ButtonAccentColor = $00FFF2EA;
+  ButtonDangerStrongColor = $003E3ED6;
+  ButtonSuccessStrongColor = $0043A02E;
+  GridHeaderColor = $00F7F2ED;
+  GridStripeColor = $00FEFCFA;
+  GridSelectionColor = $00FFF3E9;
+  PanelIconSize = 13;
+  PanelIconLeft = 9;
+  MenuIconSize = 14;
+  HeaderLogoWidth = 236;
+  HeaderLogoHeight = 34;
+
+function IsDarkColor(const AColor: TColor): Boolean; forward;
+
+procedure StylePanelButton(Button: TPanel; const Enabled: Boolean; const ActiveColor: TColor;
+  const DisabledColor: TColor; const ActiveTextColor: TColor = clWindowText);
+var
+  TextLabel: TLabel;
+  IconColor: TColor;
+begin
+  if (Button.Tag <> 0) and TObject(Button.Tag).InheritsFrom(TLabel) then
+    TextLabel := TLabel(Button.Tag)
+  else
+    TextLabel := nil;
+
+  if Enabled then
+  begin
+    Button.Cursor := crHandPoint;
+    Button.Color := ActiveColor;
+    Button.Font.Color := ActiveTextColor;
+    if Assigned(TextLabel) then
+      TextLabel.Font.Color := ActiveTextColor;
+    if IsDarkColor(ActiveColor) then
+      IconColor := clWhite
+    else
+      IconColor := $00333333;
+  end
+  else
+  begin
+    Button.Cursor := crDefault;
+    Button.Color := DisabledColor;
+    Button.Font.Color := ButtonMutedTextColor;
+    if Assigned(TextLabel) then
+      TextLabel.Font.Color := ButtonMutedTextColor;
+    if IsDarkColor(DisabledColor) then
+      IconColor := clWhite
+    else
+      IconColor := $00333333;
+  end;
+
+  if Assigned(Button.Owner) and (Button.Owner is TMainForm) then
+    TMainForm(Button.Owner).UpdateButtonIcons(Button, IconColor);
+end;
+
+procedure StyleLinkButton(Button: TPanel; const Enabled: Boolean);
+var
+  TextLabel: TLabel;
+begin
+  if (Button.Tag <> 0) and TObject(Button.Tag).InheritsFrom(TLabel) then
+    TextLabel := TLabel(Button.Tag)
+  else
+    TextLabel := nil;
+
+  if Enabled then
+  begin
+    Button.Cursor := crHandPoint;
+    Button.Color := clWhite;
+    Button.Font.Color := $B0003A;
+    if Assigned(TextLabel) then
+      TextLabel.Font.Color := $B0003A;
+  end
+  else
+  begin
+    Button.Cursor := crDefault;
+    Button.Color := clWhite;
+    Button.Font.Color := ButtonMutedTextColor;
+    if Assigned(TextLabel) then
+      TextLabel.Font.Color := ButtonMutedTextColor;
+  end;
+end;
+
+function IsDarkColor(const AColor: TColor): Boolean;
+var
+  RgbColor: TColorRef;
+  RedValue: Integer;
+  GreenValue: Integer;
+  BlueValue: Integer;
+begin
+  RgbColor := ColorToRGB(AColor);
+  RedValue := GetRValue(RgbColor);
+  GreenValue := GetGValue(RgbColor);
+  BlueValue := GetBValue(RgbColor);
+  Result := ((RedValue * 299) + (GreenValue * 587) + (BlueValue * 114)) < (128 * 1000);
+end;
+
+procedure TintBitmap(Bitmap: TBitmap; const IconColor: TColor);
+var
+  Y: Integer;
+  X: Integer;
+  Line: PRGBQuad;
+  RgbColor: TColorRef;
+begin
+  if Bitmap.PixelFormat <> pf32bit then
+    Bitmap.PixelFormat := pf32bit;
+  Bitmap.AlphaFormat := afDefined;
+  RgbColor := ColorToRGB(IconColor);
+  for Y := 0 to Bitmap.Height - 1 do
+  begin
+    Line := Bitmap.ScanLine[Y];
+    for X := 0 to Bitmap.Width - 1 do
+    begin
+      if Line.rgbReserved <> 0 then
+      begin
+        Line.rgbBlue := GetBValue(RgbColor);
+        Line.rgbGreen := GetGValue(RgbColor);
+        Line.rgbRed := GetRValue(RgbColor);
+      end;
+      Inc(Line);
+    end;
+  end;
+end;
+
+function FindHeaderLogoFile(const RootDir: string): string;
+var
+  Candidate: string;
+begin
+  Result := '';
+  Candidate := TPath.Combine(TPath.Combine(RootDir, 'src'), 'assets');
+  Candidate := TPath.Combine(Candidate, 'uniwampheader.png');
+  if FileExists(Candidate) then
+    Exit(Candidate);
+
+  Candidate := TPath.Combine(TPath.Combine(RootDir, 'assets'), 'uniwampheader.png');
+  if FileExists(Candidate) then
+    Exit(Candidate);
+end;
+
+function NormalizeMaterialIconName(const IconName: string): string;
+begin
+  if SameText(IconName, 'restart') then
+    Result := 'restart_alt'
+  else if SameText(IconName, 'build') then
+    Result := 'settings'
+  else if SameText(IconName, 'view_quilt') then
+    Result := 'settings'
+  else if SameText(IconName, 'logout') then
+    Result := 'cancel'
+  else if SameText(IconName, 'help_outline') then
+    Result := 'warning'
+  else if SameText(IconName, 'info') then
+    Result := 'warning'
+  else if SameText(IconName, 'database') then
+    Result := 'database'
+  else
+    Result := IconName;
+end;
+
+function TMainForm.IconFileName(const IconName: string): string;
+var
+  NormalizedName: string;
+  Candidate: string;
+  Files: TArray<string>;
+  FileName: string;
+begin
+  Result := '';
+  if FIconDir = '' then
+    Exit;
+
+  NormalizedName := NormalizeMaterialIconName(IconName);
+  Candidate := TPath.Combine(FIconDir, NormalizedName + '.png');
+  if FileExists(Candidate) then
+    Exit(Candidate);
+
+  Candidate := TPath.Combine(FIconDir, NormalizedName + '_24dp_1F1F1F_FILL1_wght500_GRAD0_opsz24.png');
+  if FileExists(Candidate) then
+    Exit(Candidate);
+
+  Files := TDirectory.GetFiles(FIconDir, NormalizedName + '*.png');
+  for FileName in Files do
+    if Pos('(1)', ExtractFileName(FileName)) = 0 then
+      Exit(FileName);
+  if Length(Files) > 0 then
+    Result := Files[0];
+end;
+
+function TMainForm.LoadIconGraphic(const IconName: string): TPngImage;
+var
+  FileName: string;
+begin
+  Result := nil;
+  if not Assigned(FIconCache) then
+    Exit;
+
+  if FIconCache.TryGetValue(IconName, Result) then
+    Exit;
+
+  FileName := IconFileName(IconName);
+  if FileName = '' then
+    Exit;
+
+  Result := TPngImage.Create;
+  Result.LoadFromFile(FileName);
+  FIconCache.Add(IconName, Result);
+end;
+
+function TMainForm.LoadTintedIconBitmap(const IconName: string; const IconColor: TColor;
+  const IconSize: Integer): TBitmap;
+var
+  Png: TPngImage;
+begin
+  Result := TBitmap.Create;
+  Result.SetSize(IconSize, IconSize);
+  Png := LoadIconGraphic(IconName);
+  if Assigned(Png) then
+    Png.AssignTo(Result);
+  Result.PixelFormat := pf32bit;
+  TintBitmap(Result, IconColor);
+end;
+
+procedure TMainForm.UpdateButtonIcons(Button: TPanel; const IconColor: TColor);
+var
+  Index: Integer;
+  ImageControl: TImage;
+  IconBitmap: TBitmap;
+begin
+  for Index := 0 to Button.ControlCount - 1 do
+    if Button.Controls[Index] is TImage then
+    begin
+      ImageControl := TImage(Button.Controls[Index]);
+      if ImageControl.Hint <> '' then
+      begin
+        IconBitmap := LoadTintedIconBitmap(ImageControl.Hint, IconColor, ImageControl.Width);
+        try
+          ImageControl.Picture.Bitmap.Assign(IconBitmap);
+        finally
+          IconBitmap.Free;
+        end;
+      end;
+    end;
+end;
+
+function TMainForm.GetButtonTextLabel(Button: TPanel): TLabel;
+begin
+  if (Button.Tag <> 0) and TObject(Button.Tag).InheritsFrom(TLabel) then
+    Result := TLabel(Button.Tag)
+  else
+    Result := nil;
+end;
+
+procedure TMainForm.SetButtonCaption(Button: TPanel; const CaptionText: string);
+var
+  TextLabel: TLabel;
+begin
+  TextLabel := GetButtonTextLabel(Button);
+  if Assigned(TextLabel) then
+    TextLabel.Caption := CaptionText
+  else
+    Button.Caption := CaptionText;
+end;
+
+procedure TMainForm.ApplyPanelIcon(Button: TPanel; const IconName: string; const IconSize: Integer);
+var
+  IconImage: TImage;
+  TextLabel: TLabel;
+  Png: TPngImage;
+begin
+  Png := LoadIconGraphic(IconName);
+  if not Assigned(Png) then
+    Exit;
+
+  if Button.Tag = 0 then
+  begin
+    TextLabel := TLabel.Create(Button);
+    TextLabel.Parent := Button;
+    TextLabel.AutoSize := False;
+    TextLabel.Transparent := True;
+    TextLabel.Left := IconSize + 10;
+    TextLabel.Top := 0;
+    TextLabel.Width := Button.Width - TextLabel.Left - 8;
+    TextLabel.Height := Button.Height;
+    TextLabel.Font.Assign(Button.Font);
+    TextLabel.Caption := Button.Caption;
+    TextLabel.Alignment := taLeftJustify;
+    TextLabel.Layout := tlCenter;
+    TextLabel.WordWrap := False;
+    TextLabel.Tag := 0;
+    Button.Tag := NativeInt(TextLabel);
+  end
+  else
+  begin
+    TextLabel := GetButtonTextLabel(Button);
+    if Assigned(TextLabel) then
+    begin
+      TextLabel.Left := IconSize + 14;
+      TextLabel.Width := Button.Width - TextLabel.Left - 8;
+      TextLabel.Height := Button.Height;
+    end;
+  end;
+
+  Button.Caption := '';
+  IconImage := TImage.Create(Button);
+  IconImage.Parent := Button;
+  IconImage.SetBounds(PanelIconLeft, (Button.Height - IconSize) div 2, IconSize, IconSize);
+  IconImage.Stretch := True;
+  IconImage.Proportional := True;
+  IconImage.Center := True;
+  IconImage.Transparent := True;
+  IconImage.Hint := IconName;
+  IconImage.ShowHint := False;
+  if IsDarkColor(Button.Color) then
+    IconImage.Picture.Bitmap.Assign(LoadTintedIconBitmap(IconName, clWhite, IconSize))
+  else
+    IconImage.Picture.Bitmap.Assign(LoadTintedIconBitmap(IconName, $00333333, IconSize));
+  IconImage.SendToBack;
+end;
+
+procedure TMainForm.ApplyMenuIcon(Item: TMenuItem; const IconName: string);
+begin
+  Item.Bitmap.Assign(LoadTintedIconBitmap(IconName, $00333333, MenuIconSize));
+  Item.ImageIndex := -1;
+end;
+
+procedure TMainForm.DrawIconInRect(Canvas: TCanvas; const IconName: string; const Bounds: TRect;
+  const IconSize: Integer);
+var
+  Png: TPngImage;
+  DrawRect: TRect;
+  LeftPos: Integer;
+  TopPos: Integer;
+begin
+  Png := LoadIconGraphic(IconName);
+  if not Assigned(Png) then
+    Exit;
+
+  LeftPos := Bounds.Left + ((Bounds.Width - IconSize) div 2);
+  TopPos := Bounds.Top + ((Bounds.Height - IconSize) div 2);
+  DrawRect := Rect(LeftPos, TopPos, LeftPos + IconSize, TopPos + IconSize);
+  Canvas.StretchDraw(DrawRect, Png);
+end;
+
 constructor TMainForm.Create(AOwner: TComponent);
+var
+  PathsMigrated: Boolean;
 begin
   inherited Create(AOwner);
   OnCreate := FormCreate;
   OnShow := FormShow;
   Caption := 'UniWamp';
- // Width := 1180;
- // Height := 760;
+  Width := 1450;
+  Height := 1020;
+  Constraints.MinWidth := 1200;
+  Constraints.MinHeight := 800;
   Position := poScreenCenter;
   FPaths := TAppPaths.Detect;
   EnsurePortableLayout(FPaths);
+  FIconDir := TPath.Combine(TPath.Combine(FPaths.AppRoot, 'src'), 'assets');
+  FIconDir := TPath.Combine(FIconDir, 'icons');
+  if not TDirectory.Exists(FIconDir) then
+  begin
+    FIconDir := TPath.Combine(FPaths.AppRoot, 'assets');
+    FIconDir := TPath.Combine(FIconDir, 'icons');
+  end;
+  FIconCache := TObjectDictionary<string, TPngImage>.Create([doOwnsValues]);
+  FMenuIconIndices := TDictionary<string, Integer>.Create;
   FConfig := TUniWampConfig.Create;
-  FConfig.LoadOrCreate(FPaths);
   FRuntime := TUniWampRuntime.Create(FPaths, FConfig);
+  PathsMigrated := FConfig.LoadOrCreate(FPaths);
   FMainPhpVersionItems := TList<TMenuItem>.Create;
   FMainPhpProfileItems := TList<TMenuItem>.Create;
   FLastHttpPortChecked := -1;
@@ -248,6 +644,13 @@ begin
   FLastActivityLogWriteTime := 0;
   FRuntime.SyncPhpVersions;
   FRuntime.SyncNodeVersions;
+  if PathsMigrated then
+  begin
+    FConfig.Save(FPaths);
+    FRuntime.GenerateAllConfigs;
+  end;
+  if FConfig.LastMigrationMessage <> '' then
+    AppendStatus(FConfig.LastMigrationMessage);
   FStatusRefreshTimer := TTimer.Create(Self);
   FStatusRefreshTimer.Interval := 4000;
   FStatusRefreshTimer.OnTimer := StatusRefreshTimer;
@@ -256,6 +659,31 @@ end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
 begin
+  DoubleBuffered := True;
+  Color := AppBackgroundColor;
+  OnResize := FormResize;
+  HeaderPanel.DoubleBuffered := True;
+  MainPanel.DoubleBuffered := True;
+  LeftPanel.DoubleBuffered := True;
+  RightPanel.DoubleBuffered := True;
+  StatusBar.Color := RGB(248, 250, 252);
+  StatusBar.Font.Color := RGB(55, 65, 81);
+  HeaderPanel.Color := HeaderOfflineColor;
+  Label18.Color := HeaderOfflineColor;
+  Label19.Color := HeaderOfflineColor;
+  Label18.Visible := False;
+  Label19.Width := 460;
+  Label19.Left := 18;
+  Label19.Top := 28;
+  Label19.Alignment := taLeftJustify;
+  Label19.Font.Color := HeaderSubTextColor;
+  Label19.Caption := 'Portable WAMP dashboard for local development';
+  MainPanel.Color := AppBackgroundColor;
+  LeftPanel.Color := AppBackgroundColor;
+  RightPanel.Color := AppBackgroundColor;
+  HeaderPanel.Height := 102;
+  CreateHeaderLogo;
+  CreateHeaderStatusCards;
   CreatePortConflictLabels;
   CreateActivityLogPanel;
   ApacheStartButton.OnClick := ApacheStartClick;
@@ -285,6 +713,55 @@ begin
   EditHttpdConfButton.OnClick := EditHttpdConfClick;
   EditMariaDbIniButton.OnClick := EditMariaDbIniClick;
   stopbutton.OnClick := StopButtonClick;
+  StyleLinkButton(ClearApacheLogButton, True);
+  StyleLinkButton(ClearMariaLogButton, True);
+  StyleLinkButton(ClearActivityLogButton, True);
+  StyleLinkButton(Label20, True);
+  exitbutton.Color := $00FFD3D3;
+  exitbutton.Font.Color := $00603030;
+  ApplyPanelIcon(ApacheStartButton, 'play_arrow');
+  ApplyPanelIcon(ApacheStopButton, 'stop');
+  ApplyPanelIcon(ApacheRestartButton, 'restart_alt');
+  ApplyPanelIcon(MariaStartButton, 'play_arrow');
+  ApplyPanelIcon(MariaStopButton, 'stop');
+  ApplyPanelIcon(MariaRestartButton, 'restart_alt');
+  ApplyPanelIcon(GenerateSslButton, 'lock');
+  ApplyPanelIcon(LaunchSiteButton, 'open_in_new');
+  ApplyPanelIcon(LaunchDashboardButton, 'language');
+  ApplyPanelIcon(LaunchTerminalButton, 'terminal');
+  ApplyPanelIcon(SaveConfigButton, 'save');
+  ApplyPanelIcon(exitbutton, 'logout');
+  ApplyPanelIcon(AddVHostButton, 'add');
+  ApplyPanelIcon(OpenVHostButton, 'open_in_new');
+  ApplyPanelIcon(OpenVHostFolderButton, 'folder_open');
+  ApplyPanelIcon(CopyVHostUrlButton, 'content_copy');
+  ApplyPanelIcon(DeleteVHostButton, 'delete');
+  ApplyPanelIcon(OpenApacheLogButton, 'terminal');
+  ApplyPanelIcon(OpenMariaLogButton, 'database');
+  ApplyPanelIcon(ClearApacheLogButton, 'delete_sweep');
+  ApplyPanelIcon(ClearMariaLogButton, 'delete_sweep');
+  ApplyPanelIcon(ClearActivityLogButton, 'delete_sweep');
+  ApplyPanelIcon(EditPhpIniButton, 'code');
+  ApplyPanelIcon(EditHttpdConfButton, 'web');
+  ApplyPanelIcon(EditMariaDbIniButton, 'database');
+  SetButtonCaption(LaunchSiteButton, 'Home');
+  SetButtonCaption(LaunchDashboardButton, 'Dashboard');
+  SetButtonCaption(LaunchTerminalButton, 'Terminal');
+  SetButtonCaption(SaveConfigButton, 'Save Config');
+  SetButtonCaption(GenerateSslButton, 'Generate SSL');
+  SetButtonCaption(OpenApacheLogButton, 'Apache Log');
+  SetButtonCaption(OpenMariaLogButton, 'MariaDB Log');
+  SetButtonCaption(ClearApacheLogButton, 'Clear Apache');
+  SetButtonCaption(ClearMariaLogButton, 'Clear MariaDB');
+  SetButtonCaption(ClearActivityLogButton, 'Clear activity');
+  SetButtonCaption(AddVHostButton, 'Add');
+  SetButtonCaption(OpenVHostButton, 'Open Selected');
+  SetButtonCaption(OpenVHostFolderButton, 'Open Root');
+  SetButtonCaption(CopyVHostUrlButton, 'Copy URL');
+  SetButtonCaption(DeleteVHostButton, 'Delete Selected');
+  SetButtonCaption(EditPhpIniButton, 'php.ini');
+  SetButtonCaption(EditHttpdConfButton, 'httpd.conf');
+  SetButtonCaption(EditMariaDbIniButton, 'mariadb.ini');
   BuildMenus;
   Menu := FMainMenu;
   if HandleAllocated then
@@ -292,18 +769,24 @@ begin
   VHostGrid.DefaultDrawing := False;
   VHostGrid.OnDrawCell := VHostGridDrawCell;
   VHostGrid.OnMouseUp := VHostGridMouseUp;
+  VHostGrid.Font.Name := 'Segoe UI';
+  VHostGrid.Font.Size := 9;
+  VHostGrid.FixedColor := GridHeaderColor;
+  VHostGrid.Color := clWhite;
   VHostGrid.ColCount := 4;
   VHostGrid.FixedRows := 1;
   VHostGrid.RowCount := 2;
+  VHostGrid.DefaultRowHeight := 30;
   VHostGrid.Cells[0, 0] := 'Site Name';
   VHostGrid.Cells[1, 0] := 'Document Path';
   VHostGrid.Cells[2, 0] := 'URL';
   VHostGrid.Cells[3, 0] := 'Actions';
   VHostGrid.ColWidths[0] := 110;
-  VHostGrid.ColWidths[1] := 260;
-  VHostGrid.ColWidths[2] := 140;
+  VHostGrid.ColWidths[1] := 262;
+  VHostGrid.ColWidths[2] := 152;
   VHostGrid.ColWidths[3] := 170;
   LoadStateIntoUi;
+  LayoutDashboard;
   RefreshStatus;
   OnCloseQuery := FormCloseQuery;
 end;
@@ -315,7 +798,7 @@ begin
   FActivityCard.Left := 6;
   FActivityCard.Top := 435;
   FActivityCard.Width := 743;
-  FActivityCard.Height := 63;
+  FActivityCard.Height := 76;
   FActivityCard.BevelKind := bkTile;
   FActivityCard.BevelOuter := bvNone;
   FActivityCard.Color := clWhite;
@@ -340,16 +823,174 @@ begin
   FActivityMemo.Left := 10;
   FActivityMemo.Top := 26;
   FActivityMemo.Width := 721;
-  FActivityMemo.Height := 29;
+  FActivityMemo.Height := 40;
   FActivityMemo.ReadOnly := True;
   FActivityMemo.ScrollBars := ssVertical;
   FActivityMemo.WordWrap := False;
-  FActivityMemo.BorderStyle := bsNone;
-  FActivityMemo.Color := RGB(250, 252, 255);
+  FActivityMemo.BorderStyle := bsSingle;
+  FActivityMemo.Color := $FBFDFF;
   FActivityMemo.Font.Name := 'Consolas';
   FActivityMemo.Font.Size := 9;
   FActivityMemo.TabStop := False;
   FActivityMemo.Anchors := [akLeft, akTop, akRight, akBottom];
+end;
+
+procedure TMainForm.CreateHeaderLogo;
+var
+  LogoFile: string;
+begin
+  FHeaderLogo := TImage.Create(Self);
+  FHeaderLogo.Parent := HeaderPanel;
+  FHeaderLogo.Left := 14;
+  FHeaderLogo.Top := 8;
+  FHeaderLogo.Width := HeaderLogoWidth;
+  FHeaderLogo.Height := HeaderLogoHeight;
+  FHeaderLogo.Stretch := True;
+  FHeaderLogo.Proportional := True;
+  FHeaderLogo.Center := False;
+  FHeaderLogo.Transparent := True;
+  FHeaderLogo.Anchors := [akLeft, akTop];
+
+  LogoFile := FindHeaderLogoFile(FPaths.AppRoot);
+  if LogoFile <> '' then
+    FHeaderLogo.Picture.LoadFromFile(LogoFile);
+end;
+
+procedure TMainForm.CreateHeaderStatusCards;
+const
+  CardTitles: array[0..2] of string = ('Apache', 'PHP', 'MariaDB');
+var
+  I: Integer;
+begin
+  for I := Low(FHeaderCards) to High(FHeaderCards) do
+  begin
+    FHeaderCards[I].Panel := TPanel.Create(Self);
+    FHeaderCards[I].Panel.Parent := HeaderPanel;
+    FHeaderCards[I].Panel.BevelOuter := bvNone;
+    FHeaderCards[I].Panel.Color := HeaderOfflineColor;
+    FHeaderCards[I].Panel.ParentBackground := False;
+    FHeaderCards[I].Panel.DoubleBuffered := True;
+    FHeaderCards[I].Panel.Anchors := [akTop, akRight];
+
+    FHeaderCards[I].Dot := TShape.Create(Self);
+    FHeaderCards[I].Dot.Parent := FHeaderCards[I].Panel;
+    FHeaderCards[I].Dot.Shape := stCircle;
+    FHeaderCards[I].Dot.Pen.Style := psClear;
+    FHeaderCards[I].Dot.Brush.Color := RGB(180, 225, 48);
+    FHeaderCards[I].Dot.Left := 15;
+    FHeaderCards[I].Dot.Top := 16;
+    FHeaderCards[I].Dot.Width := 10;
+    FHeaderCards[I].Dot.Height := 10;
+
+    FHeaderCards[I].Title := TLabel.Create(Self);
+    FHeaderCards[I].Title.Parent := FHeaderCards[I].Panel;
+    FHeaderCards[I].Title.Left := 30;
+    FHeaderCards[I].Title.Top := 10;
+    FHeaderCards[I].Title.Font.Name := 'Segoe UI';
+    FHeaderCards[I].Title.Font.Size := 11;
+    FHeaderCards[I].Title.Font.Style := [fsBold];
+    FHeaderCards[I].Title.Font.Color := clWhite;
+    FHeaderCards[I].Title.Transparent := True;
+    FHeaderCards[I].Title.Caption := CardTitles[I];
+
+    FHeaderCards[I].Detail1 := TLabel.Create(Self);
+    FHeaderCards[I].Detail1.Parent := FHeaderCards[I].Panel;
+    FHeaderCards[I].Detail1.Left := 30;
+    FHeaderCards[I].Detail1.Top := 31;
+    FHeaderCards[I].Detail1.Font.Name := 'Segoe UI';
+    FHeaderCards[I].Detail1.Font.Size := 10;
+    FHeaderCards[I].Detail1.Font.Color := HeaderTextColor;
+    FHeaderCards[I].Detail1.Transparent := True;
+
+    FHeaderCards[I].Detail2 := TLabel.Create(Self);
+    FHeaderCards[I].Detail2.Parent := FHeaderCards[I].Panel;
+    FHeaderCards[I].Detail2.Left := 30;
+    FHeaderCards[I].Detail2.Top := 49;
+    FHeaderCards[I].Detail2.Font.Name := 'Segoe UI';
+    FHeaderCards[I].Detail2.Font.Size := 10;
+    FHeaderCards[I].Detail2.Font.Color := HeaderTextColor;
+    FHeaderCards[I].Detail2.Transparent := True;
+  end;
+end;
+
+procedure TMainForm.LayoutDashboard;
+var
+  CardWidth: Integer;
+  CardGap: Integer;
+  CardTop: Integer;
+  RightEdge: Integer;
+  GridWidth: Integer;
+  AvailableGridColumns: Integer;
+begin
+  HeaderPanel.Height := 102;
+  if Assigned(FHeaderLogo) then
+  begin
+    FHeaderLogo.Left := 14;
+    FHeaderLogo.Top := 8;
+    FHeaderLogo.Width := HeaderLogoWidth;
+    FHeaderLogo.Height := HeaderLogoHeight;
+  end;
+  Label19.Left := 20;
+  Label19.Top := 50;
+
+  LeftPanel.Width := 355;
+  ActionsCard.Left := 10;
+  ActionsCard.Top := 11;
+  ActionsCard.Width := LeftPanel.Width - 20;
+  ActionsCard.Height := LeftPanel.Height - 22;
+
+  GroupBox1.Left := 12;
+  GroupBox1.Width := ActionsCard.Width - 24;
+  GroupBox2.Left := 12;
+  GroupBox2.Width := ActionsCard.Width - 24;
+  Panel1.Left := 12;
+  Panel1.Width := ActionsCard.Width - 24;
+  Panel3.Left := 12;
+  Panel3.Width := ActionsCard.Width - 24;
+  VHostCard.SetBounds(6, 11, RightPanel.Width - 14, 446);
+  Panel4.Visible := False;
+  FActivityCard.SetBounds(6, VHostCard.Top + VHostCard.Height + 12, RightPanel.Width - 14, 156);
+  Panel5.SetBounds(6, FActivityCard.Top + FActivityCard.Height + 12, RightPanel.Width - 14, 64);
+  VHostGrid.Width := VHostCard.Width - 32;
+  FActivityMemo.Width := FActivityCard.Width - 22;
+
+  GridWidth := VHostGrid.ClientWidth;
+  VHostGrid.ColWidths[0] := 110;
+  VHostGrid.ColWidths[2] := 160;
+  VHostGrid.ColWidths[3] := 160;
+  AvailableGridColumns := GridWidth - VHostGrid.ColWidths[0] - VHostGrid.ColWidths[2] - VHostGrid.ColWidths[3];
+  if AvailableGridColumns < 250 then
+    AvailableGridColumns := 250;
+  VHostGrid.ColWidths[1] := AvailableGridColumns;
+  if VHostGrid.ColWidths[1] + VHostGrid.ColWidths[0] + VHostGrid.ColWidths[2] + VHostGrid.ColWidths[3] > GridWidth then
+    VHostGrid.ColWidths[1] := GridWidth - VHostGrid.ColWidths[0] - VHostGrid.ColWidths[2] - VHostGrid.ColWidths[3];
+  if VHostGrid.ColWidths[1] < 1 then
+    VHostGrid.ColWidths[1] := 1;
+
+  startbutton.Left := 12;
+  startbutton.Width := 120;
+  stopbutton.Left := startbutton.Left + startbutton.Width + 10;
+  stopbutton.Width := 120;
+  exitbutton.Width := 120;
+  exitbutton.Left := Panel5.Width - exitbutton.Width - 12;
+
+  CardWidth := 170;
+  CardGap := 18;
+  CardTop := 18;
+  RightEdge := HeaderPanel.Width - 20;
+
+  FHeaderCards[2].Panel.SetBounds(RightEdge - CardWidth, CardTop, CardWidth, 66);
+  FHeaderCards[1].Panel.SetBounds(FHeaderCards[2].Panel.Left - CardGap - CardWidth, CardTop, CardWidth, 66);
+  FHeaderCards[0].Panel.SetBounds(FHeaderCards[1].Panel.Left - CardGap - CardWidth, CardTop, CardWidth, 66);
+  FHeaderCards[0].Panel.Visible := True;
+  FHeaderCards[1].Panel.Visible := True;
+  FHeaderCards[2].Panel.Visible := True;
+end;
+
+procedure TMainForm.FormResize(Sender: TObject);
+begin
+  if HandleAllocated then
+    LayoutDashboard;
 end;
 
 procedure TMainForm.CreatePortConflictLabels;
@@ -415,8 +1056,15 @@ var
 begin
   FMainMenu := TMainMenu.Create(Self);
   Menu := FMainMenu;
+  FMenuImages := TImageList.Create(Self);
+  FMenuImages.Width := MenuIconSize;
+  FMenuImages.Height := MenuIconSize;
+  FMenuImages.ColorDepth := cd32Bit;
+  FMenuImages.Masked := False;
+  FMainMenu.Images := FMenuImages;
 
   MenuItem := AddItem(FMainMenu.Items, '&File');
+  ApplyMenuIcon(MenuItem, 'folder');
   Item := AddItem(MenuItem, '&Save Config', SaveConfigClick);
   Item.ShortCut := ShortCut(Ord('S'), [ssCtrl]);
   Item := AddItem(MenuItem, '&Generate SSL', GenerateSslClick);
@@ -427,6 +1075,7 @@ begin
   FMainExitItem := AddItem(MenuItem, 'E&xit', ExitButtonClick);
 
   MenuItem := AddItem(FMainMenu.Items, '&Apache');
+  ApplyMenuIcon(MenuItem, 'dns');
   FMainApacheMenu.StartItem := AddItem(MenuItem, 'Apache &Start', ApacheStartClick);
   FMainApacheMenu.StartItem.ShortCut := ShortCut(VK_F5, []);
   FMainApacheMenu.StopItem := AddItem(MenuItem, 'Apache S&top', ApacheStopClick);
@@ -451,6 +1100,7 @@ begin
   FMainStopAllItem.ShortCut := ShortCut(VK_F12, []);
 
   FMainPhpMenu := AddItem(FMainMenu.Items, '&PHP');
+  ApplyMenuIcon(FMainPhpMenu, 'code');
   Item := AddItem(FMainPhpMenu, '&Version');
   FMainPhpVersionItems.Clear;
   for VersionName in FConfig.PhpVersions do
@@ -484,6 +1134,7 @@ begin
   Item.ShortCut := ShortCut(Ord('S'), [ssCtrl]);
 
   MenuItem := AddItem(FMainMenu.Items, '&MariaDB');
+  ApplyMenuIcon(MenuItem, 'database');
   FMainMariaMenu.StartItem := AddItem(MenuItem, 'MariaDB S&tart', MariaDbStartClick);
   FMainMariaMenu.StartItem.ShortCut := ShortCut(VK_F8, []);
   FMainMariaMenu.StopItem := AddItem(MenuItem, 'MariaDB St&op', MariaDbStopClick);
@@ -501,6 +1152,7 @@ begin
   Item.ShortCut := ShortCut(Ord('K'), [ssCtrl]);
 
   MenuItem := AddItem(FMainMenu.Items, '&VHosts');
+  ApplyMenuIcon(MenuItem, 'language');
   Item := AddItem(MenuItem, '&Add VHost', AddVHostClick);
   Item.ShortCut := ShortCut(Ord('N'), [ssCtrl]);
   Item := AddItem(MenuItem, '&Open Selected', OpenVHostClick);
@@ -514,6 +1166,7 @@ begin
   Item.ShortCut := ShortCut(VK_DELETE, []);
 
   MenuItem := AddItem(FMainMenu.Items, '&Tools');
+  ApplyMenuIcon(MenuItem, 'build');
   Item := AddItem(MenuItem, '&Home', LaunchSiteClick);
   Item.ShortCut := ShortCut(Ord('H'), [ssCtrl]);
   Item := AddItem(MenuItem, '&Dashboard', LaunchDashboardClick);
@@ -529,12 +1182,15 @@ begin
   Item.ShortCut := ShortCut(Ord('A'), [ssCtrl]);
 
   MenuItem := AddItem(FMainMenu.Items, '&Window');
+  ApplyMenuIcon(MenuItem, 'view_quilt');
   FMainWindowToggleItem := AddItem(MenuItem, 'Hide Window', ToggleWindowClick);
 
   FTrayMenu := TPopupMenu.Create(Self);
   FTrayMenu.OnPopup := TrayMenuPopup;
+  FTrayMenu.Images := FMenuImages;
 
   FTrayWindowToggleItem := AddItem(FTrayMenu.Items, '&Show Window', ToggleWindowClick);
+  ApplyMenuIcon(FTrayWindowToggleItem, 'view_quilt');
   AddItem(FTrayMenu.Items, '-');
   Item := AddItem(FTrayMenu.Items, '&Home', LaunchSiteClick);
   Item.ShortCut := ShortCut(Ord('H'), [ssCtrl]);
@@ -542,8 +1198,10 @@ begin
   Item.ShortCut := ShortCut(Ord('D'), [ssCtrl]);
   AddItem(FTrayMenu.Items, '-');
   Item := AddItem(FTrayMenu.Items, '&Save Config', SaveConfigClick);
+  ApplyMenuIcon(Item, 'save');
   Item.ShortCut := ShortCut(Ord('S'), [ssCtrl]);
   Item := AddItem(FTrayMenu.Items, '&Generate SSL', GenerateSslClick);
+  ApplyMenuIcon(Item, 'lock');
   Item.ShortCut := ShortCut(Ord('G'), [ssCtrl, ssShift]);
   FTrayAutoStartItem := AddItem(FTrayMenu.Items, 'Start with &Windows', AutoStartClick);
   FTrayAutoStartItem.AutoCheck := True;
@@ -551,8 +1209,10 @@ begin
   Item.ShortCut := ShortCut(Ord('T'), [ssCtrl]);
   AddItem(FTrayMenu.Items, '-');
   FTrayStartAllItem := AddItem(FTrayMenu.Items, 'Start &All', StartButtonClick);
+  ApplyMenuIcon(FTrayStartAllItem, 'play_arrow');
   FTrayStartAllItem.ShortCut := ShortCut(VK_F11, []);
   FTrayStopAllItem := AddItem(FTrayMenu.Items, 'S&top All', StopButtonClick);
+  ApplyMenuIcon(FTrayStopAllItem, 'stop');
   FTrayStopAllItem.ShortCut := ShortCut(VK_F12, []);
   AddItem(FTrayMenu.Items, '-');
   FTrayApacheMenu.StartItem := AddItem(FTrayMenu.Items, 'Apache S&tart', ApacheStartClick);
@@ -588,6 +1248,8 @@ destructor TMainForm.Destroy;
 begin
   FMainPhpProfileItems.Free;
   FMainPhpVersionItems.Free;
+  FMenuIconIndices.Free;
+  FIconCache.Free;
   FRuntime.Free;
   FConfig.Free;
   inherited;
@@ -633,6 +1295,7 @@ begin
   VHostGrid.Cells[1, 0] := 'Document Path';
   VHostGrid.Cells[2, 0] := 'URL';
   VHostGrid.Cells[3, 0] := 'Actions';
+  VHostGrid.RowHeights[0] := 30;
   for RowIndex := 1 to VHostGrid.RowCount - 1 do
   begin
     VHostGrid.Cells[0, RowIndex] := '';
@@ -858,16 +1521,68 @@ end;
 procedure TMainForm.UpdateHeaderStateColors;
 var
   HeaderColor: TColor;
+  I: Integer;
 begin
-  if FConfig.ApacheRunning then
-    HeaderColor := clGreen
+  if FConfig.ApacheRunning or FConfig.MariaDbRunning then
+    HeaderColor := HeaderOnlineColor
   else
-    HeaderColor := RGB(255, 140, 0);
+    HeaderColor := HeaderOfflineColor;
 
   HeaderPanel.Color := HeaderColor;
   Label18.Color := HeaderColor;
   Label19.Color := HeaderColor;
+  Label18.Font.Color := HeaderTextColor;
+  Label19.Font.Color := HeaderSubTextColor;
+  Label19.Caption := 'Portable WAMP dashboard for local development';
   exitbutton.Color := RGB(255, 206, 206);
+  for I := Low(FHeaderCards) to High(FHeaderCards) do
+  begin
+    FHeaderCards[I].Panel.Color := HeaderColor;
+    FHeaderCards[I].Title.Font.Color := HeaderTextColor;
+    FHeaderCards[I].Detail1.Font.Color := HeaderSubTextColor;
+    FHeaderCards[I].Detail2.Font.Color := HeaderSubTextColor;
+  end;
+  UpdateHeaderStatusCards;
+end;
+
+procedure TMainForm.UpdateHeaderStatusCards;
+var
+  ApacheText: string;
+  PhpText: string;
+  MariaText: string;
+begin
+  if FConfig.ApacheRunning then
+  begin
+    FHeaderCards[0].Dot.Brush.Color := RGB(180, 225, 48);
+    ApacheText := 'HTTP ' + IntToStr(FConfig.HttpPort);
+    FHeaderCards[0].Detail2.Caption := 'HTTPS ' + IntToStr(FConfig.HttpsPort);
+  end
+  else
+  begin
+    FHeaderCards[0].Dot.Brush.Color := RGB(189, 197, 209);
+    ApacheText := 'HTTP ' + IntToStr(FConfig.HttpPort);
+    FHeaderCards[0].Detail2.Caption := 'HTTPS ' + IntToStr(FConfig.HttpsPort);
+  end;
+  FHeaderCards[0].Detail1.Caption := ApacheText;
+
+  FHeaderCards[1].Dot.Brush.Color := RGB(180, 225, 48);
+  FHeaderCards[1].Detail1.Caption := FConfig.SelectedPhpVersion;
+  if Trim(FConfig.SelectedNodeVersion) <> '' then
+    PhpText := FConfig.SelectedNodeVersion
+  else
+    PhpText := 'node not selected';
+  FHeaderCards[1].Detail2.Caption := PhpText;
+
+  if FConfig.MariaDbRunning then
+    FHeaderCards[2].Dot.Brush.Color := RGB(180, 225, 48)
+  else
+    FHeaderCards[2].Dot.Brush.Color := RGB(189, 197, 209);
+  FHeaderCards[2].Detail1.Caption := 'Port ' + IntToStr(FConfig.DatabasePort);
+  if FConfig.MariaDbRunning then
+    MariaText := 'Running'
+  else
+    MariaText := 'Stopped';
+  FHeaderCards[2].Detail2.Caption := MariaText;
 end;
 
 procedure TMainForm.UpdateServiceButtonState;
@@ -880,83 +1595,12 @@ begin
   MariaStopButton.Enabled := FConfig.MariaDbRunning;
   MariaRestartButton.Enabled := FConfig.MariaDbRunning;
 
-  if ApacheStartButton.Enabled then
-  begin
-    ApacheStartButton.Cursor := crHandPoint;
-    ApacheStartButton.Color := RGB(224, 247, 222);
-    ApacheStartButton.Font.Color := clWindowText;
-  end
-  else
-  begin
-    ApacheStartButton.Cursor := crDefault;
-    ApacheStartButton.Color := RGB(235, 235, 235);
-    ApacheStartButton.Font.Color := clGrayText;
-  end;
-
-  if ApacheStopButton.Enabled then
-  begin
-    ApacheStopButton.Cursor := crHandPoint;
-    ApacheStopButton.Color := RGB(255, 224, 224);
-    ApacheStopButton.Font.Color := clWindowText;
-  end
-  else
-  begin
-    ApacheStopButton.Cursor := crDefault;
-    ApacheStopButton.Color := RGB(235, 235, 235);
-    ApacheStopButton.Font.Color := clGrayText;
-  end;
-
-  if ApacheRestartButton.Enabled then
-  begin
-    ApacheRestartButton.Cursor := crHandPoint;
-    ApacheRestartButton.Color := RGB(255, 242, 204);
-    ApacheRestartButton.Font.Color := clWindowText;
-  end
-  else
-  begin
-    ApacheRestartButton.Cursor := crDefault;
-    ApacheRestartButton.Color := RGB(235, 235, 235);
-    ApacheRestartButton.Font.Color := clGrayText;
-  end;
-
-  if MariaStartButton.Enabled then
-  begin
-    MariaStartButton.Cursor := crHandPoint;
-    MariaStartButton.Color := RGB(224, 247, 222);
-    MariaStartButton.Font.Color := clWindowText;
-  end
-  else
-  begin
-    MariaStartButton.Cursor := crDefault;
-    MariaStartButton.Color := RGB(235, 235, 235);
-    MariaStartButton.Font.Color := clGrayText;
-  end;
-
-  if MariaStopButton.Enabled then
-  begin
-    MariaStopButton.Cursor := crHandPoint;
-    MariaStopButton.Color := RGB(255, 224, 224);
-    MariaStopButton.Font.Color := clWindowText;
-  end
-  else
-  begin
-    MariaStopButton.Cursor := crDefault;
-    MariaStopButton.Color := RGB(235, 235, 235);
-    MariaStopButton.Font.Color := clGrayText;
-  end;
-
-  if MariaRestartButton.Enabled then
-  begin
-    MariaRestartButton.Cursor := crHandPoint;
-    MariaRestartButton.Color := RGB(255, 242, 204);
-    MariaRestartButton.Font.Color := clWindowText;
-  end
-  else
-  begin
-    MariaRestartButton.Cursor := crDefault;
-    MariaRestartButton.Color := RGB(235, 235, 235);
-    MariaRestartButton.Font.Color := clGrayText;
-  end;
+  StylePanelButton(ApacheStartButton, ApacheStartButton.Enabled, ButtonPositiveColor, ButtonNeutralColor);
+  StylePanelButton(ApacheStopButton, ApacheStopButton.Enabled, ButtonNegativeColor, ButtonNeutralColor);
+  StylePanelButton(ApacheRestartButton, ApacheRestartButton.Enabled, ButtonWarningColor, ButtonNeutralColor);
+  StylePanelButton(MariaStartButton, MariaStartButton.Enabled, ButtonPositiveColor, ButtonNeutralColor);
+  StylePanelButton(MariaStopButton, MariaStopButton.Enabled, ButtonNegativeColor, ButtonNeutralColor);
+  StylePanelButton(MariaRestartButton, MariaRestartButton.Enabled, ButtonWarningColor, ButtonNeutralColor);
 end;
 
 procedure TMainForm.UpdateDashboardLabels;
@@ -965,7 +1609,7 @@ var
   MariaDbSummary: string;
 begin
   StatusText := Format(
-    'Apache: %s PID=%d   MariaDB: %s PID=%d   HTTP: %d   PHP: %s / %s   Node: %s   Hosts: %s',
+    'Apache %s PID %d | MariaDB %s PID %d | HTTP %d | PHP %s / %s | Node %s | Hosts %s',
     [
       BoolToStr(FConfig.ApacheRunning, True),
       FConfig.ApachePid,
@@ -988,7 +1632,7 @@ begin
     else
       MariaDbSummary := 'MariaDB: stopped (error)';
     StatusText := StringReplace(StatusText,
-      Format('MariaDB: %s PID=%d', [BoolToStr(FConfig.MariaDbRunning, True), FConfig.MariaDbPid]),
+      Format('MariaDB %s PID %d', [BoolToStr(FConfig.MariaDbRunning, True), FConfig.MariaDbPid]),
       MariaDbSummary,
       []);
     StatusBar.ShowHint := True;
@@ -1015,52 +1659,35 @@ begin
   stopbutton.Enabled := AnyRunning;
 
   if AllRunning then
-    startbutton.Caption := 'Started'
+    SetButtonCaption(startbutton, 'Started')
   else
-    startbutton.Caption := 'Start All';
+    SetButtonCaption(startbutton, 'Start All');
 
-  if startbutton.Enabled then
-  begin
-    startbutton.Cursor := crHandPoint;
-    startbutton.Color := RGB(46, 160, 67);
-    startbutton.Font.Color := clWhite;
-  end
-  else
-  begin
-    startbutton.Cursor := crDefault;
-    startbutton.Color := RGB(224, 247, 222);
+  StylePanelButton(startbutton, startbutton.Enabled, ButtonSuccessStrongColor, ButtonPositiveColor, clWhite);
+  if not startbutton.Enabled then
     startbutton.Font.Color := RGB(64, 96, 64);
-  end;
-
-  if stopbutton.Enabled then
-  begin
-    stopbutton.Cursor := crHandPoint;
-    stopbutton.Color := RGB(204, 62, 62);
-    stopbutton.Font.Color := clWhite;
-  end
-  else
-  begin
-    stopbutton.Cursor := crDefault;
-    stopbutton.Color := RGB(235, 235, 235);
-    stopbutton.Font.Color := clGrayText;
-  end;
+  StylePanelButton(stopbutton, stopbutton.Enabled, ButtonDangerStrongColor, ButtonNeutralColor, clWhite);
+  exitbutton.Color := $00FFD3D3;
+  exitbutton.Font.Color := $00603030;
+  SetButtonCaption(exitbutton, 'Exit');
 end;
 
 procedure TMainForm.UpdateVHostActionState;
+var
+  HasSelection: Boolean;
 begin
-  OpenVHostButton.Enabled := FConfig.ApacheRunning;
-  if FConfig.ApacheRunning then
-  begin
-    OpenVHostButton.Cursor := crHandPoint;
-    OpenVHostButton.Color := 16053492;
-    OpenVHostButton.Font.Color := clWindowText;
-  end
-  else
-  begin
-    OpenVHostButton.Cursor := crDefault;
-    OpenVHostButton.Color := RGB(235, 235, 235);
-    OpenVHostButton.Font.Color := clGrayText;
-  end;
+  HasSelection := SelectedVHostServerName <> '';
+  AddVHostButton.Enabled := True;
+  OpenVHostButton.Enabled := FConfig.ApacheRunning and HasSelection;
+  OpenVHostFolderButton.Enabled := HasSelection;
+  CopyVHostUrlButton.Enabled := HasSelection;
+  DeleteVHostButton.Enabled := HasSelection;
+
+  StylePanelButton(AddVHostButton, True, ButtonSuccessStrongColor, ButtonPositiveColor, clWhite);
+  StylePanelButton(OpenVHostButton, OpenVHostButton.Enabled, ButtonAccentColor, ButtonNeutralColor);
+  StylePanelButton(OpenVHostFolderButton, OpenVHostFolderButton.Enabled, ButtonNeutralColor, ButtonNeutralColor);
+  StylePanelButton(CopyVHostUrlButton, CopyVHostUrlButton.Enabled, ButtonNeutralColor, ButtonNeutralColor);
+  StylePanelButton(DeleteVHostButton, DeleteVHostButton.Enabled, ButtonDangerStrongColor, ButtonNeutralColor, clWhite);
   VHostGrid.Invalidate;
 end;
 
@@ -1338,13 +1965,16 @@ var
   HasVHostEntry: Boolean;
 begin
   Grid := Sender as TStringGrid;
-  Grid.Canvas.Brush.Color := clWhite;
+  if ARow = 0 then
+    Grid.Canvas.Brush.Color := GridHeaderColor
+  else if Odd(ARow) then
+    Grid.Canvas.Brush.Color := GridStripeColor
+  else
+    Grid.Canvas.Brush.Color := clWhite;
   Grid.Canvas.FillRect(CellRect);
 
   if ARow = 0 then
   begin
-    Grid.Canvas.Brush.Color := RGB(236, 241, 247);
-    Grid.Canvas.FillRect(CellRect);
     Grid.Canvas.Font.Style := [fsBold];
     Grid.Canvas.Font.Color := clWindowText;
     DrawText(Grid.Canvas.Handle, PChar(Grid.Cells[ACol, ARow]), -1, CellRect,
@@ -1356,7 +1986,7 @@ begin
   begin
     if not ((ACol = 3) and not FConfig.ApacheRunning) then
     begin
-      Grid.Canvas.Brush.Color := RGB(231, 242, 255);
+      Grid.Canvas.Brush.Color := GridSelectionColor;
       Grid.Canvas.FillRect(CellRect);
     end;
   end;
@@ -1379,41 +2009,35 @@ begin
 
   ButtonRect := System.Types.Rect(ActionLeft, CellRect.Top + 4, ActionLeft + OpenWidth, CellRect.Bottom - 4);
   if OpenEnabled then
-    Grid.Canvas.Brush.Color := RGB(223, 247, 242)
+    Grid.Canvas.Brush.Color := ButtonAccentColor
   else
-    Grid.Canvas.Brush.Color := RGB(235, 235, 235);
+    Grid.Canvas.Brush.Color := ButtonNeutralColor;
   Grid.Canvas.RoundRect(ButtonRect.Left, ButtonRect.Top, ButtonRect.Right, ButtonRect.Bottom, 8, 8);
-  if OpenEnabled then
-    Grid.Canvas.Font.Color := clWindowText
-  else
-    Grid.Canvas.Font.Color := clGrayText;
-  DrawText(Grid.Canvas.Handle, PChar('Open'), -1, ButtonRect, DT_CENTER or DT_VCENTER or DT_SINGLELINE);
+  DrawIconInRect(Grid.Canvas, 'open_in_new', ButtonRect, 16);
 
   Inc(ActionLeft, OpenWidth + ActionGap);
   ButtonRect := System.Types.Rect(ActionLeft, CellRect.Top + 4, ActionLeft + FolderWidth, CellRect.Bottom - 4);
-  Grid.Canvas.Brush.Color := RGB(234, 242, 255);
+  Grid.Canvas.Brush.Color := ButtonAccentColor;
   Grid.Canvas.RoundRect(ButtonRect.Left, ButtonRect.Top, ButtonRect.Right, ButtonRect.Bottom, 8, 8);
-  Grid.Canvas.Font.Color := clWindowText;
-  DrawText(Grid.Canvas.Handle, PChar('Root'), -1, ButtonRect, DT_CENTER or DT_VCENTER or DT_SINGLELINE);
+  DrawIconInRect(Grid.Canvas, 'folder_open', ButtonRect, 16);
 
   Inc(ActionLeft, FolderWidth + ActionGap);
   ButtonRect := System.Types.Rect(ActionLeft, CellRect.Top + 4, ActionLeft + DeleteWidth, CellRect.Bottom - 4);
-  Grid.Canvas.Brush.Color := RGB(255, 235, 230);
+  Grid.Canvas.Brush.Color := ButtonNegativeColor;
   Grid.Canvas.RoundRect(ButtonRect.Left, ButtonRect.Top, ButtonRect.Right, ButtonRect.Bottom, 8, 8);
-  DrawText(Grid.Canvas.Handle, PChar('Del'), -1, ButtonRect, DT_CENTER or DT_VCENTER or DT_SINGLELINE);
+  DrawIconInRect(Grid.Canvas, 'delete', ButtonRect, 16);
 
   Inc(ActionLeft, DeleteWidth + ActionGap);
   ButtonRect := System.Types.Rect(ActionLeft, CellRect.Top + 4, ActionLeft + SslWidth, CellRect.Bottom - 4);
   if HasVHostEntry and VHostEntry.EnableSsl then
-    Grid.Canvas.Brush.Color := RGB(224, 247, 222)
+    Grid.Canvas.Brush.Color := ButtonPositiveColor
   else
-    Grid.Canvas.Brush.Color := RGB(235, 235, 235);
+    Grid.Canvas.Brush.Color := ButtonNeutralColor;
   Grid.Canvas.RoundRect(ButtonRect.Left, ButtonRect.Top, ButtonRect.Right, ButtonRect.Bottom, 8, 8);
   if HasVHostEntry and VHostEntry.EnableSsl then
-    Grid.Canvas.Font.Color := clWindowText
+    DrawIconInRect(Grid.Canvas, 'lock', ButtonRect, 16)
   else
-    Grid.Canvas.Font.Color := clGrayText;
-  DrawText(Grid.Canvas.Handle, PChar('SSL'), -1, ButtonRect, DT_CENTER or DT_VCENTER or DT_SINGLELINE);
+    DrawIconInRect(Grid.Canvas, 'lock_open', ButtonRect, 16);
 end;
 
 procedure TMainForm.VHostGridMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
@@ -1441,6 +2065,7 @@ begin
     Exit;
 
   Grid.Row := GridCoord.Y;
+  UpdateVHostActionState;
   ServerName := Trim(Grid.Cells[0, GridCoord.Y]);
   if ServerName = '' then
     Exit;
