@@ -4,6 +4,8 @@ uses
   Vcl.Forms,
   Ui.UniWamp.MainForm in 'Ui\Ui.UniWamp.MainForm.pas',
   Ui.UniWamp.ShutdownProgressForm in 'Ui\Ui.UniWamp.ShutdownProgressForm.pas',
+  Ui.UniWamp.PasswordDialog in 'Ui\Ui.UniWamp.PasswordDialog.pas',
+  Ui.UniWamp.VHostDialog in 'Ui\Ui.UniWamp.VHostDialog.pas',
   Core.UniWamp.Config in 'Core\Core.UniWamp.Config.pas',
   Core.UniWamp.Paths in 'Core\Core.UniWamp.Paths.pas',
   Core.UniWamp.Runtime in 'Core\Core.UniWamp.Runtime.pas',

@@ -26,6 +26,7 @@ type
     function MariaDbExe: string;
     function MariaDbInstallDbExe: string;
     function MysqlAdminExe: string;
+    function MariaDbSystemDatabaseReady(const MysqlDir: string): Boolean;
     function EnsureMariaDbInitialized(out ErrorMessage: string): Boolean;
     function ResolvePortablePath(const PathValue: string): string;
     function CmderExe: string;
@@ -65,8 +66,12 @@ type
     function LaunchUrl(const Url: string): TRuntimeActionResult;
     function LaunchAdminer: TRuntimeActionResult;
     function LaunchTerminal: TRuntimeActionResult;
-    function AddVHost(const ServerName, DocumentRoot: string; EnableSsl: Boolean): TRuntimeActionResult;
+    function GenerateSslCertificateFor(const CommonName, CertFile, KeyFile: string): TRuntimeActionResult;
+    function AddVHost(const ServerName, DocumentRoot, ServerAliases: string; EnableSsl: Boolean): TRuntimeActionResult;
+    function RefreshVHostSslCertificate(const ServerName: string): TRuntimeActionResult;
     function DeleteVHost(const ServerName: string): TRuntimeActionResult;
+    function SetMariaDbRootPassword(const NewPassword: string): TRuntimeActionResult;
+    function DescribePortOwner(const Port: Integer): string;
   end;
 
 implementation
@@ -135,6 +140,28 @@ begin
   Result := TPath.Combine(FPaths.MariaDbBinDir, 'mariadb-install-db.exe');
   if not FileExists(Result) then
     Result := TPath.Combine(FPaths.MariaDbBinDir, 'mysql_install_db.exe');
+end;
+
+function TUniWampRuntime.MariaDbSystemDatabaseReady(const MysqlDir: string): Boolean;
+const
+  RequiredSystemFiles: array[0..5] of string = (
+    'db.frm',
+    'db.MAD',
+    'db.MAI',
+    'user.frm',
+    'servers.frm',
+    'global_priv.frm'
+  );
+var
+  I: Integer;
+begin
+  Result := DirectoryExists(MysqlDir);
+  if not Result then
+    Exit;
+
+  for I := Low(RequiredSystemFiles) to High(RequiredSystemFiles) do
+    if not FileExists(TPath.Combine(MysqlDir, RequiredSystemFiles[I])) then
+      Exit(False);
 end;
 
 function TUniWampRuntime.MariaDbIsRunning: Boolean;
@@ -369,6 +396,10 @@ var
   StartPos: Integer;
   EndPos: Integer;
   ManagedBlock: string;
+  function IsAccessDenied(const E: Exception): Boolean;
+  begin
+    Result := (E is EOSError) and (EOSError(E).ErrorCode = ERROR_ACCESS_DENIED);
+  end;
 begin
   Result := False;
   ErrorMessage := '';
@@ -404,7 +435,7 @@ begin
   except
     on E: Exception do
     begin
-      if Pos('Access to the path', E.Message) > 0 then
+      if IsAccessDenied(E) then
         FConfig.LastHostsSyncStatus := 'Hosts update requires Administrator'
       else
         FConfig.LastHostsSyncStatus := 'Hosts update failed';
@@ -415,12 +446,99 @@ end;
 
 function TUniWampRuntime.ApacheModuleForSelectedPhp: string;
 var
-  Candidate: string;
+  Candidates: TArray<string>;
 begin
-  Candidate := TPath.Combine(SelectedPhpDir, 'php8apache2_4.dll');
-  if not FileExists(Candidate) then
-    Candidate := TPath.Combine(SelectedPhpDir, 'php7apache2_4.dll');
-  Result := Candidate;
+  Candidates := TDirectory.GetFiles(SelectedPhpDir, 'php*apache2_4.dll');
+  if Length(Candidates) > 0 then
+    Exit(Candidates[0]);
+
+  Result := TPath.Combine(SelectedPhpDir, 'php8apache2_4.dll');
+  if not FileExists(Result) then
+    Result := TPath.Combine(SelectedPhpDir, 'php7apache2_4.dll');
+end;
+
+function TUniWampRuntime.DescribePortOwner(const Port: Integer): string;
+var
+  SystemRoot: string;
+  NetstatOutput: string;
+  Lines: TStringList;
+  Tokens: TStringList;
+  Line: string;
+  PidText: string;
+  OwnerPid: Cardinal;
+  TasklistOutput: string;
+  CsvLines: TStringList;
+  CsvFields: TStringList;
+  ImageName: string;
+begin
+  Result := '';
+  ImageName := '';
+  SystemRoot := GetEnvironmentVariable('SystemRoot');
+  if SystemRoot = '' then
+    SystemRoot := 'C:\Windows';
+  SystemRoot := TPath.Combine(SystemRoot, 'System32');
+
+  if not TProcessManager.RunAndCaptureOutput(
+    TPath.Combine(SystemRoot, 'netstat.exe'),
+    '-ano -p tcp',
+    SystemRoot,
+    NetstatOutput) then
+    Exit;
+
+  Lines := TStringList.Create;
+  Tokens := TStringList.Create;
+  CsvLines := TStringList.Create;
+  CsvFields := TStringList.Create;
+  try
+    Lines.Text := NetstatOutput;
+    for Line in Lines do
+    begin
+      if Pos(':' + Port.ToString, Line) = 0 then
+        Continue;
+      if Pos('LISTENING', UpperCase(Line)) = 0 then
+        Continue;
+
+      Tokens.Clear;
+      ExtractStrings([' ', #9], [], PChar(Trim(Line)), Tokens);
+      if Tokens.Count = 0 then
+        Continue;
+
+      PidText := Tokens[Tokens.Count - 1];
+      if not TryStrToUInt(PidText, OwnerPid) then
+        Continue;
+      if OwnerPid = 0 then
+        Continue;
+
+      if TProcessManager.RunAndCaptureOutput(
+        TPath.Combine(SystemRoot, 'tasklist.exe'),
+        Format('/FI "PID eq %d" /FO CSV /NH', [OwnerPid]),
+        SystemRoot,
+        TasklistOutput) then
+      begin
+        CsvLines.Text := Trim(TasklistOutput);
+        if CsvLines.Count > 0 then
+        begin
+          CsvFields.StrictDelimiter := True;
+          CsvFields.Delimiter := ',';
+          CsvFields.QuoteChar := '"';
+          CsvFields.DelimitedText := CsvLines[0];
+          if CsvFields.Count > 0 then
+            ImageName := CsvFields[0];
+        end;
+      end;
+
+      if ImageName <> '' then
+        Result := Format('%s (PID %d)', [ImageName, OwnerPid])
+      else
+        Result := Format('PID %d', [OwnerPid]);
+      Exit;
+    end;
+  finally
+    CsvFields.Free;
+    CsvLines.Free;
+    Tokens.Free;
+    Lines.Free;
+  end;
 end;
 
 function TUniWampRuntime.DetectPhpVersions: TArray<string>;
@@ -492,6 +610,7 @@ end;
 function TUniWampRuntime.ValidateApachePorts(out ErrorMessage: string): Boolean;
 var
   ApacheRunningNow: Boolean;
+  OwnerInfo: string;
 begin
   Result := True;
   ErrorMessage := '';
@@ -499,13 +618,21 @@ begin
   if not IsTcpPortAvailable(FConfig.HttpPort) and not ApacheRunningNow then
   begin
     Result := False;
-    ErrorMessage := Format('HTTP port %d is already in use.', [FConfig.HttpPort]);
+    OwnerInfo := DescribePortOwner(FConfig.HttpPort);
+    if OwnerInfo <> '' then
+      ErrorMessage := Format('HTTP port %d is already in use by %s.', [FConfig.HttpPort, OwnerInfo])
+    else
+      ErrorMessage := Format('HTTP port %d is already in use.', [FConfig.HttpPort]);
     Exit;
   end;
   if FConfig.EnableSsl and not IsTcpPortAvailable(FConfig.HttpsPort) and not ApacheRunningNow then
   begin
     Result := False;
-    ErrorMessage := Format('HTTPS port %d is already in use.', [FConfig.HttpsPort]);
+    OwnerInfo := DescribePortOwner(FConfig.HttpsPort);
+    if OwnerInfo <> '' then
+      ErrorMessage := Format('HTTPS port %d is already in use by %s.', [FConfig.HttpsPort, OwnerInfo])
+    else
+      ErrorMessage := Format('HTTPS port %d is already in use.', [FConfig.HttpsPort]);
     Exit;
   end;
 end;
@@ -513,6 +640,7 @@ end;
 function TUniWampRuntime.ValidateMariaDbPorts(out ErrorMessage: string): Boolean;
 var
   MariaDbRunningNow: Boolean;
+  OwnerInfo: string;
 begin
   Result := True;
   ErrorMessage := '';
@@ -520,10 +648,12 @@ begin
   if not IsTcpPortAvailable(FConfig.DatabasePort) and not MariaDbRunningNow then
   begin
     Result := False;
-    ErrorMessage := Format('Database port %d is already in use.', [FConfig.DatabasePort]);
-    begin
-      Exit;
-    end;
+    OwnerInfo := DescribePortOwner(FConfig.DatabasePort);
+    if OwnerInfo <> '' then
+      ErrorMessage := Format('Database port %d is already in use by %s.', [FConfig.DatabasePort, OwnerInfo])
+    else
+      ErrorMessage := Format('Database port %d is already in use.', [FConfig.DatabasePort]);
+    Exit;
   end;
 end;
 
@@ -607,7 +737,7 @@ begin
   DataDir := TPath.Combine(FPaths.MariaDbDir, 'data');
   MysqlDir := TPath.Combine(DataDir, 'mysql');
 
-  if DirectoryExists(MysqlDir) then
+  if MariaDbSystemDatabaseReady(MysqlDir) then
   begin
     Result := True;
     Exit;
@@ -620,23 +750,33 @@ begin
     Exit;
   end;
 
+  if DirectoryExists(DataDir) then
+  begin
+    DataSubDirs := TDirectory.GetDirectories(DataDir);
+    DataFiles := TDirectory.GetFiles(DataDir);
+    if (Length(DataSubDirs) > 0) or (Length(DataFiles) > 0) or DirectoryExists(MysqlDir) then
+    begin
+      BackupDir := TPath.Combine(TPath.GetDirectoryName(DataDir),
+        'data.bak-' + FormatDateTime('yyyymmdd-hhnnss', Now));
+      try
+        TDirectory.Move(DataDir, BackupDir);
+      except
+        on E: Exception do
+        begin
+          ErrorMessage := 'MariaDB data directory could not be backed up: ' + E.Message;
+          Exit;
+        end;
+      end;
+    end;
+    ForceDirectories(DataDir);
+  end
+  else
+    ForceDirectories(DataDir);
+
   if not DirectoryExists(DataDir) then
-    ForceDirectories(DataDir);
-
-  DataSubDirs := TDirectory.GetDirectories(DataDir);
-  if Length(DataSubDirs) > 0 then
   begin
-    ErrorMessage := 'MariaDB data directory contains existing folders but is not initialized. Run the MariaDB initializer manually.';
+    ErrorMessage := 'MariaDB data directory could not be created.';
     Exit;
-  end;
-
-  DataFiles := TDirectory.GetFiles(DataDir);
-  if Length(DataFiles) > 0 then
-  begin
-    BackupDir := TPath.Combine(TPath.GetDirectoryName(DataDir),
-      'data.bak-' + FormatDateTime('yyyymmdd-hhnnss', Now));
-    TDirectory.Move(DataDir, BackupDir);
-    ForceDirectories(DataDir);
   end;
 
   ServerExe := TPath.Combine(FPaths.MariaDbBinDir, 'mysqld.exe');
@@ -654,7 +794,7 @@ begin
   end;
 
   TProcessManager.WaitForExit(StartResult.ProcessId, 120000);
-  if not DirectoryExists(MysqlDir) then
+  if not MariaDbSystemDatabaseReady(MysqlDir) then
   begin
     ErrorMessage := 'MariaDB initialization did not create the mysql system database.';
     Exit;
@@ -716,6 +856,8 @@ begin
     begin
       Block.Add('<VirtualHost *:' + FConfig.HttpPort.ToString + '>');
       Block.Add('  ServerName ' + Entry.ServerName);
+      if Trim(Entry.ServerAliases) <> '' then
+        Block.Add('  ServerAlias ' + Trim(Entry.ServerAliases));
       Block.Add('  DocumentRoot "' + Entry.DocumentRoot + '"');
       Block.Add('  <Directory "' + Entry.DocumentRoot + '">');
       Block.Add('    AllowOverride All');
@@ -728,10 +870,18 @@ begin
       begin
         Block.Add('<VirtualHost *:' + FConfig.HttpsPort.ToString + '>');
         Block.Add('  ServerName ' + Entry.ServerName);
+        if Trim(Entry.ServerAliases) <> '' then
+          Block.Add('  ServerAlias ' + Trim(Entry.ServerAliases));
         Block.Add('  DocumentRoot "' + Entry.DocumentRoot + '"');
         Block.Add('  SSLEngine on');
-        Block.Add('  SSLCertificateFile "' + TPath.Combine(FPaths.SslDir, 'server.crt') + '"');
-        Block.Add('  SSLCertificateKeyFile "' + TPath.Combine(FPaths.SslDir, 'server.key') + '"');
+        if (Entry.SslCertFile <> '') and FileExists(Entry.SslCertFile) then
+          Block.Add('  SSLCertificateFile "' + Entry.SslCertFile + '"')
+        else
+          Block.Add('  SSLCertificateFile "' + TPath.Combine(FPaths.SslDir, 'server.crt') + '"');
+        if (Entry.SslKeyFile <> '') and FileExists(Entry.SslKeyFile) then
+          Block.Add('  SSLCertificateKeyFile "' + Entry.SslKeyFile + '"')
+        else
+          Block.Add('  SSLCertificateKeyFile "' + TPath.Combine(FPaths.SslDir, 'server.key') + '"');
         Block.Add('</VirtualHost>');
         Block.Add('');
       end;
@@ -783,11 +933,11 @@ begin
       Lines.Add('set "PATH=' + PhpDir + ';%PATH%"');
     end;
     if FConfig.SelectedNodeVersion <> '' then
-    begin
-      Lines.Add('set "NODE_HOME=' + NodeDir + '"');
-      Lines.Add('set "NODE_BIN=' + NodeDir + '"');
-      Lines.Add('set "PATH=' + NodeDir + ';%PATH%"');
-    end;
+  begin
+    Lines.Add('set "NODE_HOME=' + NodeDir + '"');
+    Lines.Add('set "NODE_BIN=' + NodeDir + '"');
+    Lines.Add('set "PATH=' + NodeDir + ';%PATH%"');
+  end;
     Lines.Add('set "PATH=' + FPaths.MariaDbBinDir + ';%PATH%"');
     Lines.Add('echo  PHP: %UNIWAMP_PHP_VERSION%  -  %PHP_HOME%');
     Lines.Add('if "%UNIWAMP_NODE_VERSION%"=="" (');
@@ -801,7 +951,6 @@ begin
     Lines.Add('cd /d "' + FConfig.DocumentRoot + '"');
     Lines.SaveToFile(FPaths.EnvBatFile, Encoding);
   finally
-    Encoding.Free;
     Lines.Free;
   end;
 end;
@@ -877,6 +1026,7 @@ function TUniWampRuntime.StopApache: TRuntimeActionResult;
 var
   StartResult: TProcessStartResult;
   RuntimePid: Cardinal;
+  SystemRoot: string;
 begin
   Result.Success := True;
   RuntimePid := ApacheRuntimePid;
@@ -898,20 +1048,22 @@ begin
 
   if (RuntimePid <> 0) and not IsTcpPortAvailable(FConfig.HttpPort) then
   begin
+    SystemRoot := TPath.Combine(GetEnvironmentVariable('SystemRoot'), 'System32');
     StartResult := TProcessManager.StartDetached(
-      'taskkill.exe',
+      TPath.Combine(SystemRoot, 'taskkill.exe'),
       '/PID ' + RuntimePid.ToString + ' /T /F',
-      'C:\Windows\System32');
+      SystemRoot);
     if StartResult.Success then
       TProcessManager.WaitForExit(StartResult.ProcessId, 4000);
   end;
 
   if (RuntimePid <> 0) and FConfig.EnableSsl and (not IsTcpPortAvailable(FConfig.HttpsPort)) then
   begin
+    SystemRoot := TPath.Combine(GetEnvironmentVariable('SystemRoot'), 'System32');
     StartResult := TProcessManager.StartDetached(
-      'taskkill.exe',
+      TPath.Combine(SystemRoot, 'taskkill.exe'),
       '/PID ' + RuntimePid.ToString + ' /T /F',
-      'C:\Windows\System32');
+      SystemRoot);
     if StartResult.Success then
       TProcessManager.WaitForExit(StartResult.ProcessId, 4000);
   end;
@@ -919,10 +1071,11 @@ begin
   if (not IsTcpPortAvailable(FConfig.HttpPort)) or
      (FConfig.EnableSsl and (not IsTcpPortAvailable(FConfig.HttpsPort))) then
   begin
+    SystemRoot := TPath.Combine(GetEnvironmentVariable('SystemRoot'), 'System32');
     StartResult := TProcessManager.StartDetached(
-      'taskkill.exe',
+      TPath.Combine(SystemRoot, 'taskkill.exe'),
       '/IM httpd.exe /T /F',
-      'C:\Windows\System32');
+      SystemRoot);
     if StartResult.Success then
       TProcessManager.WaitForExit(StartResult.ProcessId, 4000);
   end;
@@ -1026,14 +1179,25 @@ end;
 
 function TUniWampRuntime.RestartMariaDb: TRuntimeActionResult;
 begin
-  StopMariaDb;
+  Result := StopMariaDb;
+  if not Result.Success then
+    Exit;
   Result := StartMariaDb;
 end;
 
 function TUniWampRuntime.GenerateSslCertificate: TRuntimeActionResult;
+begin
+  Result := GenerateSslCertificateFor(FConfig.HostName,
+    TPath.Combine(FPaths.SslDir, 'server.crt'),
+    TPath.Combine(FPaths.SslDir, 'server.key'));
+end;
+
+function TUniWampRuntime.GenerateSslCertificateFor(const CommonName, CertFile,
+  KeyFile: string): TRuntimeActionResult;
 var
   OpenSslExe: string;
   StartResult: TProcessStartResult;
+  CertDir: string;
 begin
   OpenSslExe := TPath.Combine(FPaths.ApacheBinDir, 'openssl.exe');
   if not FileExists(OpenSslExe) then
@@ -1043,19 +1207,91 @@ begin
     Exit;
   end;
 
+  CertDir := TPath.GetDirectoryName(CertFile);
+  if CertDir <> '' then
+    EnsureDirectory(CertDir);
+
   StartResult := TProcessManager.StartDetached(
     OpenSslExe,
     'req -x509 -nodes -days 365 -newkey rsa:2048 ' +
-    '-subj "/CN=localhost" ' +
-    '-keyout "' + TPath.Combine(FPaths.SslDir, 'server.key') + '" ' +
-    '-out "' + TPath.Combine(FPaths.SslDir, 'server.crt') + '"',
+    '-subj "/CN=' + CommonName + '" ' +
+    '-keyout "' + KeyFile + '" ' +
+    '-out "' + CertFile + '"',
     FPaths.SslDir);
 
   Result.Success := StartResult.Success;
   if Result.Success then
-    Result.Message := 'SSL certificate generation started.'
+  begin
+    TProcessManager.WaitForExit(StartResult.ProcessId, 120000);
+    if FileExists(CertFile) and FileExists(KeyFile) then
+      Result.Message := 'SSL certificate generated.'
+    else
+    begin
+      Result.Success := False;
+      Result.Message := 'SSL certificate generation did not produce the expected files.';
+    end;
+  end
   else
     Result.Message := StartResult.ErrorMessage;
+end;
+
+function TUniWampRuntime.SetMariaDbRootPassword(const NewPassword: string): TRuntimeActionResult;
+var
+  MysqlAdminExePath: string;
+  Arguments: string;
+  Output: string;
+  LowerOutput: string;
+begin
+  if Trim(NewPassword) = '' then
+  begin
+    Result.Success := False;
+    Result.Message := 'MariaDB root password cannot be empty.';
+    Exit;
+  end;
+
+  if not MariaDbIsRunning then
+  begin
+    Result.Success := False;
+    Result.Message := 'MariaDB must be running before setting the root password.';
+    Exit;
+  end;
+
+  MysqlAdminExePath := MysqlAdminExe;
+  if not FileExists(MysqlAdminExePath) then
+  begin
+    Result.Success := False;
+    Result.Message := 'mysqladmin executable not found: ' + MysqlAdminExePath;
+    Exit;
+  end;
+
+  Arguments := '--port=' + FConfig.DatabasePort.ToString + ' --user=root ';
+  if FConfig.MariaDbRootPassword <> '' then
+    Arguments := Arguments + '--password="' + FConfig.MariaDbRootPassword + '" ';
+  Arguments := Arguments + 'password "' + NewPassword + '"';
+
+  if not TProcessManager.RunAndCaptureOutput(MysqlAdminExePath, Arguments, FPaths.MariaDbBinDir, Output) then
+  begin
+    Result.Success := False;
+    Result.Message := 'Failed to start mysqladmin.';
+    Exit;
+  end;
+
+  LowerOutput := LowerCase(Output);
+  if (Pos('error', LowerOutput) > 0) or (Pos('access denied', LowerOutput) > 0) then
+  begin
+    Result.Success := False;
+    FConfig.LastMariaDbError := Trim(Output);
+    if Trim(Output) <> '' then
+      Result.Message := Trim(Output)
+    else
+      Result.Message := 'MariaDB root password could not be updated.';
+    Exit;
+  end;
+
+  FConfig.MariaDbRootPassword := NewPassword;
+  FConfig.LastMariaDbError := '';
+  Result.Success := True;
+  Result.Message := 'MariaDB root password updated.';
 end;
 
 function TUniWampRuntime.LaunchUrl(const Url: string): TRuntimeActionResult;
@@ -1114,11 +1350,12 @@ begin
   end;
 end;
 
-function TUniWampRuntime.AddVHost(const ServerName, DocumentRoot: string;
+function TUniWampRuntime.AddVHost(const ServerName, DocumentRoot, ServerAliases: string;
   EnableSsl: Boolean): TRuntimeActionResult;
 var
   Entry: TVHostEntry;
   HostsError: string;
+  SslDirName: string;
 begin
   if (Trim(ServerName) = '') or (Trim(DocumentRoot) = '') then
   begin
@@ -1130,8 +1367,23 @@ begin
   EnsureDirectory(DocumentRoot);
   EnsureVHostStarterPage(ServerName, DocumentRoot);
   Entry.ServerName := ServerName;
+  Entry.ServerAliases := Trim(StringReplace(ServerAliases, ',', ' ', [rfReplaceAll]));
   Entry.DocumentRoot := DocumentRoot;
   Entry.EnableSsl := EnableSsl;
+  Entry.SslCertFile := '';
+  Entry.SslKeyFile := '';
+  if EnableSsl then
+  begin
+    SslDirName := ServerName;
+    SslDirName := StringReplace(SslDirName, ':', '_', [rfReplaceAll]);
+    SslDirName := StringReplace(SslDirName, '/', '_', [rfReplaceAll]);
+    SslDirName := StringReplace(SslDirName, '\', '_', [rfReplaceAll]);
+    Entry.SslCertFile := TPath.Combine(FPaths.SslDir, TPath.Combine('vhosts', TPath.Combine(SslDirName, 'server.crt')));
+    Entry.SslKeyFile := TPath.Combine(FPaths.SslDir, TPath.Combine('vhosts', TPath.Combine(SslDirName, 'server.key')));
+    Result := GenerateSslCertificateFor(ServerName, Entry.SslCertFile, Entry.SslKeyFile);
+    if not Result.Success then
+      Exit;
+  end;
   FConfig.AddOrUpdateVHost(Entry);
   GenerateVHostConfig;
   if SyncHostsFile(HostsError) then
@@ -1141,12 +1393,88 @@ begin
   Result.Success := True;
 end;
 
+function TUniWampRuntime.RefreshVHostSslCertificate(const ServerName: string): TRuntimeActionResult;
+var
+  Entry: TVHostEntry;
+  Found: Boolean;
+  SslDirName: string;
+begin
+  Result.Success := False;
+  Result.Message := '';
+  Found := False;
+  for Entry in FConfig.VHosts do
+    if SameText(Entry.ServerName, ServerName) then
+    begin
+      Found := True;
+      Break;
+    end;
+
+  if not Found then
+  begin
+    Result.Message := 'VHost not found: ' + ServerName;
+    Exit;
+  end;
+
+  if not Entry.EnableSsl then
+  begin
+    Result.Message := 'SSL is not enabled for this vHost.';
+    Exit;
+  end;
+
+  if Entry.SslCertFile = '' then
+  begin
+    SslDirName := ServerName;
+    SslDirName := StringReplace(SslDirName, ':', '_', [rfReplaceAll]);
+    SslDirName := StringReplace(SslDirName, '/', '_', [rfReplaceAll]);
+    SslDirName := StringReplace(SslDirName, '\', '_', [rfReplaceAll]);
+    Entry.SslCertFile := TPath.Combine(FPaths.SslDir, TPath.Combine('vhosts', TPath.Combine(SslDirName, 'server.crt')));
+  end;
+  if Entry.SslKeyFile = '' then
+  begin
+    SslDirName := ServerName;
+    SslDirName := StringReplace(SslDirName, ':', '_', [rfReplaceAll]);
+    SslDirName := StringReplace(SslDirName, '/', '_', [rfReplaceAll]);
+    SslDirName := StringReplace(SslDirName, '\', '_', [rfReplaceAll]);
+    Entry.SslKeyFile := TPath.Combine(FPaths.SslDir, TPath.Combine('vhosts', TPath.Combine(SslDirName, 'server.key')));
+  end;
+
+  Result := GenerateSslCertificateFor(Entry.ServerName, Entry.SslCertFile, Entry.SslKeyFile);
+  if not Result.Success then
+    Exit;
+
+  FConfig.AddOrUpdateVHost(Entry);
+  GenerateVHostConfig;
+  Result.Message := 'SSL certificate refreshed for ' + ServerName;
+end;
+
 function TUniWampRuntime.DeleteVHost(const ServerName: string): TRuntimeActionResult;
 var
+  Entry: TVHostEntry;
+  VHost: TVHostEntry;
   HostsError: string;
 begin
+  Entry.ServerName := '';
+  Entry.ServerAliases := '';
+  Entry.DocumentRoot := '';
+  Entry.EnableSsl := False;
+  Entry.SslCertFile := '';
+  Entry.SslKeyFile := '';
+  for VHost in FConfig.VHosts do
+    if SameText(VHost.ServerName, ServerName) then
+    begin
+      Entry := VHost;
+      Break;
+    end;
+
   FConfig.DeleteVHost(ServerName);
   GenerateVHostConfig;
+  if Entry.EnableSsl then
+  begin
+    if Entry.SslCertFile <> '' then
+      TFile.Delete(Entry.SslCertFile);
+    if Entry.SslKeyFile <> '' then
+      TFile.Delete(Entry.SslKeyFile);
+  end;
   if SyncHostsFile(HostsError) then
     Result.Message := 'VHost removed: ' + ServerName
   else

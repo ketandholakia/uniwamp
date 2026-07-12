@@ -9,13 +9,14 @@
   "terminalExePath": "bin\\cmder\\Cmder.exe",
   "phpProfile": "development",
   "enableSsl": false,
-  "apachePid": 5856,
-  "mariaDbPid": 29564,
-  "apacheRunning": true,
-  "mariaDbRunning": true,
+  "apachePid": 0,
+  "mariaDbPid": 0,
+  "apacheRunning": false,
+  "mariaDbRunning": false,
   "lastApacheError": "",
   "lastMariaDbError": "",
   "lastHostsSyncStatus": "Hosts synced",
+  "mariaDbRootPassword": "",
   "apacheEnabledModules": [
     "mod_access_compat.so",
     "mod_alias.so",
@@ -75,13 +76,19 @@
   "vhosts": [
     {
       "serverName": "test1",
+      "serverAliases": "",
       "documentRoot": "D:\\ketan\\github\\uniservernxt\\uniwamp\\www\\test1",
-      "enableSsl": false
+      "enableSsl": false,
+      "sslCertFile": "",
+      "sslKeyFile": ""
     },
     {
       "serverName": "alliancelifescience.com",
+      "serverAliases": "",
       "documentRoot": "D:\\ketan\\github\\uniservernxt\\uniwamp\\www\\alliancelifescience.com",
-      "enableSsl": false
+      "enableSsl": false,
+      "sslCertFile": "",
+      "sslKeyFile": ""
     }
   ]
 }

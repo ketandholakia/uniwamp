@@ -10,8 +10,11 @@ uses
 type
   TVHostEntry = record
     ServerName: string;
+    ServerAliases: string;
     DocumentRoot: string;
     EnableSsl: Boolean;
+    SslCertFile: string;
+    SslKeyFile: string;
   end;
 
   TPhpRuntime = record
@@ -42,6 +45,7 @@ type
     MariaDbPid: Cardinal;
     ApacheRunning: Boolean;
     MariaDbRunning: Boolean;
+    MariaDbRootPassword: string;
     LastApacheError: string;
     LastMariaDbError: string;
     LastHostsSyncStatus: string;
@@ -209,10 +213,11 @@ begin
   MariaDbPid := 0;
   ApacheRunning := False;
   MariaDbRunning := False;
-  LastApacheError := '';
-  LastMariaDbError := '';
-  LastHostsSyncStatus := 'Hosts status unknown';
-  FVHosts.Clear;
+    LastApacheError := '';
+    LastMariaDbError := '';
+    LastHostsSyncStatus := 'Hosts status unknown';
+    MariaDbRootPassword := '';
+    FVHosts.Clear;
   FApacheModules.Clear;
   for Item in DefaultApacheModules do
     FApacheModules.Add(Item);
@@ -277,6 +282,7 @@ begin
     LastApacheError := ReadStringOrDefault(Root, 'lastApacheError', '');
     LastMariaDbError := ReadStringOrDefault(Root, 'lastMariaDbError', '');
     LastHostsSyncStatus := ReadStringOrDefault(Root, 'lastHostsSyncStatus', LastHostsSyncStatus);
+    MariaDbRootPassword := ReadStringOrDefault(Root, 'mariaDbRootPassword', MariaDbRootPassword);
 
   var ApacheModulesArray := ReadArrayOrNil(Root, 'apacheEnabledModules');
     if Assigned(ApacheModulesArray) then
@@ -318,8 +324,11 @@ begin
         if not Assigned(Obj) then
           Continue;
         Entry.ServerName := ReadStringOrDefault(Obj, 'serverName', '');
+        Entry.ServerAliases := ReadStringOrDefault(Obj, 'serverAliases', '');
         Entry.DocumentRoot := ReadStringOrDefault(Obj, 'documentRoot', '');
         Entry.EnableSsl := ReadBooleanOrDefault(Obj, 'enableSsl', False);
+        Entry.SslCertFile := ReadStringOrDefault(Obj, 'sslCertFile', '');
+        Entry.SslKeyFile := ReadStringOrDefault(Obj, 'sslKeyFile', '');
         if Entry.ServerName <> '' then
           FVHosts.Add(Entry);
       end;
@@ -358,6 +367,7 @@ begin
     Root.AddPair('lastApacheError', LastApacheError);
     Root.AddPair('lastMariaDbError', LastMariaDbError);
     Root.AddPair('lastHostsSyncStatus', LastHostsSyncStatus);
+    Root.AddPair('mariaDbRootPassword', MariaDbRootPassword);
 
   var ApacheModulesArray := TJSONArray.Create;
     for Item in FApacheModules do
@@ -384,8 +394,11 @@ begin
     begin
       Obj := TJSONObject.Create;
       Obj.AddPair('serverName', Entry.ServerName);
+      Obj.AddPair('serverAliases', Entry.ServerAliases);
       Obj.AddPair('documentRoot', Entry.DocumentRoot);
       Obj.AddPair('enableSsl', TJSONBool.Create(Entry.EnableSsl));
+      Obj.AddPair('sslCertFile', Entry.SslCertFile);
+      Obj.AddPair('sslKeyFile', Entry.SslKeyFile);
       VHostArray.Add(Obj);
     end;
     Root.AddPair('vhosts', VHostArray);

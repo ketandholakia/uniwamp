@@ -11,6 +11,7 @@
 # Third-party dashboard template artifacts
 /tailadmin-free-tailwind-dashboard-template-main/node_modules/
 /tailadmin-free-tailwind-dashboard-template-main/build/
+/installer/Output/
 
 # ============================================================
 # Delphi / RAD Studio
@@ -27,6 +28,7 @@
 *.drc
 *.map
 *.dres
+*.res
 *.rsm
 *.tds
 *.dcu

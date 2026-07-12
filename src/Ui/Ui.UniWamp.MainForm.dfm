@@ -1,9 +1,8 @@
 object MainForm: TMainForm
   Left = 0
   Top = 0
-  BorderStyle = bsSizeable
   Caption = 'UniWamp'
-  ClientHeight = 655
+  ClientHeight = 724
   ClientWidth = 1053
   Color = 15066597
   Font.Charset = DEFAULT_CHARSET
@@ -62,34 +61,36 @@ object MainForm: TMainForm
     Left = 0
     Top = 55
     Width = 1053
-    Height = 600
+    Height = 669
     Align = alClient
     BevelOuter = bvNone
     ParentBackground = False
     TabOrder = 1
+    ExplicitHeight = 600
     object LeftPanel: TPanel
       Left = 0
       Top = 0
       Width = 297
-      Height = 580
+      Height = 649
       Align = alLeft
       BevelOuter = bvNone
       Color = 15066597
       ParentBackground = False
       TabOrder = 0
+      ExplicitHeight = 580
       object ActionsCard: TPanel
         Left = 10
         Top = 11
         Width = 284
-        Height = 548
+        Height = 622
         BevelKind = bkTile
         BevelOuter = bvNone
         Color = clWhite
         ParentBackground = False
         TabOrder = 0
         object LabelEditors: TPanel
-          Left = 4
-          Top = 484
+          Left = 10
+          Top = 556
           Width = 80
           Height = 15
           BevelOuter = bvNone
@@ -106,7 +107,7 @@ object MainForm: TMainForm
         end
         object EditPhpIniButton: TPanel
           Left = 10
-          Top = 509
+          Top = 581
           Width = 80
           Height = 24
           Cursor = crHandPoint
@@ -124,7 +125,7 @@ object MainForm: TMainForm
         end
         object EditHttpdConfButton: TPanel
           Left = 103
-          Top = 510
+          Top = 582
           Width = 80
           Height = 24
           Cursor = crHandPoint
@@ -141,8 +142,8 @@ object MainForm: TMainForm
           TabOrder = 2
         end
         object EditMariaDbIniButton: TPanel
-          Left = 193
-          Top = 509
+          Left = 191
+          Top = 581
           Width = 80
           Height = 24
           Cursor = crHandPoint
@@ -162,7 +163,7 @@ object MainForm: TMainForm
           Left = 9
           Top = 7
           Width = 251
-          Height = 89
+          Height = 130
           Caption = 'Apache'
           TabOrder = 4
           object ApacheStartButton: TPanel
@@ -261,10 +262,10 @@ object MainForm: TMainForm
           end
         end
         object GroupBox2: TGroupBox
-          Left = 10
-          Top = 104
+          Left = 12
+          Top = 145
           Width = 250
-          Height = 88
+          Height = 113
           Caption = 'MariaDB'
           TabOrder = 5
           object MariaStartButton: TPanel
@@ -343,8 +344,8 @@ object MainForm: TMainForm
           end
         end
         object Panel3: TPanel
-          Left = 10
-          Top = 307
+          Left = 14
+          Top = 381
           Width = 248
           Height = 165
           BevelKind = bkTile
@@ -415,8 +416,8 @@ object MainForm: TMainForm
           end
         end
         object Panel1: TPanel
-          Left = 10
-          Top = 204
+          Left = 14
+          Top = 278
           Width = 250
           Height = 94
           BevelKind = bkTile
@@ -480,12 +481,13 @@ object MainForm: TMainForm
       Left = 297
       Top = 0
       Width = 756
-      Height = 580
+      Height = 649
       Align = alClient
       BevelOuter = bvNone
       Color = 15066597
       ParentBackground = False
       TabOrder = 1
+      ExplicitHeight = 580
       object VHostCard: TPanel
         Left = 6
         Top = 11
@@ -894,11 +896,12 @@ object MainForm: TMainForm
     end
     object StatusBar: TStatusBar
       Left = 0
-      Top = 580
+      Top = 649
       Width = 1053
       Height = 20
       Panels = <>
       SimplePanel = True
+      ExplicitTop = 580
     end
   end
 end

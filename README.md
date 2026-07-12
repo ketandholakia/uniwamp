@@ -107,6 +107,17 @@ It switches Cmder to a green-on-black color scheme and shows the selected PHP ve
 
 Open `src/UniWamp.dpr` in Delphi 12.4 and build the Win32 or Win64 VCL target.
 
+## Installer
+
+The repo includes an Inno Setup script at `installer/UniWamp.iss`.
+
+To build the installer on a machine with Delphi and Inno Setup installed:
+
+1. Build the app so `src\tmpbuild\bin\UniWamp.exe` exists.
+2. Run `installer\build-installer.bat`.
+
+The installer packages the portable app tree into a user-writable install folder and creates the runtime directories UniWamp needs on first launch.
+
 ## Notes
 
 - UniWamp does not install Windows services.

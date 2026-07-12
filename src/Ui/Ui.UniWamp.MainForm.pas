@@ -116,6 +116,20 @@ type
     FTrayStopAllItem: TMenuItem;
     FMainExitItem: TMenuItem;
     FTrayExitItem: TMenuItem;
+    FMainAutoStartItem: TMenuItem;
+    FTrayAutoStartItem: TMenuItem;
+    FStatusRefreshTimer: TTimer;
+    FHttpPortOwnerLabel: TLabel;
+    FHttpsPortOwnerLabel: TLabel;
+    FDbPortOwnerLabel: TLabel;
+    FLastHttpPortChecked: Integer;
+    FLastHttpsPortChecked: Integer;
+    FLastDbPortChecked: Integer;
+    FLastActivityLogWriteTime: TDateTime;
+    FStatusRefreshBusy: Boolean;
+    FActivityCard: TPanel;
+    FActivityLabel: TPanel;
+    FActivityMemo: TMemo;
     procedure FormCreate(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure BuildMenus;
@@ -128,9 +142,18 @@ type
     procedure UpdateHeaderStateColors;
     procedure UpdateServiceButtonState;
     procedure UpdateDashboardLabels;
+    procedure UpdatePortConflictLabels;
     procedure UpdateStackActionState;
     procedure UpdateVHostActionState;
     procedure UpdateMenuState;
+    function IsAutoStartEnabled: Boolean;
+    procedure SetAutoStartEnabled(const Enabled: Boolean);
+    procedure StatusRefreshTimer(Sender: TObject);
+    procedure AutoStartClick(Sender: TObject);
+    procedure CreatePortConflictLabels;
+    procedure CreateActivityLogPanel;
+    procedure RefreshActivityLogView;
+    function TryGetVHostEntry(const ServerName: string; out Entry: TVHostEntry): Boolean;
     procedure ToggleMainWindow;
     function VHostUrl(const ServerName: string): string;
     function SelectedVHostServerName: string;
@@ -151,9 +174,9 @@ type
   procedure LaunchSiteClick(Sender: TObject);
   procedure LaunchDashboardClick(Sender: TObject);
   procedure OpenPhpExtensionsClick(Sender: TObject);
-  procedure OpenPhpSettingsClick(Sender: TObject);
-  procedure OpenApacheModulesClick(Sender: TObject);
-  procedure LaunchAdminerClick(Sender: TObject);
+    procedure OpenPhpSettingsClick(Sender: TObject);
+    procedure OpenApacheModulesClick(Sender: TObject);
+    procedure SetMariaDbRootPasswordClick(Sender: TObject);
     procedure LaunchTerminalClick(Sender: TObject);
     procedure GenerateSslClick(Sender: TObject);
     procedure OpenApacheLogClick(Sender: TObject);
@@ -167,6 +190,7 @@ type
     procedure OpenVHostClick(Sender: TObject);
     procedure OpenVHostFolderClick(Sender: TObject);
     procedure CopyVHostUrlClick(Sender: TObject);
+    procedure RefreshVHostSslClick(Sender: TObject);
     procedure ExitButtonClick(Sender: TObject);
     procedure EditPhpIniClick(Sender: TObject);
     procedure EditHttpdConfClick(Sender: TObject);
@@ -190,10 +214,14 @@ uses
   Winapi.ShellAPI,
   System.IOUtils,
   Vcl.Dialogs,
+  System.Win.Registry,
   Core.UniWamp.ProcessManager,
   Ui.UniWamp.ApacheModulesForm,
   Ui.UniWamp.PhpExtensionsForm,
   Ui.UniWamp.PhpSettingsForm,
+  Ui.UniWamp.PasswordDialog,
+  Ui.UniWamp.StartProgressForm,
+  Ui.UniWamp.VHostDialog,
   Ui.UniWamp.ShutdownProgressForm;
 
 {$R *.dfm}
@@ -214,15 +242,22 @@ begin
   FRuntime := TUniWampRuntime.Create(FPaths, FConfig);
   FMainPhpVersionItems := TList<TMenuItem>.Create;
   FMainPhpProfileItems := TList<TMenuItem>.Create;
+  FLastHttpPortChecked := -1;
+  FLastHttpsPortChecked := -1;
+  FLastDbPortChecked := -1;
+  FLastActivityLogWriteTime := 0;
   FRuntime.SyncPhpVersions;
   FRuntime.SyncNodeVersions;
-  LoadStateIntoUi;
-  RefreshStatus;
-  OnCloseQuery := FormCloseQuery;
+  FStatusRefreshTimer := TTimer.Create(Self);
+  FStatusRefreshTimer.Interval := 4000;
+  FStatusRefreshTimer.OnTimer := StatusRefreshTimer;
+  FStatusRefreshTimer.Enabled := True;
 end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
 begin
+  CreatePortConflictLabels;
+  CreateActivityLogPanel;
   ApacheStartButton.OnClick := ApacheStartClick;
   ApacheStopButton.OnClick := ApacheStopClick;
   ApacheRestartButton.OnClick := ApacheRestartClick;
@@ -273,6 +308,86 @@ begin
   OnCloseQuery := FormCloseQuery;
 end;
 
+procedure TMainForm.CreateActivityLogPanel;
+begin
+  FActivityCard := TPanel.Create(Self);
+  FActivityCard.Parent := RightPanel;
+  FActivityCard.Left := 6;
+  FActivityCard.Top := 435;
+  FActivityCard.Width := 743;
+  FActivityCard.Height := 63;
+  FActivityCard.BevelKind := bkTile;
+  FActivityCard.BevelOuter := bvNone;
+  FActivityCard.Color := clWhite;
+  FActivityCard.ParentBackground := False;
+  FActivityCard.Anchors := [akLeft, akTop, akRight];
+
+  FActivityLabel := TPanel.Create(Self);
+  FActivityLabel.Parent := FActivityCard;
+  FActivityLabel.Left := 10;
+  FActivityLabel.Top := 7;
+  FActivityLabel.Width := 108;
+  FActivityLabel.Height := 15;
+  FActivityLabel.BevelOuter := bvNone;
+  FActivityLabel.Caption := 'Activity log';
+  FActivityLabel.Color := clWhite;
+  FActivityLabel.Font.Style := [fsBold];
+  FActivityLabel.ParentBackground := False;
+  FActivityLabel.ParentFont := False;
+
+  FActivityMemo := TMemo.Create(Self);
+  FActivityMemo.Parent := FActivityCard;
+  FActivityMemo.Left := 10;
+  FActivityMemo.Top := 26;
+  FActivityMemo.Width := 721;
+  FActivityMemo.Height := 29;
+  FActivityMemo.ReadOnly := True;
+  FActivityMemo.ScrollBars := ssVertical;
+  FActivityMemo.WordWrap := False;
+  FActivityMemo.BorderStyle := bsNone;
+  FActivityMemo.Color := RGB(250, 252, 255);
+  FActivityMemo.Font.Name := 'Consolas';
+  FActivityMemo.Font.Size := 9;
+  FActivityMemo.TabStop := False;
+  FActivityMemo.Anchors := [akLeft, akTop, akRight, akBottom];
+end;
+
+procedure TMainForm.CreatePortConflictLabels;
+begin
+  FHttpPortOwnerLabel := TLabel.Create(Self);
+  FHttpPortOwnerLabel.Parent := GroupBox1;
+  FHttpPortOwnerLabel.Left := 11;
+  FHttpPortOwnerLabel.Top := 76;
+  FHttpPortOwnerLabel.Width := 112;
+  FHttpPortOwnerLabel.Height := 11;
+  FHttpPortOwnerLabel.AutoSize := False;
+  FHttpPortOwnerLabel.Font.Size := 8;
+  FHttpPortOwnerLabel.Font.Color := clGrayText;
+  FHttpPortOwnerLabel.ShowHint := True;
+
+  FHttpsPortOwnerLabel := TLabel.Create(Self);
+  FHttpsPortOwnerLabel.Parent := GroupBox1;
+  FHttpsPortOwnerLabel.Left := 141;
+  FHttpsPortOwnerLabel.Top := 76;
+  FHttpsPortOwnerLabel.Width := 102;
+  FHttpsPortOwnerLabel.Height := 11;
+  FHttpsPortOwnerLabel.AutoSize := False;
+  FHttpsPortOwnerLabel.Font.Size := 8;
+  FHttpsPortOwnerLabel.Font.Color := clGrayText;
+  FHttpsPortOwnerLabel.ShowHint := True;
+
+  FDbPortOwnerLabel := TLabel.Create(Self);
+  FDbPortOwnerLabel.Parent := GroupBox2;
+  FDbPortOwnerLabel.Left := 9;
+  FDbPortOwnerLabel.Top := 75;
+  FDbPortOwnerLabel.Width := 228;
+  FDbPortOwnerLabel.Height := 11;
+  FDbPortOwnerLabel.AutoSize := False;
+  FDbPortOwnerLabel.Font.Size := 8;
+  FDbPortOwnerLabel.Font.Color := clGrayText;
+  FDbPortOwnerLabel.ShowHint := True;
+end;
+
 procedure TMainForm.FormShow(Sender: TObject);
 begin
   if Assigned(FMainMenu) then
@@ -307,6 +422,8 @@ begin
   Item := AddItem(MenuItem, '&Generate SSL', GenerateSslClick);
   Item.ShortCut := ShortCut(Ord('G'), [ssCtrl, ssShift]);
   AddItem(MenuItem, '-');
+  FMainAutoStartItem := AddItem(MenuItem, 'Start with &Windows', AutoStartClick);
+  FMainAutoStartItem.AutoCheck := True;
   FMainExitItem := AddItem(MenuItem, 'E&xit', ExitButtonClick);
 
   MenuItem := AddItem(FMainMenu.Items, '&Apache');
@@ -374,6 +491,8 @@ begin
   FMainMariaMenu.RestartItem := AddItem(MenuItem, 'MariaDB Re&start', MariaDbRestartClick);
   FMainMariaMenu.RestartItem.ShortCut := ShortCut(VK_F10, []);
   AddItem(MenuItem, '-');
+  Item := AddItem(MenuItem, 'Set &Root Password', SetMariaDbRootPasswordClick);
+  Item.ShortCut := ShortCut(Ord('R'), [ssCtrl, ssShift]);
   Item := AddItem(MenuItem, '&Edit mariadb.ini', EditMariaDbIniClick);
   Item.ShortCut := ShortCut(Ord('M'), [ssCtrl, ssShift]);
   Item := AddItem(MenuItem, 'MariaDB &Log', OpenMariaDbLogClick);
@@ -426,6 +545,8 @@ begin
   Item.ShortCut := ShortCut(Ord('S'), [ssCtrl]);
   Item := AddItem(FTrayMenu.Items, '&Generate SSL', GenerateSslClick);
   Item.ShortCut := ShortCut(Ord('G'), [ssCtrl, ssShift]);
+  FTrayAutoStartItem := AddItem(FTrayMenu.Items, 'Start with &Windows', AutoStartClick);
+  FTrayAutoStartItem.AutoCheck := True;
   Item := AddItem(FTrayMenu.Items, '&Terminal', LaunchTerminalClick);
   Item.ShortCut := ShortCut(Ord('T'), [ssCtrl]);
   AddItem(FTrayMenu.Items, '-');
@@ -447,6 +568,9 @@ begin
   FTrayMariaMenu.StopItem.ShortCut := ShortCut(VK_F9, []);
   FTrayMariaMenu.RestartItem := AddItem(FTrayMenu.Items, 'MariaDB Re&start', MariaDbRestartClick);
   FTrayMariaMenu.RestartItem.ShortCut := ShortCut(VK_F10, []);
+  AddItem(FTrayMenu.Items, '-');
+  Item := AddItem(FTrayMenu.Items, 'Set &Root Password', SetMariaDbRootPasswordClick);
+  Item.ShortCut := ShortCut(Ord('R'), [ssCtrl, ssShift]);
   AddItem(FTrayMenu.Items, '-');
   FTrayExitItem := AddItem(FTrayMenu.Items, 'E&xit', ExitButtonClick);
   Menu := FMainMenu;
@@ -550,6 +674,64 @@ var
 begin
   Line := FormatDateTime('hh:nn:ss', Now) + '  ' + Text;
   TFile.AppendAllText(TPath.Combine(FPaths.LogsDir, 'activity.log'), Line + sLineBreak, TEncoding.UTF8);
+  if Assigned(FActivityMemo) then
+  begin
+    FActivityMemo.Lines.Add(Line);
+    while FActivityMemo.Lines.Count > 200 do
+      FActivityMemo.Lines.Delete(0);
+    FActivityMemo.SelStart := Length(FActivityMemo.Text);
+    FActivityMemo.Perform(EM_SCROLLCARET, 0, 0);
+  end;
+end;
+
+procedure TMainForm.RefreshActivityLogView;
+var
+  LogFile: string;
+  Lines: TStringList;
+  StartIndex: Integer;
+  I: Integer;
+  CurrentWriteTime: TDateTime;
+begin
+  if not Assigned(FActivityMemo) then
+    Exit;
+
+  LogFile := TPath.Combine(FPaths.LogsDir, 'activity.log');
+  if not FileExists(LogFile) then
+  begin
+    if FActivityMemo.Lines.Count > 0 then
+      FActivityMemo.Clear;
+    FLastActivityLogWriteTime := 0;
+    Exit;
+  end;
+
+  CurrentWriteTime := TFile.GetLastWriteTime(LogFile);
+  if (CurrentWriteTime = FLastActivityLogWriteTime) and (FActivityMemo.Lines.Count > 0) then
+    Exit;
+  FLastActivityLogWriteTime := CurrentWriteTime;
+
+  Lines := TStringList.Create;
+  try
+    Lines.Text := TFile.ReadAllText(LogFile, TEncoding.UTF8);
+    StartIndex := 0;
+    if Lines.Count > 200 then
+      StartIndex := Lines.Count - 200;
+    FActivityMemo.Lines.BeginUpdate;
+    try
+      FActivityMemo.Clear;
+      for I := StartIndex to Lines.Count - 1 do
+        if Trim(Lines[I]) <> '' then
+          FActivityMemo.Lines.Add(Lines[I]);
+    finally
+      FActivityMemo.Lines.EndUpdate;
+    end;
+    if FActivityMemo.Lines.Count > 0 then
+    begin
+      FActivityMemo.SelStart := Length(FActivityMemo.Text);
+      FActivityMemo.Perform(EM_SCROLLCARET, 0, 0);
+    end;
+  finally
+    Lines.Free;
+  end;
 end;
 
 procedure TMainForm.RefreshStatus;
@@ -560,6 +742,11 @@ var
   MariaDbPidBefore: Cardinal;
   MariaDbInitialized: Boolean;
 begin
+  if FStatusRefreshBusy then
+    Exit;
+  FStatusRefreshBusy := True;
+  FStatusRefreshTimer.Enabled := False;
+  try
   ApacheRunningBefore := FConfig.ApacheRunning;
   ApachePidBefore := FConfig.ApachePid;
   MariaDbRunningBefore := FConfig.MariaDbRunning;
@@ -587,12 +774,85 @@ begin
   UpdateStackActionState;
   UpdateVHostActionState;
   UpdateMenuState;
+  UpdatePortConflictLabels;
+  RefreshActivityLogView;
 
   if (ApacheRunningBefore <> FConfig.ApacheRunning) or
      (ApachePidBefore <> FConfig.ApachePid) or
      (MariaDbRunningBefore <> FConfig.MariaDbRunning) or
      (MariaDbPidBefore <> FConfig.MariaDbPid) then
     FConfig.Save(FPaths);
+  finally
+    FStatusRefreshTimer.Enabled := True;
+    FStatusRefreshBusy := False;
+  end;
+end;
+
+procedure TMainForm.UpdatePortConflictLabels;
+var
+  Port: Integer;
+  OwnerInfo: string;
+  CaptionText: string;
+begin
+  if not Assigned(FHttpPortOwnerLabel) then
+    Exit;
+
+  Port := StrToIntDef(Trim(HttpPortEdit.Text), FConfig.HttpPort);
+  if (Port <> FLastHttpPortChecked) or (FHttpPortOwnerLabel.Caption = '') then
+  begin
+    OwnerInfo := FRuntime.DescribePortOwner(Port);
+    if OwnerInfo = '' then
+    begin
+      CaptionText := Format('HTTP %d: available', [Port]);
+      FHttpPortOwnerLabel.Font.Color := RGB(0, 128, 0);
+    end
+    else
+    begin
+      CaptionText := Format('HTTP %d: %s', [Port, OwnerInfo]);
+      FHttpPortOwnerLabel.Font.Color := clRed;
+    end;
+    FHttpPortOwnerLabel.Caption := CaptionText;
+    FHttpPortOwnerLabel.Hint := CaptionText;
+    FLastHttpPortChecked := Port;
+  end;
+
+  Port := StrToIntDef(Trim(HttpsPortEdit.Text), FConfig.HttpsPort);
+  if (Port <> FLastHttpsPortChecked) or (FHttpsPortOwnerLabel.Caption = '') then
+  begin
+    OwnerInfo := FRuntime.DescribePortOwner(Port);
+    if OwnerInfo = '' then
+    begin
+      CaptionText := Format('HTTPS %d: available', [Port]);
+      FHttpsPortOwnerLabel.Font.Color := RGB(0, 128, 0);
+    end
+    else
+    begin
+      CaptionText := Format('HTTPS %d: %s', [Port, OwnerInfo]);
+      FHttpsPortOwnerLabel.Font.Color := clRed;
+    end;
+    FHttpsPortOwnerLabel.Caption := CaptionText;
+    FHttpsPortOwnerLabel.Hint := CaptionText;
+    FLastHttpsPortChecked := Port;
+  end;
+
+  Port := StrToIntDef(Trim(DbPortEdit.Text), FConfig.DatabasePort);
+  if (Port <> FLastDbPortChecked) or (FDbPortOwnerLabel.Caption = '') then
+  begin
+    OwnerInfo := FRuntime.DescribePortOwner(Port);
+    if OwnerInfo = '' then
+    begin
+      CaptionText := Format('DB %d: available', [Port]);
+      FDbPortOwnerLabel.Font.Color := RGB(0, 128, 0);
+    end
+    else
+    begin
+      CaptionText := Format('DB %d: %s', [Port, OwnerInfo]);
+      FDbPortOwnerLabel.Font.Color := clRed;
+    end;
+    FDbPortOwnerLabel.Caption := CaptionText;
+    FDbPortOwnerLabel.Hint := CaptionText;
+    FLastDbPortChecked := Port;
+  end;
 end;
 
 procedure TMainForm.UpdateHeaderStateColors;
@@ -807,7 +1067,10 @@ end;
 procedure TMainForm.UpdateMenuState;
 var
   MenuItem: TMenuItem;
+  AutoStartEnabled: Boolean;
 begin
+  AutoStartEnabled := IsAutoStartEnabled;
+
   if Assigned(FMainWindowToggleItem) then
     if Visible and (WindowState <> wsMinimized) then
       FMainWindowToggleItem.Caption := 'Hide Window'
@@ -874,6 +1137,11 @@ begin
   if Assigned(FTrayMariaMenu.RestartItem) then
     FTrayMariaMenu.RestartItem.Enabled := FConfig.MariaDbRunning;
 
+  if Assigned(FMainAutoStartItem) then
+    FMainAutoStartItem.Checked := AutoStartEnabled;
+  if Assigned(FTrayAutoStartItem) then
+    FTrayAutoStartItem.Checked := AutoStartEnabled;
+
   if Assigned(FMainPhpMenu) then
   begin
     for MenuItem in FMainPhpVersionItems do
@@ -881,6 +1149,56 @@ begin
     for MenuItem in FMainPhpProfileItems do
       MenuItem.Checked := SameText(MenuItem.Caption, FConfig.PhpProfile);
   end;
+end;
+
+function TMainForm.IsAutoStartEnabled: Boolean;
+var
+  Registry: TRegistry;
+begin
+  Result := False;
+  Registry := TRegistry.Create;
+  try
+    Registry.RootKey := HKEY_CURRENT_USER;
+    if Registry.OpenKeyReadOnly('Software\Microsoft\Windows\CurrentVersion\Run') then
+    try
+      Result := Registry.ValueExists('UniWamp');
+    finally
+      Registry.CloseKey;
+    end;
+  finally
+    Registry.Free;
+  end;
+end;
+
+procedure TMainForm.SetAutoStartEnabled(const Enabled: Boolean);
+var
+  Registry: TRegistry;
+  CommandLine: string;
+begin
+  Registry := TRegistry.Create;
+  try
+    Registry.RootKey := HKEY_CURRENT_USER;
+    if Registry.OpenKey('Software\Microsoft\Windows\CurrentVersion\Run', True) then
+    try
+      if Enabled then
+      begin
+        CommandLine := '"' + Application.ExeName + '"';
+        Registry.WriteString('UniWamp', CommandLine);
+      end
+      else if Registry.ValueExists('UniWamp') then
+        Registry.DeleteValue('UniWamp');
+    finally
+      Registry.CloseKey;
+    end;
+  finally
+    Registry.Free;
+  end;
+  UpdateMenuState;
+end;
+
+procedure TMainForm.AutoStartClick(Sender: TObject);
+begin
+  SetAutoStartEnabled(not IsAutoStartEnabled);
 end;
 
 procedure TMainForm.ToggleMainWindow;
@@ -895,6 +1213,13 @@ begin
     SetForegroundWindow(Handle);
   end;
   UpdateMenuState;
+end;
+
+procedure TMainForm.StatusRefreshTimer(Sender: TObject);
+begin
+  if FStatusRefreshBusy then
+    Exit;
+  RefreshStatus;
 end;
 
 procedure TMainForm.ToggleWindowClick(Sender: TObject);
@@ -923,6 +1248,25 @@ begin
   Result := '';
   if (VHostGrid.Row > 0) and (VHostGrid.Row < VHostGrid.RowCount) then
     Result := Trim(VHostGrid.Cells[0, VHostGrid.Row]);
+end;
+
+function TMainForm.TryGetVHostEntry(const ServerName: string; out Entry: TVHostEntry): Boolean;
+var
+  Item: TVHostEntry;
+begin
+  Result := False;
+  Entry.ServerName := '';
+  Entry.ServerAliases := '';
+  Entry.DocumentRoot := '';
+  Entry.EnableSsl := False;
+  Entry.SslCertFile := '';
+  Entry.SslKeyFile := '';
+  for Item in FConfig.VHosts do
+    if SameText(Item.ServerName, ServerName) then
+    begin
+      Entry := Item;
+      Exit(True);
+    end;
 end;
 
 procedure TMainForm.OpenVHostUrl(const ServerName: string);
@@ -979,16 +1323,19 @@ end;
 
 procedure TMainForm.VHostGridDrawCell(Sender: TObject; ACol, ARow: Integer; CellRect: TRect; State: TGridDrawState);
 const
-  ActionGap = 6;
-  OpenWidth = 42;
-  FolderWidth = 42;
-  DeleteWidth = 42;
+  ActionGap = 4;
+  OpenWidth = 36;
+  FolderWidth = 36;
+  DeleteWidth = 36;
+  SslWidth = 36;
 var
   Grid: TStringGrid;
   CellText: string;
   ButtonRect: TRect;
   ActionLeft: Integer;
   OpenEnabled: Boolean;
+  VHostEntry: TVHostEntry;
+  HasVHostEntry: Boolean;
 begin
   Grid := Sender as TStringGrid;
   Grid.Canvas.Brush.Color := clWhite;
@@ -1028,6 +1375,7 @@ begin
   Grid.Canvas.Font.Style := [fsBold];
   ActionLeft := CellRect.Left + 6;
   OpenEnabled := FConfig.ApacheRunning;
+  HasVHostEntry := TryGetVHostEntry(Trim(Grid.Cells[0, ARow]), VHostEntry);
 
   ButtonRect := System.Types.Rect(ActionLeft, CellRect.Top + 4, ActionLeft + OpenWidth, CellRect.Bottom - 4);
   if OpenEnabled then
@@ -1053,19 +1401,39 @@ begin
   Grid.Canvas.Brush.Color := RGB(255, 235, 230);
   Grid.Canvas.RoundRect(ButtonRect.Left, ButtonRect.Top, ButtonRect.Right, ButtonRect.Bottom, 8, 8);
   DrawText(Grid.Canvas.Handle, PChar('Del'), -1, ButtonRect, DT_CENTER or DT_VCENTER or DT_SINGLELINE);
+
+  Inc(ActionLeft, DeleteWidth + ActionGap);
+  ButtonRect := System.Types.Rect(ActionLeft, CellRect.Top + 4, ActionLeft + SslWidth, CellRect.Bottom - 4);
+  if HasVHostEntry and VHostEntry.EnableSsl then
+    Grid.Canvas.Brush.Color := RGB(224, 247, 222)
+  else
+    Grid.Canvas.Brush.Color := RGB(235, 235, 235);
+  Grid.Canvas.RoundRect(ButtonRect.Left, ButtonRect.Top, ButtonRect.Right, ButtonRect.Bottom, 8, 8);
+  if HasVHostEntry and VHostEntry.EnableSsl then
+    Grid.Canvas.Font.Color := clWindowText
+  else
+    Grid.Canvas.Font.Color := clGrayText;
+  DrawText(Grid.Canvas.Handle, PChar('SSL'), -1, ButtonRect, DT_CENTER or DT_VCENTER or DT_SINGLELINE);
 end;
 
 procedure TMainForm.VHostGridMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 const
   ActionGap = 4;
-  OpenWidth = 34;
-  FolderWidth = 34;
+  OpenWidth = 36;
+  FolderWidth = 36;
+  DeleteWidth = 36;
+  SslWidth = 36;
 var
   Grid: TStringGrid;
   GridCoord: TGridCoord;
   CellRect: TRect;
   RelativeX: Integer;
   ServerName: string;
+  OpenLeft: Integer;
+  FolderLeft: Integer;
+  DeleteLeft: Integer;
+  SslLeft: Integer;
+  VHostEntry: TVHostEntry;
 begin
   Grid := Sender as TStringGrid;
   GridCoord := Grid.MouseCoord(X, Y);
@@ -1079,16 +1447,26 @@ begin
 
   CellRect := Grid.CellRect(GridCoord.X, GridCoord.Y);
   RelativeX := X - CellRect.Left;
-
-  if not FConfig.ApacheRunning and (RelativeX <= (6 + OpenWidth)) then
+  OpenLeft := 6;
+  FolderLeft := OpenLeft + OpenWidth + ActionGap;
+  DeleteLeft := FolderLeft + FolderWidth + ActionGap;
+  SslLeft := DeleteLeft + DeleteWidth + ActionGap;
+  if not TryGetVHostEntry(ServerName, VHostEntry) then
     Exit;
 
-  if RelativeX <= (6 + OpenWidth) then
+  if not FConfig.ApacheRunning and (RelativeX >= OpenLeft) and (RelativeX < (OpenLeft + OpenWidth)) then
+    Exit;
+
+  if (RelativeX >= OpenLeft) and (RelativeX < (OpenLeft + OpenWidth)) then
     OpenVHostUrl(ServerName)
-  else if RelativeX <= (6 + OpenWidth + ActionGap + FolderWidth) then
+  else if (RelativeX >= FolderLeft) and (RelativeX < (FolderLeft + FolderWidth)) then
     OpenVHostFolder(ServerName)
+  else if (RelativeX >= DeleteLeft) and (RelativeX < (DeleteLeft + DeleteWidth)) then
+    DeleteVHostByName(ServerName)
+  else if VHostEntry.EnableSsl and (RelativeX >= SslLeft) and (RelativeX < (SslLeft + SslWidth)) then
+    RefreshVHostSslClick(Sender)
   else
-    DeleteVHostByName(ServerName);
+    Exit;
 end;
 
 procedure TMainForm.SaveConfigClick(Sender: TObject);
@@ -1117,10 +1495,15 @@ procedure TMainForm.ApacheStopClick(Sender: TObject);
 var
   ResultInfo: TRuntimeActionResult;
 begin
+  FStatusRefreshTimer.Enabled := False;
+  try
   ResultInfo := FRuntime.StopApache;
   AppendStatus(ResultInfo.Message);
   FConfig.Save(FPaths);
   RefreshStatus;
+  finally
+    FStatusRefreshTimer.Enabled := True;
+  end;
 end;
 
 procedure TMainForm.ApacheRestartClick(Sender: TObject);
@@ -1139,7 +1522,7 @@ var
   ResultInfo: TRuntimeActionResult;
 begin
   SaveUiIntoState;
-  ResultInfo := FRuntime.StartMariaDb;
+  ResultInfo := TStartProgressForm.ExecuteStart(Self, FRuntime, FConfig, FPaths);
   AppendStatus(ResultInfo.Message);
   FConfig.Save(FPaths);
   RefreshStatus;
@@ -1149,10 +1532,15 @@ procedure TMainForm.MariaDbStopClick(Sender: TObject);
 var
   ResultInfo: TRuntimeActionResult;
 begin
+  FStatusRefreshTimer.Enabled := False;
+  try
   ResultInfo := FRuntime.StopMariaDb;
   AppendStatus(ResultInfo.Message);
   FConfig.Save(FPaths);
   RefreshStatus;
+  finally
+    FStatusRefreshTimer.Enabled := True;
+  end;
 end;
 
 procedure TMainForm.MariaDbRestartClick(Sender: TObject);
@@ -1183,7 +1571,7 @@ begin
   if not FConfig.MariaDbRunning then
   begin
     AttemptedAnything := True;
-    MariaResult := FRuntime.StartMariaDb;
+    MariaResult := TStartProgressForm.ExecuteStart(Self, FRuntime, FConfig, FPaths);
     AppendStatus('Start all - MariaDB: ' + MariaResult.Message);
     StartedAnything := StartedAnything or MariaResult.Success;
   end;
@@ -1213,6 +1601,8 @@ var
   MariaResult: TRuntimeActionResult;
   StoppedAnything: Boolean;
 begin
+  FStatusRefreshTimer.Enabled := False;
+  try
   RefreshStatus;
   StoppedAnything := False;
 
@@ -1235,6 +1625,9 @@ begin
 
   FConfig.Save(FPaths);
   RefreshStatus;
+  finally
+    FStatusRefreshTimer.Enabled := True;
+  end;
 end;
 
 procedure TMainForm.LaunchSiteClick(Sender: TObject);
@@ -1281,14 +1674,6 @@ begin
     RefreshStatus;
     AppendStatus('PHP settings saved.');
   end;
-end;
-
-procedure TMainForm.LaunchAdminerClick(Sender: TObject);
-var
-  ResultInfo: TRuntimeActionResult;
-begin
-  ResultInfo := FRuntime.LaunchAdminer;
-  AppendStatus(ResultInfo.Message);
 end;
 
 procedure TMainForm.PhpVersionMenuClick(Sender: TObject);
@@ -1373,18 +1758,15 @@ end;
 
 procedure TMainForm.AddVHostClick(Sender: TObject);
 var
-  ServerName: string;
-  RootDir: string;
+  DialogResult: TVHostDialogResult;
   ResultInfo: TRuntimeActionResult;
   RestartInfo: TRuntimeActionResult;
 begin
-  ServerName := InputBox('Add VHost', 'Server name', '');
-  if ServerName = '' then
+  DialogResult := TVHostDialog.Execute(Self, FPaths.VHostsDir, '', '', '', EnableSslCheck.Checked);
+  if not DialogResult.Accepted then
     Exit;
-  RootDir := InputBox('Add VHost', 'Document root', TPath.Combine(FPaths.VHostsDir, ServerName));
-  if RootDir = '' then
-    Exit;
-  ResultInfo := FRuntime.AddVHost(ServerName, RootDir, EnableSslCheck.Checked);
+  ResultInfo := FRuntime.AddVHost(DialogResult.ServerName, DialogResult.DocumentRoot,
+    DialogResult.ServerAliases, DialogResult.EnableSsl);
   AppendStatus(ResultInfo.Message);
   if ResultInfo.Success and FConfig.ApacheRunning then
   begin
@@ -1394,6 +1776,22 @@ begin
   FConfig.Save(FPaths);
   RefreshStatus;
   LoadStateIntoUi;
+end;
+
+procedure TMainForm.SetMariaDbRootPasswordClick(Sender: TObject);
+var
+  DialogResult: TPasswordDialogResult;
+  ResultInfo: TRuntimeActionResult;
+begin
+  DialogResult := TPasswordDialog.Execute(Self, 'Set MariaDB Root Password', 'New password');
+  if not DialogResult.Accepted then
+    Exit;
+
+  ResultInfo := FRuntime.SetMariaDbRootPassword(DialogResult.Password);
+  AppendStatus(ResultInfo.Message);
+  if ResultInfo.Success then
+    FConfig.Save(FPaths);
+  RefreshStatus;
 end;
 
 procedure TMainForm.DeleteVHostClick(Sender: TObject);
@@ -1420,6 +1818,29 @@ begin
     Exit;
   Clipboard.AsText := VHostUrl(ServerName);
   AppendStatus('Copied vHost URL: ' + VHostUrl(ServerName));
+end;
+
+procedure TMainForm.RefreshVHostSslClick(Sender: TObject);
+var
+  ServerName: string;
+  ResultInfo: TRuntimeActionResult;
+  RestartInfo: TRuntimeActionResult;
+begin
+  ServerName := SelectedVHostServerName;
+  if ServerName = '' then
+    Exit;
+
+  ResultInfo := FRuntime.RefreshVHostSslCertificate(ServerName);
+  AppendStatus(ResultInfo.Message);
+  if ResultInfo.Success and FConfig.ApacheRunning then
+  begin
+    RestartInfo := FRuntime.RestartApache;
+    AppendStatus('Apache reload after VHost SSL refresh: ' + RestartInfo.Message);
+  end;
+  if ResultInfo.Success then
+    FConfig.Save(FPaths);
+  RefreshStatus;
+  LoadStateIntoUi;
 end;
 
 procedure TMainForm.ExitButtonClick(Sender: TObject);
@@ -1453,12 +1874,17 @@ end;
 
 procedure TMainForm.FormCloseQuery(Sender: TObject; var CanClose: Boolean);
 begin
+  FStatusRefreshTimer.Enabled := False;
   SaveUiIntoState;
-  CanClose := TShutdownProgressForm.ExecuteShutdown(Self, FRuntime, FConfig, FPaths);
-  RefreshStatus;
-  FConfig.Save(FPaths);
-  if not CanClose then
-    ShowMessage('Unable to stop all services cleanly. The application will remain open.');
+  try
+    CanClose := TShutdownProgressForm.ExecuteShutdown(Self, FRuntime, FConfig, FPaths);
+    RefreshStatus;
+    FConfig.Save(FPaths);
+    if not CanClose then
+      ShowMessage('Unable to stop all services cleanly. The application will remain open.');
+  finally
+    FStatusRefreshTimer.Enabled := True;
+  end;
 end;
 
 end.
