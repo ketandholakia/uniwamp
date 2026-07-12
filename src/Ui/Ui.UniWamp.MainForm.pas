@@ -25,6 +25,8 @@ uses
   Core.UniWamp.Runtime;
 
 type
+  TActivityMemo = class(TMemo);
+
   THeaderStatusCard = record
     Panel: TPanel;
     Dot: TShape;
@@ -42,7 +44,6 @@ type
   TMainForm = class(TForm)
     Label18: TPanel;
     Label19: TPanel;
-    Panel5: TPanel;
     GroupBox1: TGroupBox;
     ApacheStartButton: TPanel;
     ApacheStopButton: TPanel;
@@ -64,28 +65,41 @@ type
     PhpProfileCombo: TComboBox;
     Label10: TPanel;
     DocumentRootEdit: TEdit;
-    Panel4: TPanel;
-    OpenApacheLogButton: TPanel;
-    OpenMariaLogButton: TPanel;
-    ClearApacheLogButton: TPanel;
-    ClearMariaLogButton: TPanel;
-    ClearActivityLogButton: TPanel;
-    LaunchSiteButton: TPanel;
-    LaunchDashboardButton: TPanel;
     Panel1: TPanel;
     Label4: TPanel;
     PhpVersionCombo: TComboBox;
     LabelNode: TPanel;
     NodeVersionCombo: TComboBox;
     EnableSslCheck: TCheckBox;
-    Label20: TPanel;
     StatusBar: TStatusBar;
-    SaveConfigButton: TPanel;
     exitbutton: TPanel;
+    StartAllButton: TPanel;
+    StopAllButton: TPanel;
+    Panel2: TPanel;
+    Panel5: TPanel;
     GenerateSslButton: TPanel;
+    Panel6: TPanel;
+    AddVHostButton: TPanel;
+    OpenVHostButton: TPanel;
+    OpenVHostFolderButton: TPanel;
+    CopyVHostUrlButton: TPanel;
+    DeleteVHostButton: TPanel;
+    Panel7: TPanel;
+    Panel4: TPanel;
+    OpenApacheLogButton: TPanel;
+    OpenMariaLogButton: TPanel;
+    ClearApacheLogButton: TPanel;
+    ClearMariaLogButton: TPanel;
+    Label20: TPanel;
+    ClearActivityLogButton: TPanel;
+    SaveConfigButton: TPanel;
+    LaunchDashboardButton: TPanel;
     LaunchTerminalButton: TPanel;
-    startbutton: TPanel;
-    stopbutton: TPanel;
+    FActivityCard: TPanel;
+    FActivityLabel: TPanel;
+    Panel8: TPanel;
+    Panel9: TPanel;
+
   published
     HeaderPanel: TPanel;
     MainPanel: TPanel;
@@ -96,11 +110,6 @@ type
     ActionsCard: TPanel;
     VHostCard: TPanel;
     VHostGrid: TStringGrid;
-    AddVHostButton: TPanel;
-    DeleteVHostButton: TPanel;
-    OpenVHostButton: TPanel;
-    OpenVHostFolderButton: TPanel;
-    CopyVHostUrlButton: TPanel;
     EditPhpIniButton: TPanel;
     EditHttpdConfButton: TPanel;
     EditMariaDbIniButton: TPanel;
@@ -141,8 +150,6 @@ type
     FLastDbPortChecked: Integer;
     FLastActivityLogWriteTime: TDateTime;
     FStatusRefreshBusy: Boolean;
-    FActivityCard: TPanel;
-    FActivityLabel: TPanel;
     FActivityMemo: TMemo;
     FHeaderLogo: TImage;
     FHeaderCards: array[0..2] of THeaderStatusCard;
@@ -182,8 +189,6 @@ type
     procedure SetAutoStartEnabled(const Enabled: Boolean);
     procedure StatusRefreshTimer(Sender: TObject);
     procedure AutoStartClick(Sender: TObject);
-    procedure CreatePortConflictLabels;
-    procedure CreateActivityLogPanel;
     procedure RefreshActivityLogView;
     function TryGetVHostEntry(const ServerName: string; out Entry: TVHostEntry): Boolean;
     procedure ToggleMainWindow;
@@ -205,6 +210,7 @@ type
   procedure SaveConfigClick(Sender: TObject);
   procedure LaunchSiteClick(Sender: TObject);
   procedure LaunchDashboardClick(Sender: TObject);
+  procedure LaunchAdminerClick(Sender: TObject);
   procedure OpenPhpExtensionsClick(Sender: TObject);
     procedure OpenPhpSettingsClick(Sender: TObject);
     procedure OpenApacheModulesClick(Sender: TObject);
@@ -406,6 +412,42 @@ begin
     Exit(Candidate);
 end;
 
+function ResolveIconDirectory(const RootDir: string): string;
+var
+  Candidate: string;
+begin
+  Result := '';
+  Candidate := TPath.Combine(TPath.Combine(RootDir, 'src'), 'assets');
+  Candidate := TPath.Combine(Candidate, 'icons');
+  if TDirectory.Exists(Candidate) then
+    Exit(Candidate);
+
+  Candidate := TPath.Combine(TPath.Combine(RootDir, 'assets'), 'icons');
+  if TDirectory.Exists(Candidate) then
+    Exit(Candidate);
+end;
+
+function TryLoadPngFromResource(const ResourceName: string; out Png: TPngImage): Boolean;
+var
+  Stream: TResourceStream;
+begin
+  Result := False;
+  Png := nil;
+  if FindResource(HInstance, PChar(ResourceName), RT_RCDATA) = 0 then
+    Exit;
+
+  Stream := TResourceStream.Create(HInstance, ResourceName, RT_RCDATA);
+  try
+    Png := TPngImage.Create;
+    Png.LoadFromStream(Stream);
+    Result := True;
+  except
+    FreeAndNil(Png);
+    Result := False;
+  end;
+  Stream.Free;
+end;
+
 function NormalizeMaterialIconName(const IconName: string): string;
 begin
   if SameText(IconName, 'restart') then
@@ -434,7 +476,7 @@ var
   FileName: string;
 begin
   Result := '';
-  if FIconDir = '' then
+  if (FIconDir = '') or not TDirectory.Exists(FIconDir) then
     Exit;
 
   NormalizedName := NormalizeMaterialIconName(IconName);
@@ -464,6 +506,12 @@ begin
 
   if FIconCache.TryGetValue(IconName, Result) then
     Exit;
+
+  if TryLoadPngFromResource('ICON_' + IconName, Result) then
+  begin
+    FIconCache.Add(IconName, Result);
+    Exit;
+  end;
 
   FileName := IconFileName(IconName);
   if FileName = '' then
@@ -624,13 +672,7 @@ begin
   Position := poScreenCenter;
   FPaths := TAppPaths.Detect;
   EnsurePortableLayout(FPaths);
-  FIconDir := TPath.Combine(TPath.Combine(FPaths.AppRoot, 'src'), 'assets');
-  FIconDir := TPath.Combine(FIconDir, 'icons');
-  if not TDirectory.Exists(FIconDir) then
-  begin
-    FIconDir := TPath.Combine(FPaths.AppRoot, 'assets');
-    FIconDir := TPath.Combine(FIconDir, 'icons');
-  end;
+  FIconDir := ResolveIconDirectory(FPaths.AppRoot);
   FIconCache := TObjectDictionary<string, TPngImage>.Create([doOwnsValues]);
   FMenuIconIndices := TDictionary<string, Integer>.Create;
   FConfig := TUniWampConfig.Create;
@@ -684,24 +726,23 @@ begin
   HeaderPanel.Height := 102;
   CreateHeaderLogo;
   CreateHeaderStatusCards;
-  CreatePortConflictLabels;
-  CreateActivityLogPanel;
   ApacheStartButton.OnClick := ApacheStartClick;
   ApacheStopButton.OnClick := ApacheStopClick;
   ApacheRestartButton.OnClick := ApacheRestartClick;
   MariaStartButton.OnClick := MariaDbStartClick;
   MariaStopButton.OnClick := MariaDbStopClick;
   MariaRestartButton.OnClick := MariaDbRestartClick;
-  startbutton.OnClick := StartButtonClick;
+  StartAllButton.OnClick := StartButtonClick;
   LaunchTerminalButton.OnClick := LaunchTerminalClick;
   SaveConfigButton.OnClick := SaveConfigClick;
   GenerateSslButton.OnClick := GenerateSslClick;
+  Panel8.OnClick := LaunchDashboardClick;
+  Panel9.OnClick := LaunchAdminerClick;
   OpenApacheLogButton.OnClick := OpenApacheLogClick;
   OpenMariaLogButton.OnClick := OpenMariaDbLogClick;
   ClearApacheLogButton.OnClick := ClearApacheLogClick;
   ClearMariaLogButton.OnClick := ClearMariaDbLogClick;
   ClearActivityLogButton.OnClick := ClearActivityLogClick;
-  LaunchSiteButton.OnClick := LaunchSiteClick;
   LaunchDashboardButton.OnClick := LaunchDashboardClick;
   AddVHostButton.OnClick := AddVHostClick;
   DeleteVHostButton.OnClick := DeleteVHostClick;
@@ -712,11 +753,12 @@ begin
   EditPhpIniButton.OnClick := EditPhpIniClick;
   EditHttpdConfButton.OnClick := EditHttpdConfClick;
   EditMariaDbIniButton.OnClick := EditMariaDbIniClick;
-  stopbutton.OnClick := StopButtonClick;
+  StopAllButton.OnClick := StopButtonClick;
   StyleLinkButton(ClearApacheLogButton, True);
   StyleLinkButton(ClearMariaLogButton, True);
   StyleLinkButton(ClearActivityLogButton, True);
   StyleLinkButton(Label20, True);
+  Label20.Visible := False;
   exitbutton.Color := $00FFD3D3;
   exitbutton.Font.Color := $00603030;
   ApplyPanelIcon(ApacheStartButton, 'play_arrow');
@@ -726,7 +768,6 @@ begin
   ApplyPanelIcon(MariaStopButton, 'stop');
   ApplyPanelIcon(MariaRestartButton, 'restart_alt');
   ApplyPanelIcon(GenerateSslButton, 'lock');
-  ApplyPanelIcon(LaunchSiteButton, 'open_in_new');
   ApplyPanelIcon(LaunchDashboardButton, 'language');
   ApplyPanelIcon(LaunchTerminalButton, 'terminal');
   ApplyPanelIcon(SaveConfigButton, 'save');
@@ -744,7 +785,6 @@ begin
   ApplyPanelIcon(EditPhpIniButton, 'code');
   ApplyPanelIcon(EditHttpdConfButton, 'web');
   ApplyPanelIcon(EditMariaDbIniButton, 'database');
-  SetButtonCaption(LaunchSiteButton, 'Home');
   SetButtonCaption(LaunchDashboardButton, 'Dashboard');
   SetButtonCaption(LaunchTerminalButton, 'Terminal');
   SetButtonCaption(SaveConfigButton, 'Save Config');
@@ -791,53 +831,10 @@ begin
   OnCloseQuery := FormCloseQuery;
 end;
 
-procedure TMainForm.CreateActivityLogPanel;
-begin
-  FActivityCard := TPanel.Create(Self);
-  FActivityCard.Parent := RightPanel;
-  FActivityCard.Left := 6;
-  FActivityCard.Top := 435;
-  FActivityCard.Width := 743;
-  FActivityCard.Height := 76;
-  FActivityCard.BevelKind := bkTile;
-  FActivityCard.BevelOuter := bvNone;
-  FActivityCard.Color := clWhite;
-  FActivityCard.ParentBackground := False;
-  FActivityCard.Anchors := [akLeft, akTop, akRight];
-
-  FActivityLabel := TPanel.Create(Self);
-  FActivityLabel.Parent := FActivityCard;
-  FActivityLabel.Left := 10;
-  FActivityLabel.Top := 7;
-  FActivityLabel.Width := 108;
-  FActivityLabel.Height := 15;
-  FActivityLabel.BevelOuter := bvNone;
-  FActivityLabel.Caption := 'Activity log';
-  FActivityLabel.Color := clWhite;
-  FActivityLabel.Font.Style := [fsBold];
-  FActivityLabel.ParentBackground := False;
-  FActivityLabel.ParentFont := False;
-
-  FActivityMemo := TMemo.Create(Self);
-  FActivityMemo.Parent := FActivityCard;
-  FActivityMemo.Left := 10;
-  FActivityMemo.Top := 26;
-  FActivityMemo.Width := 721;
-  FActivityMemo.Height := 40;
-  FActivityMemo.ReadOnly := True;
-  FActivityMemo.ScrollBars := ssVertical;
-  FActivityMemo.WordWrap := False;
-  FActivityMemo.BorderStyle := bsSingle;
-  FActivityMemo.Color := $FBFDFF;
-  FActivityMemo.Font.Name := 'Consolas';
-  FActivityMemo.Font.Size := 9;
-  FActivityMemo.TabStop := False;
-  FActivityMemo.Anchors := [akLeft, akTop, akRight, akBottom];
-end;
-
 procedure TMainForm.CreateHeaderLogo;
 var
   LogoFile: string;
+  LogoPng: TPngImage;
 begin
   FHeaderLogo := TImage.Create(Self);
   FHeaderLogo.Parent := HeaderPanel;
@@ -850,6 +847,16 @@ begin
   FHeaderLogo.Center := False;
   FHeaderLogo.Transparent := True;
   FHeaderLogo.Anchors := [akLeft, akTop];
+
+  if TryLoadPngFromResource('HEADER_LOGO', LogoPng) then
+  begin
+    try
+      FHeaderLogo.Picture.Assign(LogoPng);
+    finally
+      LogoPng.Free;
+    end;
+    Exit;
+  end;
 
   LogoFile := FindHeaderLogoFile(FPaths.AppRoot);
   if LogoFile <> '' then
@@ -947,12 +954,6 @@ begin
   Panel1.Width := ActionsCard.Width - 24;
   Panel3.Left := 12;
   Panel3.Width := ActionsCard.Width - 24;
-  VHostCard.SetBounds(6, 11, RightPanel.Width - 14, 446);
-  Panel4.Visible := False;
-  FActivityCard.SetBounds(6, VHostCard.Top + VHostCard.Height + 12, RightPanel.Width - 14, 156);
-  Panel5.SetBounds(6, FActivityCard.Top + FActivityCard.Height + 12, RightPanel.Width - 14, 64);
-  VHostGrid.Width := VHostCard.Width - 32;
-  FActivityMemo.Width := FActivityCard.Width - 22;
 
   GridWidth := VHostGrid.ClientWidth;
   VHostGrid.ColWidths[0] := 110;
@@ -966,13 +967,6 @@ begin
     VHostGrid.ColWidths[1] := GridWidth - VHostGrid.ColWidths[0] - VHostGrid.ColWidths[2] - VHostGrid.ColWidths[3];
   if VHostGrid.ColWidths[1] < 1 then
     VHostGrid.ColWidths[1] := 1;
-
-  startbutton.Left := 12;
-  startbutton.Width := 120;
-  stopbutton.Left := startbutton.Left + startbutton.Width + 10;
-  stopbutton.Width := 120;
-  exitbutton.Width := 120;
-  exitbutton.Left := Panel5.Width - exitbutton.Width - 12;
 
   CardWidth := 170;
   CardGap := 18;
@@ -993,48 +987,13 @@ begin
     LayoutDashboard;
 end;
 
-procedure TMainForm.CreatePortConflictLabels;
-begin
-  FHttpPortOwnerLabel := TLabel.Create(Self);
-  FHttpPortOwnerLabel.Parent := GroupBox1;
-  FHttpPortOwnerLabel.Left := 11;
-  FHttpPortOwnerLabel.Top := 76;
-  FHttpPortOwnerLabel.Width := 112;
-  FHttpPortOwnerLabel.Height := 11;
-  FHttpPortOwnerLabel.AutoSize := False;
-  FHttpPortOwnerLabel.Font.Size := 8;
-  FHttpPortOwnerLabel.Font.Color := clGrayText;
-  FHttpPortOwnerLabel.ShowHint := True;
-
-  FHttpsPortOwnerLabel := TLabel.Create(Self);
-  FHttpsPortOwnerLabel.Parent := GroupBox1;
-  FHttpsPortOwnerLabel.Left := 141;
-  FHttpsPortOwnerLabel.Top := 76;
-  FHttpsPortOwnerLabel.Width := 102;
-  FHttpsPortOwnerLabel.Height := 11;
-  FHttpsPortOwnerLabel.AutoSize := False;
-  FHttpsPortOwnerLabel.Font.Size := 8;
-  FHttpsPortOwnerLabel.Font.Color := clGrayText;
-  FHttpsPortOwnerLabel.ShowHint := True;
-
-  FDbPortOwnerLabel := TLabel.Create(Self);
-  FDbPortOwnerLabel.Parent := GroupBox2;
-  FDbPortOwnerLabel.Left := 9;
-  FDbPortOwnerLabel.Top := 75;
-  FDbPortOwnerLabel.Width := 228;
-  FDbPortOwnerLabel.Height := 11;
-  FDbPortOwnerLabel.AutoSize := False;
-  FDbPortOwnerLabel.Font.Size := 8;
-  FDbPortOwnerLabel.Font.Color := clGrayText;
-  FDbPortOwnerLabel.ShowHint := True;
-end;
-
 procedure TMainForm.FormShow(Sender: TObject);
 begin
   if Assigned(FMainMenu) then
     Menu := FMainMenu;
   if HandleAllocated then
     DrawMenuBar(Handle);
+  LayoutDashboard;
 end;
 
 procedure TMainForm.BuildMenus;
@@ -1655,18 +1614,18 @@ begin
   AllRunning := FConfig.ApacheRunning and FConfig.MariaDbRunning;
   AnyRunning := FConfig.ApacheRunning or FConfig.MariaDbRunning;
 
-  startbutton.Enabled := not AllRunning;
-  stopbutton.Enabled := AnyRunning;
+  StartAllButton.Enabled := not AllRunning;
+  StopAllButton.Enabled := AnyRunning;
 
   if AllRunning then
-    SetButtonCaption(startbutton, 'Started')
+    SetButtonCaption(StartAllButton, 'Started')
   else
-    SetButtonCaption(startbutton, 'Start All');
+    SetButtonCaption(StartAllButton, 'Start All');
 
-  StylePanelButton(startbutton, startbutton.Enabled, ButtonSuccessStrongColor, ButtonPositiveColor, clWhite);
-  if not startbutton.Enabled then
-    startbutton.Font.Color := RGB(64, 96, 64);
-  StylePanelButton(stopbutton, stopbutton.Enabled, ButtonDangerStrongColor, ButtonNeutralColor, clWhite);
+  StylePanelButton(StartAllButton, StartAllButton.Enabled, ButtonSuccessStrongColor, ButtonPositiveColor, clWhite);
+  if not StartAllButton.Enabled then
+    StartAllButton.Font.Color := RGB(64, 96, 64);
+  StylePanelButton(StopAllButton, StopAllButton.Enabled, ButtonDangerStrongColor, ButtonNeutralColor, clWhite);
   exitbutton.Color := $00FFD3D3;
   exitbutton.Font.Color := $00603030;
   SetButtonCaption(exitbutton, 'Exit');
@@ -2271,6 +2230,14 @@ begin
   AppendStatus(ResultInfo.Message);
 end;
 
+procedure TMainForm.LaunchAdminerClick(Sender: TObject);
+var
+  ResultInfo: TRuntimeActionResult;
+begin
+  ResultInfo := FRuntime.LaunchAdminer;
+  AppendStatus(ResultInfo.Message);
+end;
+
 procedure TMainForm.OpenPhpExtensionsClick(Sender: TObject);
 begin
   if TPhpExtensionsForm.Execute(Self, FPaths, FConfig, FRuntime) then
@@ -2314,7 +2281,8 @@ begin
   SaveConfigClick(Sender);
 end;
 
-procedure TMainForm.PhpProfileMenuClick(Sender: TObject);
+
+Procedure TMainForm.PhpProfileMenuClick(Sender: TObject);
 var
   MenuItem: TMenuItem;
 begin
@@ -2511,5 +2479,8 @@ begin
     FStatusRefreshTimer.Enabled := True;
   end;
 end;
+
+initialization
+  RegisterClass(TActivityMemo);
 
 end.

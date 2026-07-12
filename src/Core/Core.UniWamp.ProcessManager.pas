@@ -17,7 +17,8 @@ type
   TProcessManager = class
   public
     class function StartDetached(const ExecutablePath, Arguments, WorkingDirectory: string): TProcessStartResult; static;
-    class function RunAndCaptureOutput(const ExecutablePath, Arguments, WorkingDirectory: string; out Output: string): Boolean; static;
+    class function RunAndCaptureOutput(const ExecutablePath, Arguments, WorkingDirectory: string;
+      out Output: string; const TimeoutMs: Cardinal = 0): Boolean; static;
     class function StopProcess(const ProcessId: Cardinal; const ForceAfterMs: Cardinal = 4000): Boolean; static;
     class function WaitForExit(const ProcessId: Cardinal; const TimeoutMs: Cardinal): Boolean; static;
     class function IsRunning(const ProcessId: Cardinal): Boolean; static;
@@ -66,7 +67,7 @@ begin
 end;
 
 class function TProcessManager.RunAndCaptureOutput(const ExecutablePath, Arguments,
-  WorkingDirectory: string; out Output: string): Boolean;
+  WorkingDirectory: string; out Output: string; const TimeoutMs: Cardinal): Boolean;
 var
   StartupInfo: TStartupInfo;
   ProcessInfo: TProcessInformation;
@@ -79,11 +80,14 @@ var
   BytesAvailable: DWORD;
   Chunk: TBytes;
   Captured: TBytesStream;
+  StartTick: UInt64;
+  TimedOut: Boolean;
 begin
   Output := '';
   Result := False;
   ReadPipe := 0;
   WritePipe := 0;
+  TimedOut := False;
 
   if not FileExists(ExecutablePath) then
     Exit;
@@ -122,6 +126,7 @@ begin
 
     Captured := TBytesStream.Create;
     try
+      StartTick := GetTickCount64;
       repeat
         while PeekNamedPipe(ReadPipe, nil, 0, nil, @BytesAvailable, nil) and (BytesAvailable > 0) do
         begin
@@ -130,6 +135,13 @@ begin
           if not ReadFile(ReadPipe, Buffer, BytesAvailable, BytesRead, nil) or (BytesRead = 0) then
             Break;
           Captured.WriteBuffer(Buffer, BytesRead);
+        end;
+
+        if (TimeoutMs > 0) and ((GetTickCount64 - StartTick) >= TimeoutMs) then
+        begin
+          TimedOut := True;
+          TerminateProcess(ProcessInfo.hProcess, 1);
+          Break;
         end;
       until (WaitForSingleObject(ProcessInfo.hProcess, 50) = WAIT_OBJECT_0) and
         (not PeekNamedPipe(ReadPipe, nil, 0, nil, @BytesAvailable, nil) or (BytesAvailable = 0));
@@ -150,7 +162,7 @@ begin
         Captured.ReadBuffer(Chunk[0], Length(Chunk));
         Output := TEncoding.Default.GetString(Chunk);
       end;
-      Result := True;
+      Result := not TimedOut;
     finally
       Captured.Free;
       CloseHandle(ProcessInfo.hProcess);

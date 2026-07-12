@@ -34,6 +34,7 @@ type
     ProgressBar: TProgressBar;
     procedure AddMessage(const Text: string);
     procedure AppendActivityLog(const Text: string);
+    procedure AppendMariaDbFailureDetails;
     procedure FormShow(Sender: TObject);
     procedure RunStartup;
     procedure WmRunStartup(var Message: TMessage); message WM_RUN_STARTUP;
@@ -47,6 +48,7 @@ implementation
 
 uses
   System.IOUtils,
+  System.Threading,
   Core.UniWamp.ProcessManager;
 
 constructor TStartProgressForm.Create(AOwner: TComponent);
@@ -136,6 +138,36 @@ begin
     TEncoding.UTF8);
 end;
 
+procedure TStartProgressForm.AppendMariaDbFailureDetails;
+var
+  LogFile: string;
+  Lines: TStringList;
+  StartIndex: Integer;
+  I: Integer;
+begin
+  LogFile := TPath.Combine(FPaths.LogsDir, 'mariadb-error.log');
+  if not FileExists(LogFile) then
+    Exit;
+
+  Lines := TStringList.Create;
+  try
+    Lines.Text := TFile.ReadAllText(LogFile, TEncoding.UTF8);
+    if Lines.Count = 0 then
+      Exit;
+
+    StartIndex := 0;
+    if Lines.Count > 12 then
+      StartIndex := Lines.Count - 12;
+
+    AddMessage('MariaDB error log:');
+    for I := StartIndex to Lines.Count - 1 do
+      if Trim(Lines[I]) <> '' then
+        AddMessage('  ' + Lines[I]);
+  finally
+    Lines.Free;
+  end;
+end;
+
 procedure TStartProgressForm.FormShow(Sender: TObject);
 begin
   if FExecuted then
@@ -148,38 +180,75 @@ end;
 procedure TStartProgressForm.WmRunStartup(var Message: TMessage);
 begin
   RunStartup;
-  if FResultInfo.Success then
-    ModalResult := mrOk
-  else
-    ModalResult := mrCancel;
 end;
 
 procedure TStartProgressForm.RunStartup;
 var
-  ResultInfo: TRuntimeActionResult;
+  StartupThread: TThread;
 begin
   FResultInfo.Success := False;
   FResultInfo.Message := 'MariaDB startup failed.';
   ProgressBar.Position := 15;
   AddMessage('MariaDB startup sequence started.');
 
-  AddMessage('Starting MariaDB service...');
-  ResultInfo := FRuntime.StartMariaDb;
-  ProgressBar.Position := 85;
-  AddMessage(ResultInfo.Message);
-  AppendActivityLog('Startup: ' + ResultInfo.Message);
-  FResultInfo := ResultInfo;
-
-  if FResultInfo.Success then
-  begin
-    AddMessage('MariaDB startup completed.');
-    ProgressBar.Position := ProgressBar.Max;
-  end
-  else
-  begin
-    AddMessage('MariaDB startup failed.');
-    ProgressBar.Position := ProgressBar.Max div 2;
-  end;
+  StartupThread := TThread.CreateAnonymousThread(
+    procedure
+    var
+      ResultInfo: TRuntimeActionResult;
+    begin
+      try
+        TThread.Synchronize(nil,
+          procedure
+          begin
+            AddMessage('Checking MariaDB runtime files...');
+          end);
+        TThread.Synchronize(nil,
+          procedure
+          begin
+            AddMessage('Starting MariaDB service...');
+          end);
+        ResultInfo := FRuntime.StartMariaDb;
+        FResultInfo := ResultInfo;
+        TThread.Synchronize(nil,
+          procedure
+          begin
+            ProgressBar.Position := 85;
+            AddMessage(FResultInfo.Message);
+            AppendActivityLog('Startup: ' + FResultInfo.Message);
+            if FResultInfo.Success then
+            begin
+              AddMessage('MariaDB startup completed.');
+              ProgressBar.Position := ProgressBar.Max;
+              ModalResult := mrOk;
+            end
+            else
+            begin
+              AddMessage('MariaDB startup failed.');
+              AppendMariaDbFailureDetails;
+              ProgressBar.Position := ProgressBar.Max div 2;
+              ModalResult := mrCancel;
+            end;
+          end);
+      except
+        on E: Exception do
+        begin
+          FResultInfo.Success := False;
+          FResultInfo.Message := E.Message;
+          TThread.Synchronize(nil,
+            procedure
+            begin
+              AddMessage('MariaDB startup failed.');
+              AddMessage(FResultInfo.Message);
+              AppendMariaDbFailureDetails;
+              AppendActivityLog('Startup: ' + FResultInfo.Message);
+              ProgressBar.Position := ProgressBar.Max div 2;
+              ModalResult := mrCancel;
+            end);
+        end;
+      end;
+    end);
+  StartupThread.FreeOnTerminate := True;
+  StartupThread.Start;
 end;
 
 end.

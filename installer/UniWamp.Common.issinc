@@ -1,0 +1,103 @@
+#define MyAppName "UniWamp"
+#define MyAppExeName "UniWamp.exe"
+#define MyAppVersion GetFileVersion("..\src\tmpbuild\bin\UniWamp.exe")
+
+[Setup]
+AppId={{B1E4A0B5-4D8E-4D2A-8D1B-9D7D2A77F3C1}
+AppName={#MyAppName}
+AppVersion={#MyAppVersion}
+AppVerName={#MyAppName} {#MyAppVersion}
+AppPublisher=UniWamp
+DefaultDirName={userdocs}\UniWamp
+DefaultGroupName=UniWamp
+DisableProgramGroupPage=no
+DisableDirPage=no
+AllowNoIcons=yes
+PrivilegesRequired=lowest
+OutputDir=Output
+OutputBaseFilename=UniWamp-{#InstallerProfileName}-Setup-{#MyAppVersion}
+SetupIconFile=..\src\UniWamp_Icon.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
+Compression=lzma2/ultra64
+SolidCompression=yes
+WizardStyle=modern
+ArchitecturesAllowed=x86compatible x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+CloseApplications=no
+DisableStartupPrompt=yes
+UsePreviousAppDir=yes
+UsePreviousGroup=yes
+VersionInfoVersion={#MyAppVersion}
+VersionInfoDescription=UniWamp portable WAMP dashboard
+
+[Languages]
+Name: "english"; MessagesFile: "compiler:Default.isl"
+
+[Dirs]
+Name: "{app}\config"
+Name: "{app}\config\generated"
+Name: "{app}\logs"
+Name: "{app}\ssl"
+Name: "{app}\tmp"
+Name: "{app}\vhosts"
+Name: "{app}\www"
+Name: "{app}\bin\cmder\config\profile.d"
+
+[Files]
+Source: "..\src\tmpbuild\bin\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\src\UniWamp_Icon.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\runtime\apache\*"; DestDir: "{app}\runtime\apache"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\runtime\mariadb\*"; DestDir: "{app}\runtime\mariadb"; Excludes: "data\*"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\templates\*"; DestDir: "{app}\templates"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\home\*"; DestDir: "{app}\home"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\www\index.php"; DestDir: "{app}\www"; Flags: ignoreversion
+Source: "..\bin\cmder\*"; DestDir: "{app}\bin\cmder"; Excludes: "config\*"; Flags: recursesubdirs createallsubdirs ignoreversion
+
+#ifdef InstallerProfileStandard
+#undef InstallerProfileStandard
+#define InstallerProfilePhp85
+#endif
+
+#ifdef InstallerProfileMinimum
+#undef InstallerProfileMinimum
+#define InstallerProfilePhp82
+#endif
+
+#ifdef InstallerProfileFull
+#undef InstallerProfileFull
+#define InstallerProfileAllPhp
+#endif
+
+#ifdef InstallerProfilePhp82
+Source: "..\runtime\php\php82\*"; DestDir: "{app}\runtime\php\php82"; Flags: recursesubdirs createallsubdirs ignoreversion
+#endif
+
+#ifdef InstallerProfilePhp83
+Source: "..\runtime\php\php83\*"; DestDir: "{app}\runtime\php\php83"; Flags: recursesubdirs createallsubdirs ignoreversion
+#endif
+
+#ifdef InstallerProfilePhp84
+Source: "..\runtime\php\php84\*"; DestDir: "{app}\runtime\php\php84"; Flags: recursesubdirs createallsubdirs ignoreversion
+#endif
+
+#ifdef InstallerProfilePhp85
+Source: "..\runtime\php\php85\*"; DestDir: "{app}\runtime\php\php85"; Flags: recursesubdirs createallsubdirs ignoreversion
+#endif
+
+#ifdef InstallerProfileAllPhp
+Source: "..\runtime\php\php82\*"; DestDir: "{app}\runtime\php\php82"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\runtime\php\php83\*"; DestDir: "{app}\runtime\php\php83"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\runtime\php\php84\*"; DestDir: "{app}\runtime\php\php84"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\runtime\php\php85\*"; DestDir: "{app}\runtime\php\php85"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\runtime\mariadb\data\*"; DestDir: "{app}\runtime\mariadb\data"; Flags: recursesubdirs createallsubdirs ignoreversion
+#endif
+
+[Icons]
+Name: "{group}\UniWamp"; Filename: "{app}\{#MyAppExeName}"
+Name: "{autodesktop}\UniWamp"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+
+[Tasks]
+Name: "desktopicon"; Description: "Create a &desktop icon"; GroupDescription: "Additional icons:"
+
+[Run]
+Filename: "{app}\{#MyAppExeName}"; Description: "&Launch UniWamp"; Flags: nowait postinstall skipifsilent

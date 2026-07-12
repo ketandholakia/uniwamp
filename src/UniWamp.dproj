@@ -97,6 +97,8 @@
         <VerInfo_Keys>CompanyName=;FileDescription=$(MSBuildProjectName);FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0;Comments=;ProgramID=com.embarcadero.$(MSBuildProjectName)</VerInfo_Keys>
         <UWP_DelphiLogo44>C:\Users\Admin\Downloads\uwamplogo256.png</UWP_DelphiLogo44>
         <UWP_DelphiLogo150>C:\Users\Admin\Downloads\uwamplogo256.png</UWP_DelphiLogo150>
+        <DCC_Define>madExcept;$(DCC_Define)</DCC_Define>
+        <DCC_MapFile>3</DCC_MapFile>
     </PropertyGroup>
     <ItemGroup>
         <DelphiCompile Include="$(MainSource)">
@@ -104,6 +106,8 @@
         </DelphiCompile>
         <DCCReference Include="Ui\Ui.UniWamp.MainForm.pas"/>
         <DCCReference Include="Ui\Ui.UniWamp.ShutdownProgressForm.pas"/>
+        <DCCReference Include="Ui\Ui.UniWamp.PasswordDialog.pas"/>
+        <DCCReference Include="Ui\Ui.UniWamp.VHostDialog.pas"/>
         <DCCReference Include="Core\Core.UniWamp.Config.pas"/>
         <DCCReference Include="Core\Core.UniWamp.Paths.pas"/>
         <DCCReference Include="Core\Core.UniWamp.Runtime.pas"/>
@@ -1101,4 +1105,7 @@
     <Import Project="$(BDS)\Bin\CodeGear.Delphi.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Delphi.Targets')"/>
     <Import Project="$(APPDATA)\Embarcadero\$(BDSAPPDATABASEDIR)\$(PRODUCTVERSION)\UserTools.proj" Condition="Exists('$(APPDATA)\Embarcadero\$(BDSAPPDATABASEDIR)\$(PRODUCTVERSION)\UserTools.proj')"/>
     <Import Project="$(MSBuildProjectName).deployproj" Condition="Exists('$(MSBuildProjectName).deployproj')"/>
+    <Target Name="BuildUniWampAssets" BeforeTargets="_PasCoreCompile" Condition="Exists('$(ProjectDir)UniWampAssets.rc')">
+        <Exec Command="&quot;$(BDS)\bin\brcc32.exe&quot; &quot;$(ProjectDir)UniWampAssets.rc&quot; -fo&quot;$(ProjectDir)UniWampAssets.res&quot;"/>
+    </Target>
 </Project>

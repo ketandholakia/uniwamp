@@ -26,12 +26,14 @@ UniWamp is a portable Windows WAMP dashboard built in Delphi 12.4. It controls a
 - `logs/` - activity and service logs
 - `tmp/` - temporary files
 - `tests/` - smoke test script
+- `src/assets/` - embedded PNG icon and header sources used to build the UI resource bundle
 
 ## Requirements
 
 - Windows
 - Delphi 12.4 to build the VCL app
 - Apache, MariaDB, and PHP binaries placed into the expected runtime folders
+- UI icon PNGs are embedded into the EXE at build time from `src/assets`
 
 ## Defaults
 
@@ -121,12 +123,36 @@ Open `src/UniWamp.dpr` in Delphi 12.4 and build the Win32 or Win64 VCL target.
 
 ## Installer
 
-The repo includes an Inno Setup script at `installer/UniWamp.iss`.
+The repo includes profile-specific Inno Setup scripts:
+
+- `installer/UniWamp.Php82.iss`
+- `installer/UniWamp.Php83.iss`
+- `installer/UniWamp.Php84.iss`
+- `installer/UniWamp.Php85.iss`
+- `installer/UniWamp.Full.iss`
 
 To build the installer on a machine with Delphi and Inno Setup installed:
 
 1. Build the app so `src\tmpbuild\bin\UniWamp.exe` exists.
 2. Run `installer\build-installer.bat`.
+
+The build script generates five installer files:
+
+- `UniWamp-Php82-Setup-<version>.exe`
+- `UniWamp-Php83-Setup-<version>.exe`
+- `UniWamp-Php84-Setup-<version>.exe`
+- `UniWamp-Php85-Setup-<version>.exe`
+- `UniWamp-Full-Setup-<version>.exe`
+
+Profile scope:
+
+- Php82: Apache, MariaDB, and PHP 82
+- Php83: Apache, MariaDB, and PHP 83
+- Php84: Apache, MariaDB, and PHP 84
+- Php85: Apache, MariaDB, and PHP 85
+- Full: Apache, MariaDB, PHP 82/83/84/85, and a preseeded `runtime/mariadb/data` folder
+
+Each profile-specific script includes the same shared payload rules from `installer/UniWamp.Common.issinc`.
 
 The installer packages the portable app tree into a user-writable install folder and creates the runtime directories UniWamp needs on first launch.
 

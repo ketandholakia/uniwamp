@@ -90,6 +90,23 @@ const
   ManagedHostsBeginMarker = '# BEGIN UniWamp Managed Hosts';
   ManagedHostsEndMarker = '# END UniWamp Managed Hosts';
 
+procedure AppendTextToLogFile(const FileName, Text: string);
+var
+  DirectoryName: string;
+begin
+  if Trim(Text) = '' then
+    Exit;
+
+  DirectoryName := TPath.GetDirectoryName(FileName);
+  if DirectoryName <> '' then
+    EnsureDirectory(DirectoryName);
+
+  TFile.AppendAllText(
+    FileName,
+    FormatDateTime('hh:nn:ss', Now) + '  ' + Text + sLineBreak,
+    TEncoding.UTF8);
+end;
+
 constructor TUniWampRuntime.Create(const Paths: TAppPaths; Config: TUniWampConfig);
 begin
   inherited Create;
@@ -722,6 +739,8 @@ begin
 end;
 
 function TUniWampRuntime.EnsureMariaDbInitialized(out ErrorMessage: string): Boolean;
+const
+  MariaDbInitTimeoutMs = 60000;
 var
   DataDir: string;
   MysqlDir: string;
@@ -730,7 +749,8 @@ var
   BackupDir: string;
   HelperExe: string;
   ServerExe: string;
-  StartResult: TProcessStartResult;
+  BootstrapOutput: string;
+  BootstrapCommand: string;
 begin
   Result := False;
   ErrorMessage := '';
@@ -758,6 +778,8 @@ begin
     begin
       BackupDir := TPath.Combine(TPath.GetDirectoryName(DataDir),
         'data.bak-' + FormatDateTime('yyyymmdd-hhnnss', Now));
+      AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log'),
+        'MariaDB data directory is not clean. Moving "' + DataDir + '" to "' + BackupDir + '".');
       try
         TDirectory.Move(DataDir, BackupDir);
       except
@@ -783,17 +805,31 @@ begin
   if not FileExists(ServerExe) and FileExists(MariaDbExe) then
     TFile.Copy(MariaDbExe, ServerExe, True);
 
-  StartResult := TProcessManager.StartDetached(
+  BootstrapCommand := '--datadir="' + DataDir + '" --port=' + FConfig.DatabasePort.ToString +
+    ' --default-user --verbose-bootstrap';
+  AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log'),
+    'MariaDB init command: "' + HelperExe + '" ' + BootstrapCommand);
+
+  if not TProcessManager.RunAndCaptureOutput(
     HelperExe,
-    '--datadir="' + DataDir + '" --port=' + FConfig.DatabasePort.ToString + ' --default-user --verbose-bootstrap',
-    FPaths.MariaDbBinDir);
-  if not StartResult.Success then
+    BootstrapCommand,
+    FPaths.MariaDbBinDir,
+    BootstrapOutput,
+    MariaDbInitTimeoutMs) then
   begin
-    ErrorMessage := StartResult.ErrorMessage;
+    if Trim(BootstrapOutput) <> '' then
+    begin
+      AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log'),
+        'MariaDB init output:' + sLineBreak + Trim(BootstrapOutput));
+      ErrorMessage := Trim(BootstrapOutput);
+    end
+    else
+      ErrorMessage := 'MariaDB initialization timed out while creating the system database.';
     Exit;
   end;
 
-  TProcessManager.WaitForExit(StartResult.ProcessId, 120000);
+  AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log'),
+    'MariaDB init output:' + sLineBreak + Trim(BootstrapOutput));
   if not MariaDbSystemDatabaseReady(MysqlDir) then
   begin
     ErrorMessage := 'MariaDB initialization did not create the mysql system database.';

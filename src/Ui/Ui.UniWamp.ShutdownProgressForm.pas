@@ -59,11 +59,14 @@ begin
   ClientWidth := 560;
   Color := clWhite;
   Position := poScreenCenter;
+  Padding.SetBounds(16, 16, 16, 16);
 
   HeaderPanel := TPanel.Create(Self);
   HeaderPanel.Parent := Self;
   HeaderPanel.Align := alTop;
   HeaderPanel.Height := 54;
+  HeaderPanel.AlignWithMargins := True;
+  HeaderPanel.Margins.Bottom := 12;
   HeaderPanel.BevelOuter := bvNone;
   HeaderPanel.Color := RGB(44, 62, 80);
   HeaderPanel.Font.Color := clWhite;
@@ -75,6 +78,8 @@ begin
   ProgressBar.Parent := Self;
   ProgressBar.Align := alTop;
   ProgressBar.Height := 18;
+  ProgressBar.AlignWithMargins := True;
+  ProgressBar.Margins.Bottom := 12;
   ProgressBar.Min := 0;
   ProgressBar.Max := 100;
   ProgressBar.Position := 10;
@@ -83,6 +88,8 @@ begin
   StatusPanel.Parent := Self;
   StatusPanel.Align := alTop;
   StatusPanel.Height := 38;
+  StatusPanel.AlignWithMargins := True;
+  StatusPanel.Margins.Bottom := 12;
   StatusPanel.BevelOuter := bvNone;
   StatusPanel.Caption := 'Preparing shutdown...';
   StatusPanel.Alignment := taLeftJustify;
@@ -92,6 +99,7 @@ begin
   DetailsMemo := TMemo.Create(Self);
   DetailsMemo.Parent := Self;
   DetailsMemo.Align := alClient;
+  DetailsMemo.AlignWithMargins := True;
   DetailsMemo.BorderStyle := bsNone;
   DetailsMemo.Color := RGB(248, 249, 250);
   DetailsMemo.ReadOnly := True;
