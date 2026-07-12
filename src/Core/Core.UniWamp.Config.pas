@@ -49,9 +49,10 @@ type
     LastApacheError: string;
     LastMariaDbError: string;
     LastHostsSyncStatus: string;
+    LastMigrationMessage: string;
     constructor Create;
     destructor Destroy; override;
-    procedure LoadOrCreate(const Paths: TAppPaths);
+    function LoadOrCreate(const Paths: TAppPaths): Boolean;
     procedure Save(const Paths: TAppPaths);
     procedure SetDefaults(const Paths: TAppPaths);
     procedure ReplaceApacheModules(const Modules: TArray<string>);
@@ -76,6 +77,64 @@ uses
   System.Classes,
   System.IOUtils,
   System.JSON;
+
+function NormalizePortablePath(const PathValue: string): string;
+begin
+  Result := StringReplace(PathValue, '/', '\', [rfReplaceAll]);
+end;
+
+function ReplacePathPrefix(const PathValue, OldPrefix, NewPrefix: string): string;
+var
+  PathText: string;
+  OldText: string;
+  NewText: string;
+  TailText: string;
+begin
+  Result := PathValue;
+  if (PathValue = '') or (OldPrefix = '') or (NewPrefix = '') then
+    Exit;
+
+  PathText := IncludeTrailingPathDelimiter(NormalizePortablePath(PathValue));
+  OldText := IncludeTrailingPathDelimiter(NormalizePortablePath(OldPrefix));
+  if not SameText(Copy(PathText, 1, Length(OldText)), OldText) then
+    Exit;
+
+  NewText := ExcludeTrailingPathDelimiter(NormalizePortablePath(NewPrefix));
+  TailText := Copy(PathText, Length(OldText) + 1, MaxInt);
+  Result := NewText;
+  if TailText <> '' then
+    Result := TPath.Combine(Result, TailText);
+  Result := ExcludeTrailingPathDelimiter(Result);
+end;
+
+function TryExtractLegacyRoot(const PathValue, AnchorName: string; out LegacyRoot: string): Boolean;
+var
+  PathText: string;
+  LowerPathText: string;
+  AnchorToken: string;
+  AnchorPos: Integer;
+begin
+  Result := False;
+  LegacyRoot := '';
+  if (PathValue = '') or not TPath.IsPathRooted(PathValue) then
+    Exit;
+
+  PathText := ExcludeTrailingPathDelimiter(NormalizePortablePath(PathValue));
+  if SameText(ExtractFileName(PathText), AnchorName) then
+  begin
+    LegacyRoot := ExtractFileDir(PathText);
+    Exit(LegacyRoot <> '');
+  end;
+
+  LowerPathText := LowerCase(PathText);
+  AnchorToken := '\' + LowerCase(AnchorName) + '\';
+  AnchorPos := Pos(AnchorToken, LowerPathText);
+  if AnchorPos <= 0 then
+    Exit;
+
+  LegacyRoot := Copy(PathText, 1, AnchorPos - 1);
+  Result := LegacyRoot <> '';
+end;
 
 function ReadStringOrDefault(const Json: TJSONObject; const Name, DefaultValue: string): string;
 var
@@ -213,11 +272,12 @@ begin
   MariaDbPid := 0;
   ApacheRunning := False;
   MariaDbRunning := False;
-    LastApacheError := '';
-    LastMariaDbError := '';
-    LastHostsSyncStatus := 'Hosts status unknown';
-    MariaDbRootPassword := '';
-    FVHosts.Clear;
+  LastApacheError := '';
+  LastMariaDbError := '';
+  LastHostsSyncStatus := 'Hosts status unknown';
+  LastMigrationMessage := '';
+  MariaDbRootPassword := '';
+  FVHosts.Clear;
   FApacheModules.Clear;
   for Item in DefaultApacheModules do
     FApacheModules.Add(Item);
@@ -241,7 +301,7 @@ begin
   SetPhpSettingDefault('max_input_vars', '3000');
 end;
 
-procedure TUniWampConfig.LoadOrCreate(const Paths: TAppPaths);
+function TUniWampConfig.LoadOrCreate(const Paths: TAppPaths): Boolean;
 var
   JsonText: string;
   Root: TJSONObject;
@@ -252,11 +312,20 @@ var
   I: Integer;
   Entry: TVHostEntry;
   Obj: TJSONObject;
+  OldAppRoot: string;
+  LegacyRootFound: Boolean;
+  Migrated: Boolean;
+  MigratedCount: Integer;
+  OriginalValue: string;
+  UpdatedValue: string;
 begin
+  Result := False;
+  LastMigrationMessage := '';
   SetDefaults(Paths);
   if not FileExists(Paths.AppConfigFile) then
   begin
     Save(Paths);
+    Result := True;
     Exit;
   end;
 
@@ -332,6 +401,101 @@ begin
         if Entry.ServerName <> '' then
           FVHosts.Add(Entry);
       end;
+
+    Migrated := False;
+    MigratedCount := 0;
+    OldAppRoot := '';
+    LegacyRootFound := False;
+    if TryExtractLegacyRoot(DocumentRoot, 'www', OldAppRoot) and
+      not SameText(ExcludeTrailingPathDelimiter(NormalizePortablePath(OldAppRoot)),
+        ExcludeTrailingPathDelimiter(NormalizePortablePath(Paths.AppRoot))) then
+      LegacyRootFound := True
+    else if TryExtractLegacyRoot(TerminalExePath, 'bin', OldAppRoot) and
+      not SameText(ExcludeTrailingPathDelimiter(NormalizePortablePath(OldAppRoot)),
+        ExcludeTrailingPathDelimiter(NormalizePortablePath(Paths.AppRoot))) then
+      LegacyRootFound := True
+    else
+    begin
+      for I := 0 to FVHosts.Count - 1 do
+      begin
+        Entry := FVHosts[I];
+        if TryExtractLegacyRoot(Entry.DocumentRoot, 'www', OldAppRoot) or
+           TryExtractLegacyRoot(Entry.SslCertFile, 'ssl', OldAppRoot) or
+           TryExtractLegacyRoot(Entry.SslKeyFile, 'ssl', OldAppRoot) then
+        begin
+          LegacyRootFound := True;
+          Break;
+        end;
+        OldAppRoot := '';
+      end;
+    end;
+
+    if LegacyRootFound and (OldAppRoot <> '') and
+      not SameText(ExcludeTrailingPathDelimiter(NormalizePortablePath(OldAppRoot)),
+        ExcludeTrailingPathDelimiter(NormalizePortablePath(Paths.AppRoot))) then
+    begin
+
+      OriginalValue := DocumentRoot;
+      UpdatedValue := ReplacePathPrefix(DocumentRoot, OldAppRoot, Paths.AppRoot);
+      if not SameText(NormalizePortablePath(OriginalValue), NormalizePortablePath(UpdatedValue)) then
+      begin
+        DocumentRoot := UpdatedValue;
+        Inc(MigratedCount);
+        Migrated := True;
+      end;
+
+      for I := 0 to FVHosts.Count - 1 do
+      begin
+        Entry := FVHosts[I];
+        OriginalValue := Entry.DocumentRoot;
+        UpdatedValue := ReplacePathPrefix(Entry.DocumentRoot, OldAppRoot, Paths.AppRoot);
+        if not SameText(NormalizePortablePath(OriginalValue), NormalizePortablePath(UpdatedValue)) then
+        begin
+          Entry.DocumentRoot := UpdatedValue;
+          Inc(MigratedCount);
+          Migrated := True;
+        end;
+
+        OriginalValue := Entry.SslCertFile;
+        UpdatedValue := ReplacePathPrefix(Entry.SslCertFile, OldAppRoot, Paths.AppRoot);
+        if not SameText(NormalizePortablePath(OriginalValue), NormalizePortablePath(UpdatedValue)) then
+        begin
+          Entry.SslCertFile := UpdatedValue;
+          Inc(MigratedCount);
+          Migrated := True;
+        end;
+
+        OriginalValue := Entry.SslKeyFile;
+        UpdatedValue := ReplacePathPrefix(Entry.SslKeyFile, OldAppRoot, Paths.AppRoot);
+        if not SameText(NormalizePortablePath(OriginalValue), NormalizePortablePath(UpdatedValue)) then
+        begin
+          Entry.SslKeyFile := UpdatedValue;
+          Inc(MigratedCount);
+          Migrated := True;
+        end;
+        FVHosts[I] := Entry;
+      end;
+
+      OriginalValue := TerminalExePath;
+      UpdatedValue := ReplacePathPrefix(TerminalExePath, OldAppRoot, Paths.AppRoot);
+      if not SameText(NormalizePortablePath(OriginalValue), NormalizePortablePath(UpdatedValue)) then
+      begin
+        TerminalExePath := UpdatedValue;
+        Inc(MigratedCount);
+        Migrated := True;
+      end;
+
+      if Migrated then
+        LastMigrationMessage := Format(
+          'Migrated %d path(s) from %s to %s.',
+          [MigratedCount, OldAppRoot, Paths.AppRoot]);
+    end;
+
+    if Migrated then
+    begin
+      Save(Paths);
+      Result := True;
+    end;
   finally
     Root.Free;
   end;

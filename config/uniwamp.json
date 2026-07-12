@@ -3,7 +3,7 @@
   "httpsPort": 8443,
   "databasePort": 3309,
   "hostName": "localhost",
-  "documentRoot": "D:\\ketan\\github\\uniservernxt\\uniwamp\\www",
+  "documentRoot": "D:\\ketan\\github\\uniwamp\\www",
   "selectedPhpVersion": "php85",
   "selectedNodeVersion": "node-v22.23.1-win-x64",
   "terminalExePath": "bin\\cmder\\Cmder.exe",
@@ -77,7 +77,7 @@
     {
       "serverName": "test1",
       "serverAliases": "",
-      "documentRoot": "D:\\ketan\\github\\uniservernxt\\uniwamp\\www\\test1",
+      "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\test1",
       "enableSsl": false,
       "sslCertFile": "",
       "sslKeyFile": ""
@@ -85,7 +85,7 @@
     {
       "serverName": "alliancelifescience.com",
       "serverAliases": "",
-      "documentRoot": "D:\\ketan\\github\\uniservernxt\\uniwamp\\www\\alliancelifescience.com",
+      "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\alliancelifescience.com",
       "enableSsl": false,
       "sslCertFile": "",
       "sslKeyFile": ""

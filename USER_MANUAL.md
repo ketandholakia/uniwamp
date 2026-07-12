@@ -20,6 +20,18 @@ If you want the terminal button to open Cmder, place:
 
 If you prefer a different location, set `terminalExePath` in `config/uniwamp.json`.
 
+### Default values
+
+The repository includes a `config/uniwamp.json` with default values. Notable defaults are:
+
+- **HTTP port:** 8080
+- **HTTPS port:** 8443
+- **Database port:** 3309
+- **Default document root:** D:\\ketan\\github\\uniservernxt\\uniwamp\\www
+- **Selected PHP version:** php85
+- **Selected Node version:** node-v22.23.1-win-x64
+- **Terminal executable (terminalExePath):** bin\\cmder\\Cmder.exe
+
 ## 2. Main Window
 
 The main window is split into two areas:

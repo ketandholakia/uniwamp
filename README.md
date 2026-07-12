@@ -33,6 +33,18 @@ UniWamp is a portable Windows WAMP dashboard built in Delphi 12.4. It controls a
 - Delphi 12.4 to build the VCL app
 - Apache, MariaDB, and PHP binaries placed into the expected runtime folders
 
+## Defaults
+
+The app ships with sensible defaults stored in `config/uniwamp.json`. Current defaults in the repository are:
+
+- **HTTP port:** 8080
+- **HTTPS port:** 8443
+- **MariaDB port:** 3309
+- **Default document root:** 
+- **Selected PHP version:** php85
+- **Selected Node version:** node-v22.23.1-win-x64
+- **Terminal executable (terminalExePath):** bin\\cmder\\Cmder.exe
+
 ## Runtime Files To Provide
 
 Place your own binaries into these locations:
