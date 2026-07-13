@@ -1265,6 +1265,39 @@ begin
     'Header overview hint should not be empty');
 end;
 
+procedure TestPreferredTextEditorExecutablePrefersEnvironmentOverride;
+var
+  OldEditor: string;
+  Runtime: TUniWampRuntime;
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+begin
+  OldEditor := GetEnvironmentVariable('EDITOR');
+  SetEnvironmentVariable('EDITOR', 'C:\Tools\Code\Code.exe');
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-editor-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        AssertTrue(SameText(Runtime.PreferredTextEditorExecutable, 'C:\Tools\Code\Code.exe'),
+          'EDITOR should take precedence over the Notepad fallback');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    SetEnvironmentVariable('EDITOR', PChar(OldEditor));
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestVHostFilterHintMakesTheClearActionExplicit;
 begin
   AssertTrue(

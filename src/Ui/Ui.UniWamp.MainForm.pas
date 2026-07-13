@@ -2912,7 +2912,7 @@ end;
 procedure TMainForm.EditPhpIniClick(Sender: TObject);
 begin
   if FileExists(FPaths.ActivePhpIniFile) then
-    ShellExecute(0, 'open', 'notepad.exe', PChar(FPaths.ActivePhpIniFile), nil, SW_SHOWNORMAL)
+    AppendStatus(FRuntime.LaunchTextEditor(FPaths.ActivePhpIniFile).Message)
   else
     ShowMessage('Config file not found. Have you saved the configuration?');
 end;
@@ -2920,7 +2920,7 @@ end;
 procedure TMainForm.EditHttpdConfClick(Sender: TObject);
 begin
   if FileExists(FPaths.ApacheHttpdConfFile) then
-    ShellExecute(0, 'open', 'notepad.exe', PChar(FPaths.ApacheHttpdConfFile), nil, SW_SHOWNORMAL)
+    AppendStatus(FRuntime.LaunchTextEditor(FPaths.ApacheHttpdConfFile).Message)
   else
     ShowMessage('Config file not found. Have you saved the configuration?');
 end;
@@ -2928,7 +2928,7 @@ end;
 procedure TMainForm.EditMariaDbIniClick(Sender: TObject);
 begin
   if FileExists(FPaths.MariaDbIniFile) then
-    ShellExecute(0, 'open', 'notepad.exe', PChar(FPaths.MariaDbIniFile), nil, SW_SHOWNORMAL)
+    AppendStatus(FRuntime.LaunchTextEditor(FPaths.MariaDbIniFile).Message)
   else
     ShowMessage('Config file not found. Have you saved the configuration?');
 end;

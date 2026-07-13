@@ -70,6 +70,8 @@ type
     function RestartMariaDb: TRuntimeActionResult;
     function GenerateSslCertificate: TRuntimeActionResult;
     function LaunchUrl(const Url: string): TRuntimeActionResult;
+    function PreferredTextEditorExecutable: string;
+    function LaunchTextEditor(const FileName: string): TRuntimeActionResult;
     function LaunchAdminer: TRuntimeActionResult;
     function LaunchTerminal: TRuntimeActionResult;
     function LaunchTerminalInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
@@ -1655,6 +1657,25 @@ begin
     Result.Message := 'Launched ' + Url
   else
     Result.Message := 'Failed to launch ' + Url;
+end;
+
+function TUniWampRuntime.PreferredTextEditorExecutable: string;
+begin
+  Result := ResolvePortablePath(GetEnvironmentVariable('EDITOR'));
+  if Result = '' then
+    Result := 'notepad.exe';
+end;
+
+function TUniWampRuntime.LaunchTextEditor(const FileName: string): TRuntimeActionResult;
+var
+  EditorExe: string;
+begin
+  EditorExe := PreferredTextEditorExecutable;
+  Result.Success := ShellExecute(0, 'open', PChar(EditorExe), PChar('"' + FileName + '"'), nil, SW_SHOWNORMAL) > 32;
+  if Result.Success then
+    Result.Message := 'Launched ' + EditorExe
+  else
+    Result.Message := 'Failed to launch ' + EditorExe;
 end;
 
 function TUniWampRuntime.LaunchAdminer: TRuntimeActionResult;
