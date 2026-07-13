@@ -14,6 +14,7 @@ UniWamp is a portable Windows development stack manager. The Delphi VCL applicat
 | Configuration | JSON model in `Core.UniWamp.Config`, persisted at `config/uniwamp.json` |
 | Portable paths | `Core.UniWamp.Paths`, rooted at the executable/application directory |
 | Runtime orchestration | `Core.UniWamp.Runtime` |
+| Diagnostics | `Core.UniWamp.Diagnostics` for log rotation, redaction, and copyable snapshots |
 | Process execution | `Core.UniWamp.ProcessManager` |
 | Port checks | `Core.UniWamp.PortUtils` and runtime-level diagnostics |
 | Configuration generation | `Core.UniWamp.TemplateRenderer` and files in `templates/` |
