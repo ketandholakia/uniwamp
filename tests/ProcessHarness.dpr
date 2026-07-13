@@ -577,6 +577,52 @@ begin
   end;
 end;
 
+procedure TestMariaDbInitializationBacksUpDirtyDataDirectory;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  DataDir: string;
+  MysqlDir: string;
+  ExistingBackups: TArray<string>;
+  ResultInfo: TRuntimeActionResult;
+  HelperExe: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-mariadb-init-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    TDirectory.CreateDirectory(Paths.MariaDbBinDir);
+    HelperExe := TPath.Combine(Paths.MariaDbBinDir, 'mariadb-install-db.exe');
+    TFile.Copy('C:\Windows\System32\cmd.exe', HelperExe, True);
+    DataDir := TPath.Combine(Paths.MariaDbDir, 'data');
+    MysqlDir := TPath.Combine(DataDir, 'mysql');
+    TDirectory.CreateDirectory(DataDir);
+    TDirectory.CreateDirectory(MysqlDir);
+    TFile.WriteAllText(TPath.Combine(DataDir, 'stale.txt'), 'stale', TEncoding.UTF8);
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        ResultInfo := Runtime.StartMariaDb;
+        AssertTrue(not ResultInfo.Success, 'MariaDB start should fail for a dirty data directory with a fake bootstrap helper');
+        ExistingBackups := TDirectory.GetDirectories(Paths.MariaDbDir, 'data.bak-*');
+        AssertTrue(Length(ExistingBackups) > 0, 'Dirty MariaDB data directory should be backed up');
+        AssertContains(ResultInfo.Message, 'MariaDB initialization', 'MariaDB init failure should be reported');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestApacheStartSyncsPhpVersionSelection;
 var
   RootDir: string;
@@ -838,6 +884,7 @@ begin
     TestRestartFailureMessages;
     TestMissingRuntimeDependencies;
     TestMariaDbStartReportsPortConflict;
+    TestMariaDbInitializationBacksUpDirtyDataDirectory;
     TestApacheStartSyncsPhpVersionSelection;
     TestStopPathsAreIdempotentWhenAlreadyStopped;
     TestApacheStartStopsOnConfigValidationFailure;

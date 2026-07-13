@@ -97,6 +97,8 @@ Completed:
 
 - Added process harness coverage for Apache start syncing to the detected PHP runtime when the selected version is missing.
 - Verified the runtime updates `SelectedPhpVersion` to the installed PHP directory before continuing Apache startup validation.
+- Added process harness coverage for MariaDB first-run initialization backing up a dirty data directory.
+- Verified the initialization path preserves the stale data in a timestamped backup before retrying startup.
 
 ## Phase 4: Virtual hosts, hosts file, and HTTPS
 
