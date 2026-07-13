@@ -1692,7 +1692,7 @@ const
   SideMargin = 8;
   RowGap = 4;
   GroupGap = 8;
-  ButtonHeight = 24;
+  ButtonHeight = 22;
   LabelHeight = 16;
 var
   ButtonWidth: Integer;
