@@ -48,10 +48,9 @@ Tests: invalid JSON, missing fields, unknown properties, migration, atomic write
 
 Current next step:
 
-- Add focused coverage for malformed, partially valid, and legacy `config/uniwamp.json` cases so recovery and migration behavior stay stable.
-- Verify `LoadOrCreate` only marks the config as migrated when data actually changes.
-- Add a small portable config test harness before moving on to process and service lifecycle work.
-- Keep the repository-level verification script as the canonical local check for app and config changes.
+- Keep the staged updater documentation aligned with the implemented manifest, staging, promotion, rollback, and cleanup flow.
+- Add future remote-download handling only after the local ZIP import path remains stable and well-tested.
+- Continue using the repository-level verification script as the canonical local check for app, runtime, and doc changes.
 
 Completed:
 
