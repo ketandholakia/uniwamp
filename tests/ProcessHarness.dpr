@@ -378,6 +378,58 @@ begin
   end;
 end;
 
+procedure TestApacheStartStopsOnConfigValidationFailure;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  ResultInfo: TRuntimeActionResult;
+  ApacheExePath: string;
+  PhpExePath: string;
+  PhpModulePath: string;
+  ConfText: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-apache-validate-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    TDirectory.CreateDirectory(Paths.ApacheBinDir);
+    TDirectory.CreateDirectory(Paths.ApacheConfDir);
+    TDirectory.CreateDirectory(TPath.Combine(Paths.PhpDir, 'php85'));
+    TDirectory.CreateDirectory(Paths.ApacheDir);
+    ApacheExePath := TPath.Combine(Paths.ApacheBinDir, 'httpd.exe');
+    PhpExePath := TPath.Combine(Paths.PhpDir, 'php85\php.exe');
+    PhpModulePath := TPath.Combine(Paths.PhpDir, 'php85\php85apache2_4.dll');
+    AssertTrue(FileExists('C:\Windows\System32\robocopy.exe'), 'Robocopy executable should be available for validation test');
+    TFile.Copy('C:\Windows\System32\robocopy.exe', ApacheExePath, True);
+    TFile.Copy('C:\Windows\System32\robocopy.exe', PhpExePath, True);
+    TFile.WriteAllText(PhpModulePath, '', TEncoding.ASCII);
+    ConfText := 'This is not valid Apache configuration text.';
+    TFile.WriteAllText(Paths.ApacheHttpdConfFile, ConfText, TEncoding.UTF8);
+
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        ResultInfo := Runtime.StartApache;
+        AssertTrue(not ResultInfo.Success, 'Apache start should fail when config validation fails');
+        AssertContains(ResultInfo.Message, 'Process exited with code', 'Apache validation failure should surface process output');
+        AssertTrue(Config.ApachePid = 0, 'Apache pid should remain cleared on validation failure');
+        AssertTrue(not Config.ApacheRunning, 'Apache running flag should remain false on validation failure');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestRotatedLogAppendsAndTrims;
 var
   RootDir: string;
@@ -496,6 +548,7 @@ begin
     TestMariaDbDuplicateStartShortCircuit;
     TestRestartFailureMessages;
     TestMissingRuntimeDependencies;
+    TestApacheStartStopsOnConfigValidationFailure;
     TestManagedHostsSyncUsesOverride;
     TestRotatedLogAppendsAndTrims;
     TestLogRedactionMasksSecrets;
