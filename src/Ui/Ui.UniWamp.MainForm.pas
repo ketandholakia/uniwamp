@@ -196,6 +196,7 @@ type
       const IconSize: Integer);
     procedure CreateHeaderStatusCards;
     procedure LayoutDashboard;
+    procedure LayoutToolSidebar;
     procedure PhpVersionMenuClick(Sender: TObject);
     procedure PhpProfileMenuClick(Sender: TObject);
     procedure LoadStateIntoUi;
@@ -816,6 +817,7 @@ begin
   end;
   if FConfig.LastMigrationMessage <> '' then
     AppendStatus(FConfig.LastMigrationMessage);
+  LayoutToolSidebar;
   FStatusRefreshTimer := TTimer.Create(Self);
   FStatusRefreshTimer.Interval := 4000;
   FStatusRefreshTimer.OnTimer := StatusRefreshTimer;
@@ -823,8 +825,6 @@ begin
 end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
-var
-  PnpmButton: TPanel;
 begin
   DoubleBuffered := True;
   KeyPreview := True;
@@ -1556,6 +1556,56 @@ begin
     FHeaderCards[1].Detail1.Caption, FHeaderCards[1].Detail2.Caption);
   FHeaderCards[2].Panel.Hint := BuildHeaderCardHint(FHeaderCards[2].Title.Caption,
     FHeaderCards[2].Detail1.Caption, FHeaderCards[2].Detail2.Caption);
+  LayoutToolSidebar;
+end;
+
+procedure TMainForm.LayoutToolSidebar;
+const
+  SideMargin = 10;
+  RowGap = 6;
+  ButtonHeight = 24;
+var
+  ButtonWidth: Integer;
+  Y: Integer;
+  procedure PlaceButton(Button: TPanel);
+  begin
+    if not Assigned(Button) then
+      Exit;
+    Button.SetBounds(SideMargin, Y, ButtonWidth, ButtonHeight);
+    Inc(Y, ButtonHeight + RowGap);
+  end;
+begin
+  if not Assigned(pnltools) then
+    Exit;
+
+  ButtonWidth := pnltools.ClientWidth - (SideMargin * 2);
+  if ButtonWidth < 140 then
+    ButtonWidth := 140;
+
+  Y := 10;
+  PlaceButton(GenerateSslButton);
+  PlaceButton(Panel8);
+  PlaceButton(Panel9);
+  PlaceButton(LaunchTerminalButton);
+  PlaceButton(OpenRepoTerminalButton);
+  PlaceButton(SaveConfigButton);
+  PlaceButton(CopyDiagnosticReportButton);
+  PlaceButton(CopyActivityLogButton);
+  PlaceButton(OpenPhpSettingsButton);
+  PlaceButton(OpenPhpExtensionsButton);
+  PlaceButton(OpenApacheModulesButton);
+  PlaceButton(ComposerButton);
+  PlaceButton(GitButton);
+  PlaceButton(NodeButton);
+  PlaceButton(WpCliButton);
+  PlaceButton(MailpitButton);
+  PlaceButton(RedisButton);
+  PlaceButton(MemcachedButton);
+  PlaceButton(NpmButton);
+  PlaceButton(YarnButton);
+  PlaceButton(PnpmButton);
+  PlaceButton(EditorButton);
+  PlaceButton(UpdateButton);
 end;
 
 procedure TMainForm.FormResize(Sender: TObject);

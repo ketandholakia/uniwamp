@@ -732,11 +732,11 @@ object MainForm: TMainForm
           TabOrder = 0
         end
         object pnltools: TPanel
-          Left = 0
-          Top = 642
-          Width = 768
-          Height = 76
-          Align = alBottom
+          Left = 548
+          Top = 0
+          Width = 220
+          Height = 722
+          Align = alRight
           Alignment = taLeftJustify
           BevelKind = bkTile
           BevelOuter = bvNone
