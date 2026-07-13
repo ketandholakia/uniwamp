@@ -1034,21 +1034,6 @@ begin
   LaunchTerminalButton.Hint := BuildToolPanelHint('Open the terminal in the UniWamp document root',
     'Uses Cmder when available, otherwise falls back to cmd.exe.');
   LaunchTerminalButton.ShowHint := True;
-  OpenRepoTerminalButton := TPanel.Create(Self);
-  OpenRepoTerminalButton.Parent := pnltools;
-  OpenRepoTerminalButton.SetBounds(232, 41, 126, 24);
-  OpenRepoTerminalButton.Cursor := crHandPoint;
-  OpenRepoTerminalButton.BevelOuter := bvNone;
-  OpenRepoTerminalButton.Caption := 'Repo Terminal';
-  OpenRepoTerminalButton.Color := 16053492;
-  OpenRepoTerminalButton.Font.Charset := DEFAULT_CHARSET;
-  OpenRepoTerminalButton.Font.Color := clWindowText;
-  OpenRepoTerminalButton.Font.Height := -11;
-  OpenRepoTerminalButton.Font.Name := 'Segoe UI';
-  OpenRepoTerminalButton.Font.Style := [fsBold];
-  OpenRepoTerminalButton.ParentBackground := False;
-  OpenRepoTerminalButton.ParentFont := False;
-  OpenRepoTerminalButton.TabOrder := 5;
   OpenRepoTerminalButton.OnClick := OpenRepoTerminalClick;
   OpenRepoTerminalButton.Hint := BuildToolPanelHint('Open the terminal in the UniWamp repository root',
     'Launches the configured terminal in the application root for Git and maintenance tasks.');

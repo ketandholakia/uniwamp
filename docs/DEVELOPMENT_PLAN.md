@@ -185,6 +185,7 @@ Completed:
 - Moved the vHost filter into the grid header strip so the title and filter share one control area.
 - Split the vHost header strip into a left-aligned title and right-aligned filter controls.
 - Increased sidebar button spacing so terminal actions no longer overlap in the narrow rail.
+- Removed the duplicate repo-terminal sidebar control and kept the streamed DFM control only once.
 - Added process harness coverage for the vHost filter clear hint wording.
 - Added process harness coverage for the vHost filter search hint wording.
 - Added process harness coverage for the always-on status-bar hint wording.
