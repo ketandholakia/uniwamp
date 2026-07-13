@@ -1828,6 +1828,7 @@ end;
 
 procedure TMainForm.VHostFilterChanged(Sender: TObject);
 begin
+  VHostGrid.Row := 0;
   LoadStateIntoUi;
   UpdateVHostActionState;
 end;
