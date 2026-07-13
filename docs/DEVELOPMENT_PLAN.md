@@ -192,6 +192,7 @@ Completed:
 - Removed the duplicate repo-terminal sidebar control and kept the streamed DFM control only once.
 - Widened the vHost action buttons so captions like `Open Selected` and `Delete Selected` render without clipping.
 - Reduced the right-sidebar button height slightly to keep the rail compact.
+- Added a vHost terminal action so the selected project folder can open directly in the configured terminal.
 - Added process harness coverage for the vHost filter clear hint wording.
 - Added process harness coverage for the vHost filter search hint wording.
 - Added process harness coverage for the always-on status-bar hint wording.

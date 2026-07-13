@@ -972,8 +972,26 @@ object MainForm: TMainForm
             ParentFont = False
             TabOrder = 2
           end
-          object CopyVHostUrlButton: TPanel
+          object OpenVHostTerminalButton: TPanel
             Left = 369
+            Top = 15
+            Width = 100
+            Height = 24
+            Cursor = crHandPoint
+            BevelOuter = bvNone
+            Caption = 'Terminal'
+            Color = 16053492
+            Font.Charset = DEFAULT_CHARSET
+            Font.Color = clWindowText
+            Font.Height = -11
+            Font.Name = 'Segoe UI'
+            Font.Style = [fsBold]
+            ParentBackground = False
+            ParentFont = False
+            TabOrder = 3
+          end
+          object CopyVHostUrlButton: TPanel
+            Left = 479
             Top = 15
             Width = 100
             Height = 24
@@ -988,10 +1006,10 @@ object MainForm: TMainForm
             Font.Style = [fsBold]
             ParentBackground = False
             ParentFont = False
-            TabOrder = 3
+            TabOrder = 4
           end
           object DeleteVHostButton: TPanel
-            Left = 479
+            Left = 589
             Top = 15
             Width = 130
             Height = 24
@@ -1006,7 +1024,7 @@ object MainForm: TMainForm
             Font.Style = [fsBold]
             ParentBackground = False
             ParentFont = False
-            TabOrder = 4
+            TabOrder = 5
           end
         end
         object Panel7: TPanel

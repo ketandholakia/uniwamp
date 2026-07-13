@@ -82,6 +82,7 @@ type
     AddVHostButton: TPanel;
     OpenVHostButton: TPanel;
     OpenVHostFolderButton: TPanel;
+    OpenVHostTerminalButton: TPanel;
     CopyVHostUrlButton: TPanel;
     DeleteVHostButton: TPanel;
     Panel7: TPanel;
@@ -1398,39 +1399,45 @@ begin
   OpenVHostFolderButton.ShowHint := True;
   OpenVHostFolderButton.TabStop := True;
   OpenVHostFolderButton.TabOrder := 15;
+  OpenVHostTerminalButton.OnClick := OpenVHostTerminalClick;
+  OpenVHostTerminalButton.Hint := BuildToolPanelHint('Open a terminal in the project folder',
+    'Launches the configured terminal in the selected vHost document root.');
+  OpenVHostTerminalButton.ShowHint := True;
+  OpenVHostTerminalButton.TabStop := True;
+  OpenVHostTerminalButton.TabOrder := 16;
   CopyVHostUrlButton.OnClick := CopyVHostUrlClick;
   CopyVHostUrlButton.Hint := BuildToolPanelHint('Copy the vHost URL',
     'Copies the selected local site address to the clipboard.');
   CopyVHostUrlButton.ShowHint := True;
   CopyVHostUrlButton.TabStop := True;
-  CopyVHostUrlButton.TabOrder := 16;
+  CopyVHostUrlButton.TabOrder := 17;
   exitbutton.OnClick := ExitButtonClick;
   exitbutton.TabStop := True;
-  exitbutton.TabOrder := 17;
+  exitbutton.TabOrder := 18;
   Panel11.OnClick := ExitButtonClick;
   Panel11.TabStop := True;
-  Panel11.TabOrder := 18;
+  Panel11.TabOrder := 19;
   EditPhpIniButton.OnClick := EditPhpIniClick;
   EditPhpIniButton.Hint := BuildToolPanelHint('Edit php.ini',
     'Opens the generated PHP configuration for the active runtime.');
   EditPhpIniButton.ShowHint := True;
   EditPhpIniButton.TabStop := True;
-  EditPhpIniButton.TabOrder := 19;
+  EditPhpIniButton.TabOrder := 20;
   EditHttpdConfButton.OnClick := EditHttpdConfClick;
   EditHttpdConfButton.Hint := BuildToolPanelHint('Edit httpd.conf',
     'Opens the generated Apache configuration.');
   EditHttpdConfButton.ShowHint := True;
   EditHttpdConfButton.TabStop := True;
-  EditHttpdConfButton.TabOrder := 20;
+  EditHttpdConfButton.TabOrder := 21;
   EditMariaDbIniButton.OnClick := EditMariaDbIniClick;
   EditMariaDbIniButton.Hint := BuildToolPanelHint('Edit mariadb.ini',
     'Opens the generated MariaDB configuration.');
   EditMariaDbIniButton.ShowHint := True;
   EditMariaDbIniButton.TabStop := True;
-  EditMariaDbIniButton.TabOrder := 21;
+  EditMariaDbIniButton.TabOrder := 22;
   StopAllButton.OnClick := StopButtonClick;
   StopAllButton.TabStop := True;
-  StopAllButton.TabOrder := 22;
+  StopAllButton.TabOrder := 23;
   StyleLinkButton(Label20, True);
   Label20.Visible := True;
   exitbutton.Color := $00FFD3D3;
@@ -1466,6 +1473,7 @@ begin
   ApplyPanelIcon(AddVHostButton, 'add');
   ApplyPanelIcon(OpenVHostButton, 'open_in_new');
   ApplyPanelIcon(OpenVHostFolderButton, 'folder_open');
+  ClearPanelIcon(OpenVHostTerminalButton);
   ApplyPanelIcon(CopyVHostUrlButton, 'content_copy');
   ApplyPanelIcon(DeleteVHostButton, 'delete');
   ClearPanelIcon(OpenApacheLogButton);
@@ -1505,6 +1513,7 @@ begin
   SetButtonCaption(AddVHostButton, 'Add');
   SetButtonCaption(OpenVHostButton, 'Open Selected');
   SetButtonCaption(OpenVHostFolderButton, 'Open Root');
+  SetButtonCaption(OpenVHostTerminalButton, 'Terminal');
   SetButtonCaption(CopyVHostUrlButton, 'Copy URL');
   SetButtonCaption(DeleteVHostButton, 'Delete Selected');
   SetButtonCaption(EditPhpIniButton, 'php.ini');
