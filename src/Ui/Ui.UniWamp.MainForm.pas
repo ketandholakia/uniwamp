@@ -917,7 +917,7 @@ begin
   FVHostFilterLabel.Transparent := True;
   FVHostFilterEdit := TEdit.Create(Self);
   FVHostFilterEdit.Parent := Label11;
-  FVHostFilterEdit.Left := 62;
+  FVHostFilterEdit.Left := 50;
   FVHostFilterEdit.Top := 26;
   FVHostFilterEdit.Width := 220;
   FVHostFilterEdit.TextHint := 'Type a site name or document path';
@@ -928,7 +928,7 @@ begin
   FVHostFilterEdit.OnKeyDown := VHostFilterKeyDown;
   FVHostFilterClearLabel := TLabel.Create(Self);
   FVHostFilterClearLabel.Parent := Label11;
-  FVHostFilterClearLabel.Left := 292;
+  FVHostFilterClearLabel.Left := 278;
   FVHostFilterClearLabel.Top := 29;
   FVHostFilterClearLabel.Caption := 'Clear';
   FVHostFilterClearLabel.Cursor := crHandPoint;
@@ -943,6 +943,7 @@ begin
   FVHostFilterClearLabel.OnClick := VHostFilterClearClick;
   Label11.Caption := 'Virtual hosts';
   Label11.Height := 56;
+  Label11.Alignment := taLeftJustify;
   ToolGroupWebLabel := TPanel.Create(Self);
   ToolGroupWebLabel.Parent := pnltools;
   ToolGroupWebLabel.BevelOuter := bvNone;
@@ -1704,9 +1705,9 @@ end;
 procedure TMainForm.LayoutToolSidebar;
 const
   SideMargin = 8;
-  RowGap = 3;
-  GroupGap = 6;
-  ButtonHeight = 21;
+  RowGap = 4;
+  GroupGap = 8;
+  ButtonHeight = 24;
   LabelHeight = 13;
 var
   ButtonWidth: Integer;

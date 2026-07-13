@@ -183,6 +183,8 @@ Completed:
 - Removed icon overlays from the remaining sidebar tools so the right rail uses one consistent button style.
 - Darkened the sidebar section headers so they stand out from the button stacks.
 - Moved the vHost filter into the grid header strip so the title and filter share one control area.
+- Split the vHost header strip into a left-aligned title and right-aligned filter controls.
+- Increased sidebar button spacing so terminal actions no longer overlap in the narrow rail.
 - Added process harness coverage for the vHost filter clear hint wording.
 - Added process harness coverage for the vHost filter search hint wording.
 - Added process harness coverage for the always-on status-bar hint wording.
