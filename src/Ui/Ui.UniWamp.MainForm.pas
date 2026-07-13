@@ -21,6 +21,7 @@ uses
   Vcl.ComCtrls,
   Vcl.Clipbrd,
   Core.UniWamp.Config,
+  Core.UniWamp.Diagnostics,
   Core.UniWamp.Paths,
   Core.UniWamp.Runtime;
 
@@ -1282,7 +1283,7 @@ var
   Line: string;
 begin
   Line := FormatDateTime('hh:nn:ss', Now) + '  ' + Text;
-  TFile.AppendAllText(TPath.Combine(FPaths.LogsDir, 'activity.log'), Line + sLineBreak, TEncoding.UTF8);
+  AppendRotatedLogLine(TPath.Combine(FPaths.LogsDir, 'activity.log'), Line, 500);
   if Assigned(FActivityMemo) then
   begin
     FActivityMemo.Lines.Add(Line);

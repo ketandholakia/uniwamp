@@ -1,0 +1,63 @@
+unit Core.UniWamp.Diagnostics;
+
+interface
+
+uses
+  System.SysUtils;
+
+procedure AppendRotatedLogLine(const FileName, Text: string; const MaxLines: Integer = 500);
+
+implementation
+
+uses
+  System.Classes,
+  System.IOUtils;
+
+procedure TrimLogFileToRecentLines(const FileName: string; const MaxLines: Integer);
+var
+  Lines: TStringList;
+  StartIndex: Integer;
+  KeptLines: TStringList;
+  I: Integer;
+begin
+  if (MaxLines <= 0) or not FileExists(FileName) then
+    Exit;
+
+  Lines := TStringList.Create;
+  KeptLines := TStringList.Create;
+  try
+    Lines.Text := TFile.ReadAllText(FileName, TEncoding.UTF8);
+    if Lines.Count <= MaxLines then
+      Exit;
+    StartIndex := Lines.Count - MaxLines;
+    for I := StartIndex to Lines.Count - 1 do
+      KeptLines.Add(Lines[I]);
+    TFile.WriteAllText(FileName, KeptLines.Text, TEncoding.UTF8);
+  finally
+    KeptLines.Free;
+    Lines.Free;
+  end;
+end;
+
+procedure AppendRotatedLogLine(const FileName, Text: string; const MaxLines: Integer);
+var
+  Lines: TStringList;
+  LineCount: Integer;
+begin
+  TFile.AppendAllText(FileName, Text + sLineBreak, TEncoding.UTF8);
+
+  if MaxLines <= 0 then
+    Exit;
+
+  Lines := TStringList.Create;
+  try
+    Lines.Text := TFile.ReadAllText(FileName, TEncoding.UTF8);
+    LineCount := Lines.Count;
+    if LineCount > MaxLines then
+      TrimLogFileToRecentLines(FileName, MaxLines);
+  finally
+    Lines.Free;
+  end;
+end;
+
+end.

@@ -14,6 +14,7 @@ uses
   Vcl.Graphics,
   Vcl.StdCtrls,
   Core.UniWamp.Config,
+  Core.UniWamp.Diagnostics,
   Core.UniWamp.Paths,
   Core.UniWamp.Runtime;
 
@@ -138,10 +139,10 @@ end;
 
 procedure TShutdownProgressForm.AppendActivityLog(const Text: string);
 begin
-  TFile.AppendAllText(
+  AppendRotatedLogLine(
     TPath.Combine(FPaths.LogsDir, 'activity.log'),
-    FormatDateTime('hh:nn:ss', Now) + '  ' + Text + sLineBreak,
-    TEncoding.UTF8);
+    FormatDateTime('hh:nn:ss', Now) + '  ' + Text,
+    500);
 end;
 
 procedure TShutdownProgressForm.FormShow(Sender: TObject);

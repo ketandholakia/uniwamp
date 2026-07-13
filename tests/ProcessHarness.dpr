@@ -3,10 +3,12 @@ program ProcessHarness;
 {$APPTYPE CONSOLE}
 
 uses
+  System.Classes,
   System.IOUtils,
   System.SysUtils,
   Winapi.Windows,
   Core.UniWamp.Config,
+  Core.UniWamp.Diagnostics,
   Core.UniWamp.Paths,
   Core.UniWamp.TemplateRenderer,
   Core.UniWamp.Runtime,
@@ -376,6 +378,42 @@ begin
   end;
 end;
 
+procedure TestRotatedLogAppendsAndTrims;
+var
+  RootDir: string;
+  LogFile: string;
+  Lines: TStringList;
+  I: Integer;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-log-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    LogFile := TPath.Combine(RootDir, 'activity.log');
+    Lines := TStringList.Create;
+    try
+      for I := 1 to 505 do
+        Lines.Add(Format('line-%d', [I]));
+      TFile.WriteAllText(LogFile, Lines.Text, TEncoding.UTF8);
+    finally
+      Lines.Free;
+    end;
+
+    AppendRotatedLogLine(LogFile, 'line-506', 500);
+
+    Lines := TStringList.Create;
+    try
+      Lines.Text := TFile.ReadAllText(LogFile, TEncoding.UTF8);
+      AssertTrue(Lines.Count = 500, 'Rotated log should keep only the requested number of lines');
+      AssertContains(Lines[0], 'line-7', 'Rotated log should keep the most recent lines');
+      AssertContains(Lines[Lines.Count - 1], 'line-506', 'Rotated log should include the new line');
+    finally
+      Lines.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 begin
   try
     TestMissingExecutable;
@@ -390,6 +428,7 @@ begin
     TestRestartFailureMessages;
     TestMissingRuntimeDependencies;
     TestManagedHostsSyncUsesOverride;
+    TestRotatedLogAppendsAndTrims;
     Writeln('Process harness passed.');
   except
     on E: Exception do
