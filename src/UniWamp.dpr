@@ -1,11 +1,13 @@
 program UniWamp;
 
 uses
-   madExcept,
+{$IFDEF MAD_EXCEPT}
+  madExcept,
   madLinkDisAsm,
   madListHardware,
   madListProcesses,
   madListModules,
+{$ENDIF}
   System.Classes,
  Vcl.Forms,
   Vcl.StdCtrls,

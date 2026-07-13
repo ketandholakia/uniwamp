@@ -76,11 +76,24 @@ implementation
 uses
   System.Classes,
   System.IOUtils,
+  System.StrUtils,
   System.JSON;
 
 function NormalizePortablePath(const PathValue: string): string;
 begin
   Result := StringReplace(PathValue, '/', '\', [rfReplaceAll]);
+end;
+
+function ResolveConfiguredPath(const PathValue, AppRoot: string): string;
+begin
+  Result := NormalizePortablePath(PathValue);
+  if (Result <> '') and not TPath.IsPathRooted(Result) then
+    Result := TPath.Combine(AppRoot, Result);
+end;
+
+function IsValidTcpPort(const Port: Integer): Boolean;
+begin
+  Result := (Port >= 1) and (Port <= 65535);
 end;
 
 function ReplacePathPrefix(const PathValue, OldPrefix, NewPrefix: string): string;
@@ -167,6 +180,11 @@ begin
   if Assigned(Value) and SameText(Value.Value, 'false') then
     Exit(False);
   Result := DefaultValue;
+end;
+
+function ReadConfigVersionOrDefault(const Json: TJSONObject; DefaultValue: Integer): Integer;
+begin
+  Result := ReadIntegerOrDefault(Json, 'configVersion', DefaultValue);
 end;
 
 function ReadObjectOrNil(const Json: TJSONObject; const Name: string): TJSONObject;
@@ -302,6 +320,8 @@ begin
 end;
 
 function TUniWampConfig.LoadOrCreate(const Paths: TAppPaths): Boolean;
+const
+  CurrentConfigVersion = 1;
 var
   JsonText: string;
   Root: TJSONObject;
@@ -318,8 +338,8 @@ var
   MigratedCount: Integer;
   OriginalValue: string;
   UpdatedValue: string;
+  InvalidConfigFile: string;
 begin
-  Result := False;
   LastMigrationMessage := '';
   SetDefaults(Paths);
   if not FileExists(Paths.AppConfigFile) then
@@ -329,10 +349,32 @@ begin
     Exit;
   end;
 
-  JsonText := TFile.ReadAllText(Paths.AppConfigFile, TEncoding.UTF8);
-  Root := TJSONObject.ParseJSONValue(JsonText) as TJSONObject;
+  InvalidConfigFile := Paths.AppConfigFile + '.invalid';
+  try
+    JsonText := TFile.ReadAllText(Paths.AppConfigFile, TEncoding.UTF8);
+    Root := TJSONObject.ParseJSONValue(JsonText) as TJSONObject;
+  except
+    on E: Exception do
+    begin
+      TFile.Copy(Paths.AppConfigFile, InvalidConfigFile, True);
+      LastMigrationMessage := Format(
+        'Configuration was unreadable and has been backed up to %s: %s',
+        [InvalidConfigFile, E.Message]);
+      Save(Paths);
+      Result := True;
+      Exit;
+    end;
+  end;
   if not Assigned(Root) then
+  begin
+    TFile.Copy(Paths.AppConfigFile, InvalidConfigFile, True);
+    LastMigrationMessage := Format(
+      'Configuration was invalid JSON and has been backed up to %s.',
+      [InvalidConfigFile]);
+    Save(Paths);
+    Result := True;
     Exit;
+  end;
   try
     HttpPort := ReadIntegerOrDefault(Root, 'httpPort', HttpPort);
     HttpsPort := ReadIntegerOrDefault(Root, 'httpsPort', HttpsPort);
@@ -404,6 +446,80 @@ begin
 
     Migrated := False;
     MigratedCount := 0;
+
+    if ReadConfigVersionOrDefault(Root, 0) <> CurrentConfigVersion then
+    begin
+      Inc(MigratedCount);
+      Migrated := True;
+    end;
+
+    if not IsValidTcpPort(HttpPort) then
+    begin
+      HttpPort := 8080;
+      Inc(MigratedCount);
+      Migrated := True;
+    end;
+    if not IsValidTcpPort(HttpsPort) or (HttpsPort = HttpPort) then
+    begin
+      HttpsPort := 8443;
+      if HttpsPort = HttpPort then
+        HttpsPort := 8444;
+      Inc(MigratedCount);
+      Migrated := True;
+    end;
+    if not IsValidTcpPort(DatabasePort) or (DatabasePort = HttpPort) or
+      (DatabasePort = HttpsPort) then
+    begin
+      DatabasePort := 3307;
+      if (DatabasePort = HttpPort) or (DatabasePort = HttpsPort) then
+        DatabasePort := 3308;
+      Inc(MigratedCount);
+      Migrated := True;
+    end;
+    if Trim(HostName) = '' then
+    begin
+      HostName := 'localhost';
+      Inc(MigratedCount);
+      Migrated := True;
+    end;
+    if Trim(DocumentRoot) = '' then
+    begin
+      DocumentRoot := Paths.WwwDir;
+      Inc(MigratedCount);
+      Migrated := True;
+    end;
+
+    if (DocumentRoot <> '') and not TPath.IsPathRooted(DocumentRoot) then
+    begin
+      DocumentRoot := ResolveConfiguredPath(DocumentRoot, Paths.AppRoot);
+      Inc(MigratedCount);
+      Migrated := True;
+    end;
+
+    for I := 0 to FVHosts.Count - 1 do
+    begin
+      Entry := FVHosts[I];
+      if (Entry.DocumentRoot <> '') and not TPath.IsPathRooted(Entry.DocumentRoot) then
+      begin
+        Entry.DocumentRoot := ResolveConfiguredPath(Entry.DocumentRoot, Paths.AppRoot);
+        Inc(MigratedCount);
+        Migrated := True;
+      end;
+      if (Entry.SslCertFile <> '') and not TPath.IsPathRooted(Entry.SslCertFile) then
+      begin
+        Entry.SslCertFile := ResolveConfiguredPath(Entry.SslCertFile, Paths.AppRoot);
+        Inc(MigratedCount);
+        Migrated := True;
+      end;
+      if (Entry.SslKeyFile <> '') and not TPath.IsPathRooted(Entry.SslKeyFile) then
+      begin
+        Entry.SslKeyFile := ResolveConfiguredPath(Entry.SslKeyFile, Paths.AppRoot);
+        Inc(MigratedCount);
+        Migrated := True;
+      end;
+      FVHosts[I] := Entry;
+    end;
+
     OldAppRoot := '';
     LegacyRootFound := False;
     if TryExtractLegacyRoot(DocumentRoot, 'www', OldAppRoot) and
@@ -493,9 +609,13 @@ begin
 
     if Migrated then
     begin
+      if LastMigrationMessage = '' then
+        LastMigrationMessage := Format(
+          'Configuration was updated for the current UniWamp installation at %s.',
+          [Paths.AppRoot]);
       Save(Paths);
-      Result := True;
     end;
+    Result := Migrated;
   finally
     Root.Free;
   end;
@@ -511,6 +631,9 @@ var
   Item: string;
   Entry: TVHostEntry;
   Obj: TJSONObject;
+  JsonText: string;
+  TempFile: string;
+  BackupFile: string;
 begin
   Root := TJSONObject.Create;
   try
@@ -518,6 +641,7 @@ begin
     Root.AddPair('httpsPort', TJSONNumber.Create(HttpsPort));
     Root.AddPair('databasePort', TJSONNumber.Create(DatabasePort));
     Root.AddPair('hostName', HostName);
+    Root.AddPair('configVersion', TJSONNumber.Create(1));
     Root.AddPair('documentRoot', DocumentRoot);
     Root.AddPair('selectedPhpVersion', SelectedPhpVersion);
     Root.AddPair('selectedNodeVersion', SelectedNodeVersion);
@@ -567,7 +691,14 @@ begin
     end;
     Root.AddPair('vhosts', VHostArray);
 
-    TFile.WriteAllText(Paths.AppConfigFile, Root.Format(2), TEncoding.UTF8);
+    JsonText := Root.Format(2);
+    TempFile := Paths.AppConfigFile + '.tmp';
+    BackupFile := Paths.AppConfigFile + '.bak';
+    TFile.WriteAllText(TempFile, JsonText, TEncoding.UTF8);
+    if FileExists(Paths.AppConfigFile) then
+      TFile.Replace(TempFile, Paths.AppConfigFile, BackupFile, True)
+    else
+      TFile.Move(TempFile, Paths.AppConfigFile);
   finally
     Root.Free;
   end;

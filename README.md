@@ -121,6 +121,17 @@ It switches Cmder to a green-on-black color scheme and shows the selected PHP ve
 
 Open `src/UniWamp.dpr` in Delphi 12.4 and build the Win32 or Win64 VCL target.
 
+## Verification
+
+Run the full local verification flow from the repository root:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tests\run-all.ps1
+```
+
+This builds the app, builds the config harness, runs the smoke test, and runs the config assertions.
+It also builds and runs the process harness for process-manager and lifecycle checks.
+
 ## Installer
 
 The repo includes profile-specific Inno Setup scripts:
@@ -162,3 +173,10 @@ The installer packages the portable app tree into a user-writable install folder
 - The app keeps its config and generated files inside the repository folder.
 - Apache, MariaDB, and PHP are expected to be portable binaries, not system-wide installs.
 - No files are copied from `uniserver-master`.
+
+## Development documentation
+
+- [Architecture](docs/ARCHITECTURE.md)
+- [Development plan](docs/DEVELOPMENT_PLAN.md)
+- [Test and verification plan](docs/TEST_PLAN.md)
+- [Security and operations checklist](docs/SECURITY_AND_OPERATIONS.md)

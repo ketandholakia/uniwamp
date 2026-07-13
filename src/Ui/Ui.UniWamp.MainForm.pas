@@ -2110,7 +2110,7 @@ var
 begin
   SaveUiIntoState;
   ResultInfo := FRuntime.RestartApache;
-  AppendStatus(ResultInfo.Message);
+  AppendStatus('Apache restart: ' + ResultInfo.Message);
   FConfig.Save(FPaths);
   RefreshStatus;
 end;
@@ -2147,7 +2147,7 @@ var
 begin
   SaveUiIntoState;
   ResultInfo := FRuntime.RestartMariaDb;
-  AppendStatus(ResultInfo.Message);
+  AppendStatus('MariaDB restart: ' + ResultInfo.Message);
   FConfig.Save(FPaths);
   RefreshStatus;
 end;
@@ -2170,7 +2170,7 @@ begin
   begin
     AttemptedAnything := True;
     MariaResult := TStartProgressForm.ExecuteStart(Self, FRuntime, FConfig, FPaths);
-    AppendStatus('Start all - MariaDB: ' + MariaResult.Message);
+    AppendStatus('Start all phase - MariaDB: ' + MariaResult.Message);
     StartedAnything := StartedAnything or MariaResult.Success;
   end;
 
@@ -2178,14 +2178,21 @@ begin
   begin
     AttemptedAnything := True;
     ApacheResult := FRuntime.StartApache;
-    AppendStatus('Start all - Apache: ' + ApacheResult.Message);
+    AppendStatus('Start all phase - Apache: ' + ApacheResult.Message);
     StartedAnything := StartedAnything or ApacheResult.Success;
   end;
 
   if not AttemptedAnything then
     AppendStatus('All services are already running.');
-  if AttemptedAnything and not StartedAnything then
-    AppendStatus('Start all completed with errors.');
+  if AttemptedAnything then
+  begin
+    if StartedAnything and ((FConfig.ApacheRunning) or (FConfig.MariaDbRunning)) then
+      AppendStatus('Start all completed: at least one service is now running.')
+    else if StartedAnything then
+      AppendStatus('Start all completed: at least one service started, but health checks are not yet confirmed.')
+    else
+      AppendStatus('Start all completed with errors.');
+  end;
 
   FConfig.Save(FPaths);
   RefreshStatus;
@@ -2207,19 +2214,21 @@ begin
   if FConfig.ApacheRunning then
   begin
     ApacheResult := FRuntime.StopApache;
-    AppendStatus('Stop all - Apache: ' + ApacheResult.Message);
+    AppendStatus('Stop all phase - Apache: ' + ApacheResult.Message);
     StoppedAnything := True;
   end;
 
   if FConfig.MariaDbRunning then
   begin
     MariaResult := FRuntime.StopMariaDb;
-    AppendStatus('Stop all - MariaDB: ' + MariaResult.Message);
+    AppendStatus('Stop all phase - MariaDB: ' + MariaResult.Message);
     StoppedAnything := True;
   end;
 
   if not StoppedAnything then
     AppendStatus('All services are already stopped.');
+  if StoppedAnything then
+    AppendStatus('Stop all completed: requested services were stopped.');
 
   FConfig.Save(FPaths);
   RefreshStatus;

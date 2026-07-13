@@ -28,6 +28,7 @@ type
     function MysqlAdminExe: string;
     function MariaDbSystemDatabaseReady(const MysqlDir: string): Boolean;
     function EnsureMariaDbInitialized(out ErrorMessage: string): Boolean;
+    function WaitForMariaDbStartup(const ProcessId: Cardinal; out ErrorMessage: string): Boolean;
     function ResolvePortablePath(const PathValue: string): string;
     function CmderExe: string;
     function RenderManagedHostsBlock: string;
@@ -45,6 +46,8 @@ type
     function SyncHostsFile(out ErrorMessage: string): Boolean;
     function RenderVHostBlocks: string;
     function ValidateApachePorts(out ErrorMessage: string): Boolean;
+    function ValidateApacheConfiguration(out ErrorMessage: string): Boolean;
+    function WaitForApacheStartup(const ProcessId: Cardinal; out ErrorMessage: string): Boolean;
     function ValidateMariaDbPorts(out ErrorMessage: string): Boolean;
   public
     constructor Create(const Paths: TAppPaths; Config: TUniWampConfig);
@@ -141,6 +144,11 @@ end;
 function TUniWampRuntime.ApacheIsRunning: Boolean;
 begin
   Result := (ApacheRuntimePid <> 0) and TProcessManager.IsRunning(ApacheRuntimePid);
+  if not Result and (FConfig.ApachePid <> 0) and not TProcessManager.IsRunning(FConfig.ApachePid) then
+  begin
+    FConfig.ApachePid := 0;
+    FConfig.ApacheRunning := False;
+  end;
 end;
 
 function TUniWampRuntime.ApacheProcessId: Cardinal;
@@ -185,6 +193,11 @@ end;
 function TUniWampRuntime.MariaDbIsRunning: Boolean;
 begin
   Result := (FConfig.MariaDbPid <> 0) and TProcessManager.IsRunning(FConfig.MariaDbPid);
+  if not Result and (FConfig.MariaDbPid <> 0) and not TProcessManager.IsRunning(FConfig.MariaDbPid) then
+  begin
+    FConfig.MariaDbPid := 0;
+    FConfig.MariaDbRunning := False;
+  end;
 end;
 
 function TUniWampRuntime.HostsFilePath: string;
@@ -499,6 +512,7 @@ function TUniWampRuntime.DescribePortOwner(const Port: Integer): string;
 var
   SystemRoot: string;
   NetstatOutput: string;
+  HelperError: string;
   Lines: TStringList;
   Tokens: TStringList;
   Line: string;
@@ -521,7 +535,12 @@ begin
     '-ano -p tcp',
     SystemRoot,
     NetstatOutput) then
+  begin
+    HelperError := Trim(NetstatOutput);
+    if HelperError <> '' then
+      Result := 'port scan unavailable: ' + HelperError;
     Exit;
+  end;
 
   Lines := TStringList.Create;
   Tokens := TStringList.Create;
@@ -564,6 +583,8 @@ begin
             ImageName := CsvFields[0];
         end;
       end;
+      if (ImageName = '') and (Trim(TasklistOutput) <> '') then
+        ImageName := 'tasklist unavailable: ' + Trim(TasklistOutput);
 
       if ImageName <> '' then
         Result := Format('%s (PID %d)', [ImageName, OwnerPid])
@@ -673,6 +694,70 @@ begin
       ErrorMessage := Format('HTTPS port %d is already in use.', [FConfig.HttpsPort]);
     Exit;
   end;
+end;
+
+function TUniWampRuntime.ValidateApacheConfiguration(out ErrorMessage: string): Boolean;
+var
+  Output: string;
+begin
+  Result := False;
+  ErrorMessage := '';
+  if not FileExists(ApacheExe) then
+  begin
+    ErrorMessage := 'Apache executable not found: ' + ApacheExe;
+    Exit;
+  end;
+
+  if TProcessManager.RunAndCaptureOutput(
+    ApacheExe,
+    '-t -f "' + FPaths.ApacheHttpdConfFile + '"',
+    FPaths.ApacheBinDir,
+    Output) then
+  begin
+    Result := True;
+    Exit;
+  end;
+
+  Output := Trim(Output);
+  if Output <> '' then
+    ErrorMessage := Output
+  else
+    ErrorMessage := 'Apache configuration validation failed.';
+end;
+
+function TUniWampRuntime.WaitForApacheStartup(const ProcessId: Cardinal; out ErrorMessage: string): Boolean;
+const
+  StartupTimeoutMs = 30000;
+  PollIntervalMs = 250;
+var
+  StartTick: UInt64;
+begin
+  Result := False;
+  ErrorMessage := '';
+  StartTick := GetTickCount64;
+  repeat
+    if not TProcessManager.IsRunning(ProcessId) then
+    begin
+      ErrorMessage := 'Apache exited before it finished starting.';
+      Exit;
+    end;
+    if not IsTcpPortAvailable(FConfig.HttpPort) and
+      ((not FConfig.EnableSsl) or (not IsTcpPortAvailable(FConfig.HttpsPort))) then
+    begin
+      Result := True;
+      Exit;
+    end;
+    Sleep(PollIntervalMs);
+  until (GetTickCount64 - StartTick) >= StartupTimeoutMs;
+
+  if FConfig.EnableSsl then
+    ErrorMessage := Format(
+      'Apache did not start listening on ports %d and %d within %d seconds.',
+      [FConfig.HttpPort, FConfig.HttpsPort, StartupTimeoutMs div 1000])
+  else
+    ErrorMessage := Format(
+      'Apache did not start listening on port %d within %d seconds.',
+      [FConfig.HttpPort, StartupTimeoutMs div 1000]);
 end;
 
 function TUniWampRuntime.ValidateMariaDbPorts(out ErrorMessage: string): Boolean;
@@ -838,14 +923,11 @@ begin
     BootstrapOutput,
     MariaDbInitTimeoutMs) then
   begin
-    if Trim(BootstrapOutput) <> '' then
-    begin
-      AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log'),
-        'MariaDB init output:' + sLineBreak + Trim(BootstrapOutput));
-      ErrorMessage := Trim(BootstrapOutput);
-    end
-    else
+    ErrorMessage := Trim(BootstrapOutput);
+    if ErrorMessage = '' then
       ErrorMessage := 'MariaDB initialization timed out while creating the system database.';
+    AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log'),
+      'MariaDB init output:' + sLineBreak + ErrorMessage);
     Exit;
   end;
 
@@ -858,6 +940,35 @@ begin
   end;
 
   Result := True;
+end;
+
+function TUniWampRuntime.WaitForMariaDbStartup(const ProcessId: Cardinal; out ErrorMessage: string): Boolean;
+const
+  StartupTimeoutMs = 30000;
+  PollIntervalMs = 250;
+var
+  StartTick: UInt64;
+begin
+  Result := False;
+  ErrorMessage := '';
+  StartTick := GetTickCount64;
+  repeat
+    if not TProcessManager.IsRunning(ProcessId) then
+    begin
+      ErrorMessage := 'MariaDB exited before it finished starting.';
+      Exit;
+    end;
+    if not IsTcpPortAvailable(FConfig.DatabasePort) then
+    begin
+      Result := True;
+      Exit;
+    end;
+    Sleep(PollIntervalMs);
+  until (GetTickCount64 - StartTick) >= StartupTimeoutMs;
+
+  ErrorMessage := Format(
+    'MariaDB did not start listening on port %d within %d seconds.',
+    [FConfig.DatabasePort, StartupTimeoutMs div 1000]);
 end;
 
 procedure TUniWampRuntime.GeneratePhpConfig;
@@ -1030,6 +1141,13 @@ var
   StartResult: TProcessStartResult;
   ErrorMessage: string;
 begin
+  if FConfig.ApacheRunning and not ApacheIsRunning then
+  begin
+    FConfig.LastApacheError := 'Stale Apache state detected; retrying start.';
+    FConfig.ApachePid := 0;
+    FConfig.ApacheRunning := False;
+  end;
+
   if ApacheIsRunning then
   begin
     FConfig.ApacheRunning := True;
@@ -1068,6 +1186,13 @@ begin
   end;
 
   GenerateAllConfigs;
+  if not ValidateApacheConfiguration(ErrorMessage) then
+  begin
+    FConfig.ApacheRunning := False;
+    FConfig.LastApacheError := ErrorMessage;
+    Result.Message := ErrorMessage;
+    Exit;
+  end;
   StartResult := TProcessManager.StartDetached(
     ApacheExe,
     '-f "' + FPaths.ApacheHttpdConfFile + '"',
@@ -1077,9 +1202,20 @@ begin
   if StartResult.Success then
   begin
     FConfig.ApachePid := StartResult.ProcessId;
-    FConfig.ApacheRunning := True;
-    FConfig.LastApacheError := '';
-    Result.Message := 'Apache started.';
+    if WaitForApacheStartup(StartResult.ProcessId, ErrorMessage) then
+    begin
+      FConfig.ApacheRunning := True;
+      FConfig.LastApacheError := '';
+      Result.Message := 'Apache started.';
+    end
+    else
+    begin
+      FConfig.ApachePid := 0;
+      FConfig.ApacheRunning := False;
+      FConfig.LastApacheError := ErrorMessage;
+      Result.Success := False;
+      Result.Message := ErrorMessage;
+    end;
   end
   else
   begin
@@ -1112,6 +1248,8 @@ begin
 
   if TProcessManager.IsRunning(FConfig.ApachePid) then
     Result.Success := TProcessManager.StopProcess(FConfig.ApachePid) and Result.Success;
+  if (FConfig.ApachePid <> 0) and not TProcessManager.IsRunning(FConfig.ApachePid) then
+    FConfig.ApachePid := 0;
 
   if (RuntimePid <> 0) and not IsTcpPortAvailable(FConfig.HttpPort) then
   begin
@@ -1163,9 +1301,18 @@ function TUniWampRuntime.RestartApache: TRuntimeActionResult;
 begin
   Result := StopApache;
   if not Result.Success then
+  begin
+    Result.Message := 'Apache restart failed during stop: ' + Result.Message;
+    FConfig.LastApacheError := Result.Message;
     Exit;
+  end;
   Sleep(500);
   Result := StartApache;
+  if not Result.Success then
+  begin
+    Result.Message := 'Apache restart failed during start: ' + Result.Message;
+    FConfig.LastApacheError := Result.Message;
+  end;
 end;
 
 function TUniWampRuntime.StartMariaDb: TRuntimeActionResult;
@@ -1173,6 +1320,13 @@ var
   StartResult: TProcessStartResult;
   ErrorMessage: string;
 begin
+  if FConfig.MariaDbRunning and not MariaDbIsRunning then
+  begin
+    FConfig.LastMariaDbError := 'Stale MariaDB state detected; retrying start.';
+    FConfig.MariaDbPid := 0;
+    FConfig.MariaDbRunning := False;
+  end;
+
   if MariaDbIsRunning then
   begin
     FConfig.MariaDbRunning := True;
@@ -1206,9 +1360,20 @@ begin
   if StartResult.Success then
   begin
     FConfig.MariaDbPid := StartResult.ProcessId;
-    FConfig.MariaDbRunning := True;
-    FConfig.LastMariaDbError := '';
-    Result.Message := 'MariaDB started.';
+    if WaitForMariaDbStartup(StartResult.ProcessId, ErrorMessage) then
+    begin
+      FConfig.MariaDbRunning := True;
+      FConfig.LastMariaDbError := '';
+      Result.Message := 'MariaDB started.';
+    end
+    else
+    begin
+      FConfig.MariaDbPid := 0;
+      FConfig.MariaDbRunning := False;
+      FConfig.LastMariaDbError := ErrorMessage;
+      Result.Success := False;
+      Result.Message := ErrorMessage;
+    end;
   end
   else
   begin
@@ -1235,8 +1400,9 @@ begin
 
   if TProcessManager.IsRunning(FConfig.MariaDbPid) then
     Result.Success := TProcessManager.StopProcess(FConfig.MariaDbPid);
+  if (FConfig.MariaDbPid <> 0) and not TProcessManager.IsRunning(FConfig.MariaDbPid) then
+    FConfig.MariaDbPid := 0;
 
-  FConfig.MariaDbPid := 0;
   FConfig.MariaDbRunning := False;
   if Result.Success then
     Result.Message := 'MariaDB stopped.'
@@ -1248,8 +1414,17 @@ function TUniWampRuntime.RestartMariaDb: TRuntimeActionResult;
 begin
   Result := StopMariaDb;
   if not Result.Success then
+  begin
+    Result.Message := 'MariaDB restart failed during stop: ' + Result.Message;
+    FConfig.LastMariaDbError := Result.Message;
     Exit;
+  end;
   Result := StartMariaDb;
+  if not Result.Success then
+  begin
+    Result.Message := 'MariaDB restart failed during start: ' + Result.Message;
+    FConfig.LastMariaDbError := Result.Message;
+  end;
 end;
 
 function TUniWampRuntime.GenerateSslCertificate: TRuntimeActionResult;
@@ -1339,7 +1514,10 @@ begin
   if not TProcessManager.RunAndCaptureOutput(MysqlAdminExePath, Arguments, FPaths.MariaDbBinDir, Output) then
   begin
     Result.Success := False;
-    Result.Message := 'Failed to start mysqladmin.';
+    if Trim(Output) <> '' then
+      Result.Message := Trim(Output)
+    else
+      Result.Message := 'Failed to start mysqladmin.';
     Exit;
   end;
 

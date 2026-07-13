@@ -27,7 +27,7 @@ The repository includes a `config/uniwamp.json` with default values. Notable def
 - **HTTP port:** 8080
 - **HTTPS port:** 8443
 - **Database port:** 3309
-- **Default document root:** D:\\ketan\\github\\uniservernxt\\uniwamp\\www
+- **Default document root:** `www` under the UniWamp application folder
 - **Selected PHP version:** php85
 - **Selected Node version:** node-v22.23.1-win-x64
 - **Terminal executable (terminalExePath):** bin\\cmder\\Cmder.exe

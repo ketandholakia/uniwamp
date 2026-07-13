@@ -2,8 +2,16 @@
 setlocal
 
 set "ROOT=%~dp0.."
-set "RSVARS=C:\Program Files (x86)\Embarcadero\Studio\23.0\bin\rsvars.bat"
-set "ISCC=C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+set "RSVARS="
+set "ISCC="
+
+if defined BDS if exist "%BDS%\bin\rsvars.bat" set "RSVARS=%BDS%\bin\rsvars.bat"
+if not defined RSVARS if exist "%ProgramFiles(x86)%\Embarcadero\Studio\23.0\bin\rsvars.bat" set "RSVARS=%ProgramFiles(x86)%\Embarcadero\Studio\23.0\bin\rsvars.bat"
+if not defined RSVARS if exist "%ProgramFiles%\Embarcadero\Studio\23.0\bin\rsvars.bat" set "RSVARS=%ProgramFiles%\Embarcadero\Studio\23.0\bin\rsvars.bat"
+
+if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
+if not defined ISCC if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
+if not defined ISCC for /f "delims=" %%I in ('where ISCC.exe 2^>nul') do if not defined ISCC set "ISCC=%%I"
 
 if not exist "%RSVARS%" goto missing_delphi
 if not exist "%ISCC%" goto missing_iscc

@@ -82,6 +82,8 @@ var
   Captured: TBytesStream;
   StartTick: UInt64;
   TimedOut: Boolean;
+  ExitCode: DWORD;
+  HasExitCode: Boolean;
 begin
   Output := '';
   Result := False;
@@ -90,7 +92,10 @@ begin
   TimedOut := False;
 
   if not FileExists(ExecutablePath) then
+  begin
+    Output := 'Executable not found: ' + ExecutablePath;
     Exit;
+  end;
 
   ZeroMemory(@SecurityAttributes, SizeOf(SecurityAttributes));
   SecurityAttributes.nLength := SizeOf(SecurityAttributes);
@@ -98,10 +103,16 @@ begin
   SecurityAttributes.lpSecurityDescriptor := nil;
 
   if not CreatePipe(ReadPipe, WritePipe, @SecurityAttributes, 0) then
+  begin
+    Output := SysErrorMessage(GetLastError);
     Exit;
+  end;
   try
     if not SetHandleInformation(ReadPipe, HANDLE_FLAG_INHERIT, 0) then
+    begin
+      Output := SysErrorMessage(GetLastError);
       Exit;
+    end;
 
     ZeroMemory(@StartupInfo, SizeOf(StartupInfo));
     StartupInfo.cb := SizeOf(StartupInfo);
@@ -119,7 +130,10 @@ begin
 
     if not CreateProcess(nil, PChar(CommandLine), nil, nil, True, CREATE_NO_WINDOW,
       nil, PChar(WorkingDirectory), StartupInfo, ProcessInfo) then
+    begin
+      Output := SysErrorMessage(GetLastError);
       Exit;
+    end;
 
     CloseHandle(WritePipe);
     WritePipe := 0;
@@ -141,6 +155,7 @@ begin
         begin
           TimedOut := True;
           TerminateProcess(ProcessInfo.hProcess, 1);
+          Output := Format('Timed out after %d ms.', [TimeoutMs]);
           Break;
         end;
       until (WaitForSingleObject(ProcessInfo.hProcess, 50) = WAIT_OBJECT_0) and
@@ -160,9 +175,20 @@ begin
         SetLength(Chunk, Captured.Size);
         Captured.Position := 0;
         Captured.ReadBuffer(Chunk[0], Length(Chunk));
-        Output := TEncoding.Default.GetString(Chunk);
+        if TimedOut then
+          Output := Output + sLineBreak + TEncoding.Default.GetString(Chunk)
+        else
+          Output := TEncoding.Default.GetString(Chunk);
       end;
-      Result := not TimedOut;
+      HasExitCode := GetExitCodeProcess(ProcessInfo.hProcess, ExitCode);
+      if not TimedOut and HasExitCode and (ExitCode <> 0) then
+      begin
+        if Trim(Output) <> '' then
+          Output := Trim(Output) + sLineBreak + Format('Process exited with code %d.', [ExitCode])
+        else
+          Output := Format('Process exited with code %d.', [ExitCode]);
+      end;
+      Result := not TimedOut and (not HasExitCode or (ExitCode = 0));
     finally
       Captured.Free;
       CloseHandle(ProcessInfo.hProcess);
@@ -185,7 +211,7 @@ begin
     Exit;
   Handle := OpenProcess(SYNCHRONIZE, False, ProcessId);
   if Handle = 0 then
-    Exit(True);
+    Exit(False);
   try
     Result := WaitForSingleObject(Handle, TimeoutMs) = WAIT_OBJECT_0;
   finally
@@ -205,7 +231,7 @@ begin
   Handle := OpenProcess(PROCESS_TERMINATE or SYNCHRONIZE or PROCESS_QUERY_INFORMATION,
     False, ProcessId);
   if Handle = 0 then
-    Exit(True);
+    Exit(False);
   try
     if WaitForSingleObject(Handle, 0) = WAIT_OBJECT_0 then
       Exit(True);
