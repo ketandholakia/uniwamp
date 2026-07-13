@@ -907,18 +907,18 @@ begin
   FVHostEmptyLabel.OnClick := VHostEmptyLabelClick;
   FVHostEmptyLabel.Visible := False;
   FVHostFilterLabel := TLabel.Create(Self);
-  FVHostFilterLabel.Parent := Label11;
+  FVHostFilterLabel.Parent := VHostCard;
   FVHostFilterLabel.Left := 12;
-  FVHostFilterLabel.Top := 29;
+  FVHostFilterLabel.Top := 10;
   FVHostFilterLabel.Caption := 'Filter';
   FVHostFilterLabel.Font.Name := 'Segoe UI';
   FVHostFilterLabel.Font.Size := 9;
   FVHostFilterLabel.Font.Style := [fsBold];
   FVHostFilterLabel.Transparent := True;
   FVHostFilterEdit := TEdit.Create(Self);
-  FVHostFilterEdit.Parent := Label11;
-  FVHostFilterEdit.Left := 50;
-  FVHostFilterEdit.Top := 26;
+  FVHostFilterEdit.Parent := VHostCard;
+  FVHostFilterEdit.Left := 12;
+  FVHostFilterEdit.Top := 30;
   FVHostFilterEdit.Width := 220;
   FVHostFilterEdit.TextHint := 'Type a site name or document path';
   FVHostFilterEdit.Hint := BuildToolPanelHint('Filter vHosts',
@@ -927,9 +927,9 @@ begin
   FVHostFilterEdit.OnChange := VHostFilterChanged;
   FVHostFilterEdit.OnKeyDown := VHostFilterKeyDown;
   FVHostFilterClearLabel := TLabel.Create(Self);
-  FVHostFilterClearLabel.Parent := Label11;
-  FVHostFilterClearLabel.Left := 278;
-  FVHostFilterClearLabel.Top := 29;
+  FVHostFilterClearLabel.Parent := VHostCard;
+  FVHostFilterClearLabel.Left := 244;
+  FVHostFilterClearLabel.Top := 33;
   FVHostFilterClearLabel.Caption := 'Clear';
   FVHostFilterClearLabel.Cursor := crHandPoint;
   FVHostFilterClearLabel.Font.Name := 'Segoe UI';
@@ -942,7 +942,7 @@ begin
   FVHostFilterClearLabel.ShowHint := True;
   FVHostFilterClearLabel.OnClick := VHostFilterClearClick;
   Label11.Caption := 'Virtual hosts';
-  Label11.Height := 68;
+  Label11.Height := 28;
   Label11.Alignment := taLeftJustify;
   ToolGroupWebLabel := TPanel.Create(Self);
   ToolGroupWebLabel.Parent := pnltools;
@@ -1693,7 +1693,7 @@ const
   RowGap = 4;
   GroupGap = 8;
   ButtonHeight = 22;
-  LabelHeight = 13;
+  LabelHeight = 16;
 var
   ButtonWidth: Integer;
   Y: Integer;
@@ -1702,7 +1702,7 @@ var
     if not Assigned(Panel) then
       Exit;
     Panel.SetBounds(SideMargin, Y, ButtonWidth, LabelHeight);
-    Inc(Y, LabelHeight + 1);
+    Inc(Y, LabelHeight + 2);
   end;
   procedure PlaceButton(Button: TPanel);
   begin
