@@ -70,6 +70,7 @@ type
     function LaunchUrl(const Url: string): TRuntimeActionResult;
     function LaunchAdminer: TRuntimeActionResult;
     function LaunchTerminal: TRuntimeActionResult;
+    function LaunchTerminalInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function GenerateSslCertificateFor(const CommonName, CertFile, KeyFile: string): TRuntimeActionResult;
     function AddVHost(const ServerName, DocumentRoot, ServerAliases: string; EnableSsl: Boolean): TRuntimeActionResult;
     function RefreshVHostSslCertificate(const ServerName: string): TRuntimeActionResult;
@@ -1645,6 +1646,11 @@ begin
 end;
 
 function TUniWampRuntime.LaunchTerminal: TRuntimeActionResult;
+begin
+  Result := LaunchTerminalInWorkingDir(FConfig.DocumentRoot);
+end;
+
+function TUniWampRuntime.LaunchTerminalInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
 var
   ProfileText: string;
   ProfileDir: string;
@@ -1668,7 +1674,7 @@ begin
       ProfileEncoding.Free;
     end;
 
-    Result.Success := ShellExecute(0, 'open', PChar(TerminalExe), PChar('/START "' + FConfig.DocumentRoot + '"'), nil, SW_SHOWNORMAL) > 32;
+    Result.Success := ShellExecute(0, 'open', PChar(TerminalExe), PChar('/START "' + WorkingDir + '"'), nil, SW_SHOWNORMAL) > 32;
     if Result.Success then
       Result.Message := 'Launched Cmder terminal'
     else
@@ -1676,7 +1682,7 @@ begin
   end
   else
   begin
-    Result.Success := ShellExecute(0, 'open', 'cmd.exe', PChar('/K "' + FPaths.EnvBatFile + '"'), PChar(FConfig.DocumentRoot), SW_SHOWNORMAL) > 32;
+    Result.Success := ShellExecute(0, 'open', 'cmd.exe', PChar('/K "' + FPaths.EnvBatFile + '"'), PChar(WorkingDir), SW_SHOWNORMAL) > 32;
     if Result.Success then
       Result.Message := 'Launched standard CMD terminal'
     else

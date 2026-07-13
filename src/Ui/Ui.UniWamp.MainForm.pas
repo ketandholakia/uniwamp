@@ -247,6 +247,7 @@ type
     procedure DeleteVHostClick(Sender: TObject);
     procedure OpenVHostClick(Sender: TObject);
     procedure OpenVHostFolderClick(Sender: TObject);
+    procedure OpenVHostTerminalClick(Sender: TObject);
     procedure CopyVHostUrlClick(Sender: TObject);
     procedure RefreshVHostSslClick(Sender: TObject);
     procedure ExitButtonClick(Sender: TObject);
@@ -1233,6 +1234,7 @@ begin
   Item.ShortCut := ShortCut(Ord('O'), [ssCtrl]);
   Item := AddItem(MenuItem, 'Open &Root', OpenVHostFolderClick);
   Item.ShortCut := ShortCut(Ord('R'), [ssCtrl]);
+  Item := AddItem(MenuItem, 'Open &Terminal', OpenVHostTerminalClick);
   Item := AddItem(MenuItem, '&Copy URL', CopyVHostUrlClick);
   Item.ShortCut := ShortCut(Ord('C'), [ssCtrl, ssShift]);
   AddItem(MenuItem, '-');
@@ -2644,6 +2646,24 @@ end;
 procedure TMainForm.OpenVHostFolderClick(Sender: TObject);
 begin
   OpenVHostFolder(SelectedVHostServerName);
+end;
+
+procedure TMainForm.OpenVHostTerminalClick(Sender: TObject);
+var
+  ServerName: string;
+  Entry: TVHostEntry;
+  ResultInfo: TRuntimeActionResult;
+begin
+  ServerName := SelectedVHostServerName;
+  if ServerName = '' then
+    Exit;
+  if not TryGetVHostEntry(ServerName, Entry) then
+  begin
+    AppendStatus('Selected vHost not found.');
+    Exit;
+  end;
+  ResultInfo := FRuntime.LaunchTerminalInWorkingDir(Entry.DocumentRoot);
+  AppendStatus('VHost terminal: ' + ResultInfo.Message);
 end;
 
 procedure TMainForm.CopyVHostUrlClick(Sender: TObject);
