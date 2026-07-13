@@ -2499,8 +2499,16 @@ begin
 end;
 
 procedure TMainForm.OpenActivityClick(Sender: TObject);
+var
+  LogFile: string;
 begin
-  ShellExecute(0, 'open', 'notepad.exe', PChar(TPath.Combine(FPaths.LogsDir, 'activity.log')), nil, SW_SHOWNORMAL);
+  LogFile := TPath.Combine(FPaths.LogsDir, 'activity.log');
+  if not FileExists(LogFile) then
+  begin
+    AppendStatus('Activity log is not available yet.');
+    Exit;
+  end;
+  ShellExecute(0, 'open', 'notepad.exe', PChar(LogFile), nil, SW_SHOWNORMAL);
 end;
 
 procedure TMainForm.AddVHostClick(Sender: TObject);
