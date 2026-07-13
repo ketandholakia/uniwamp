@@ -669,6 +669,10 @@ begin
     Lines.Add('Last hosts sync: ' + FConfig.LastHostsSyncStatus);
     Lines.Add('Last Apache error: ' + FConfig.LastApacheError);
     Lines.Add('Last MariaDB error: ' + FConfig.LastMariaDbError);
+    if FConfig.MariaDbRootPassword <> '' then
+      Lines.Add('MariaDB root password: [redacted]')
+    else
+      Lines.Add('MariaDB root password: (not set)');
     Lines.Add('Apache config: ' + FPaths.ApacheHttpdConfFile);
     Lines.Add('Apache SSL config: ' + FPaths.ApacheSslConfFile);
     Lines.Add('Apache vhosts config: ' + FPaths.ApacheVHostsConfFile);

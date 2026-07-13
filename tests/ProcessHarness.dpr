@@ -1001,6 +1001,39 @@ begin
   end;
 end;
 
+procedure TestDiagnosticReportOmitsSensitiveValues;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  ReportText: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-report-redact-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      Config.MariaDbRootPassword := 'supersecret';
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        ReportText := Runtime.BuildDiagnosticReport;
+        AssertTrue(Pos('supersecret', ReportText) = 0, 'Diagnostic report should not expose the MariaDB root password');
+        AssertContains(ReportText, 'MariaDB root password: [redacted]', 'Diagnostic report should redact the MariaDB root password');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 begin
   try
     TestMissingExecutable;
@@ -1030,6 +1063,7 @@ begin
     TestLogRedactionMasksSecrets;
     TestLogRedactionLeavesNonSecretsIntact;
     TestDiagnosticReportIncludesState;
+    TestDiagnosticReportOmitsSensitiveValues;
     Writeln('Process harness passed.');
   except
     on E: Exception do

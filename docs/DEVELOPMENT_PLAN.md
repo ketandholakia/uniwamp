@@ -128,6 +128,8 @@ Completed:
 
 - Added process harness coverage for log redaction preserving non-secret text around common separators.
 - Verified redaction still masks sensitive keys while leaving ordinary key/value text intact.
+- Added process harness coverage for diagnostic report redaction of the MariaDB root password field.
+- Verified the copied diagnostic snapshot does not expose the configured MariaDB root password.
 
 ## Phase 6: Dashboard and workflow quality
 
