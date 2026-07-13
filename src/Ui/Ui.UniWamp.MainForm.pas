@@ -115,6 +115,7 @@ type
     MailpitButton: TPanel;
     RedisButton: TPanel;
     MemcachedButton: TPanel;
+    NpmButton: TPanel;
 
   published
     HeaderPanel: TPanel;
@@ -252,6 +253,7 @@ type
     procedure LaunchMailpitClick(Sender: TObject);
     procedure LaunchRedisClick(Sender: TObject);
     procedure LaunchMemcachedClick(Sender: TObject);
+    procedure LaunchNpmClick(Sender: TObject);
     procedure GenerateSslClick(Sender: TObject);
     procedure OpenApacheLogClick(Sender: TObject);
     procedure OpenMariaDbLogClick(Sender: TObject);
@@ -1069,6 +1071,25 @@ begin
   MemcachedButton.Hint := BuildToolPanelHint('Launch Memcached from the UniWamp application root',
     'Opens memcached.exe when available on PATH.');
   MemcachedButton.ShowHint := True;
+  NpmButton := TPanel.Create(Self);
+  NpmButton.Parent := pnltools;
+  NpmButton.SetBounds(206, 73, 72, 24);
+  NpmButton.Cursor := crHandPoint;
+  NpmButton.BevelOuter := bvNone;
+  NpmButton.Caption := 'npm';
+  NpmButton.Color := 16053492;
+  NpmButton.Font.Charset := DEFAULT_CHARSET;
+  NpmButton.Font.Color := clWindowText;
+  NpmButton.Font.Height := -11;
+  NpmButton.Font.Name := 'Segoe UI';
+  NpmButton.Font.Style := [fsBold];
+  NpmButton.ParentBackground := False;
+  NpmButton.ParentFont := False;
+  NpmButton.TabOrder := 13;
+  NpmButton.OnClick := LaunchNpmClick;
+  NpmButton.Hint := BuildToolPanelHint('Launch npm from the selected Node.js runtime',
+    'Opens npm.cmd from PATH in the UniWamp application root.');
+  NpmButton.ShowHint := True;
   SaveConfigButton.OnClick := SaveConfigClick;
   SaveConfigButton.Hint := BuildToolPanelHint('Save configuration',
     'Persists the current dashboard settings to config/uniwamp.json.');
@@ -1257,6 +1278,7 @@ begin
   ApplyPanelIcon(MailpitButton, 'mail');
   ApplyPanelIcon(RedisButton, 'dns');
   ApplyPanelIcon(MemcachedButton, 'dns');
+  ApplyPanelIcon(NpmButton, 'dns');
   ApplyPanelIcon(CopyDiagnosticReportButton, 'description');
   ApplyPanelIcon(CopyActivityLogButton, 'content_copy');
   ApplyPanelIcon(OpenPhpExtensionsButton, 'extension');
@@ -1286,6 +1308,7 @@ begin
   SetButtonCaption(MailpitButton, 'Mailpit');
   SetButtonCaption(RedisButton, 'Redis');
   SetButtonCaption(MemcachedButton, 'Memcached');
+  SetButtonCaption(NpmButton, 'npm');
   SetButtonCaption(SaveConfigButton, 'Save Config');
   SetButtonCaption(GenerateSslButton, 'Generate SSL');
   SetButtonCaption(CopyDiagnosticReportButton, 'Copy Report');
@@ -2931,6 +2954,14 @@ var
   ResultInfo: TRuntimeActionResult;
 begin
   ResultInfo := FRuntime.LaunchMemcached;
+  AppendStatus(ResultInfo.Message);
+end;
+
+procedure TMainForm.LaunchNpmClick(Sender: TObject);
+var
+  ResultInfo: TRuntimeActionResult;
+begin
+  ResultInfo := FRuntime.LaunchNpmInWorkingDir(FPaths.AppRoot);
   AppendStatus(ResultInfo.Message);
 end;
 

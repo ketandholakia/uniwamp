@@ -80,6 +80,7 @@ type
     function LaunchGitInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function LaunchNodeInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function LaunchWpCliInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
+    function LaunchNpmInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function LaunchMailpit: TRuntimeActionResult;
     function LaunchRedis: TRuntimeActionResult;
     function LaunchMemcached: TRuntimeActionResult;
@@ -656,6 +657,31 @@ begin
     Result.Message := 'WP-CLI launched'
   else
     Result.Message := 'Failed to launch WP-CLI';
+end;
+
+function TUniWampRuntime.LaunchNpmInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
+var
+  NpmExe: string;
+  Buffer: array[0..MAX_PATH] of Char;
+  BufferSize: DWORD;
+  FilePart: PChar;
+begin
+  NpmExe := '';
+  FilePart := nil;
+  BufferSize := SearchPath(nil, 'npm.cmd', nil, Length(Buffer), Buffer, FilePart);
+  if BufferSize > 0 then
+    NpmExe := Buffer;
+  if NpmExe = '' then
+  begin
+    Result.Success := False;
+    Result.Message := 'npm was not found on PATH.';
+    Exit;
+  end;
+  Result.Success := ShellExecute(0, 'open', 'cmd.exe', PChar('/K "' + NpmExe + '"'), PChar(WorkingDir), SW_SHOWNORMAL) > 32;
+  if Result.Success then
+    Result.Message := 'npm launched'
+  else
+    Result.Message := 'Failed to launch npm';
 end;
 
 function TUniWampRuntime.LaunchMailpit: TRuntimeActionResult;
