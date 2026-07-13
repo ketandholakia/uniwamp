@@ -10,7 +10,7 @@ UniWamp is a portable Windows WAMP dashboard built in Delphi 12.4. It controls a
 - Manages enabled PHP extensions for the active PHP runtime
 - Generates Apache, PHP, and MariaDB config files from UniWamp templates
 - Manages local virtual hosts
-- Launches the local site, Adminer, logs, and a terminal
+- Launches the local site, Adminer, logs, terminals, and local developer tools
 - Optionally generates a self-signed SSL certificate
 - Checks for basic port conflicts before startup
 
@@ -82,6 +82,8 @@ The main Tools menu and tool panel also expose:
 - `Open Site` to launch the local root site
 - `Open Adminer` to launch Adminer when `home/adminer/index.php` exists
 - `Terminal` to launch the configured terminal executable
+- `Repo Terminal` to open a terminal at the UniWamp root for Git and maintenance work
+- `Composer`, `Git`, `Node`, `WP-CLI`, `npm`, `yarn`, `pnpm`, `Mailpit`, `Redis`, `Memcached`, and `Editor` launchers when the corresponding executables are available on PATH
 - `Copy Report` to copy a diagnostic snapshot with paths, versions, ports, service state, and recent errors
 - `Copy Activity` to copy the current activity log to the clipboard
 - `Esc` to close the main window through the normal shutdown flow
@@ -140,6 +142,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tests\run-all.ps1
 
 This builds the app, builds the config harness, runs the smoke test, and runs the config assertions.
 It also builds and runs the process harness for process-manager and lifecycle checks.
+The process harness now also covers terminal/editor fallback ordering, runtime archive integrity checks, staged update validation, rollback, promotion, and workspace cleanup helpers.
 
 ## Installer
 
@@ -175,6 +178,19 @@ Profile scope:
 Each profile-specific script includes the same shared payload rules from `installer/UniWamp.Common.issinc`.
 
 The installer packages the portable app tree into a user-writable install folder and creates the runtime directories UniWamp needs on first launch.
+
+## Update Model
+
+UniWamp now includes a local staged update flow for future package management work:
+
+1. Validate an update manifest that names the package, version, and expected SHA-256.
+2. Verify the package hash before extraction.
+3. Extract into a portable workspace under `tmp\updates`.
+4. Write staging metadata alongside the extracted package.
+5. Promote the staged workspace into the target folder with a backup of the previous target tree.
+6. Clean up the workspace when the update is complete or cancelled.
+
+Remote downloads are intentionally not part of the current flow.
 
 ## Notes
 
