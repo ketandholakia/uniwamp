@@ -139,6 +139,25 @@ After adding or deleting a host, UniWamp regenerates the vhost config and, if Ap
 
 Use the action buttons near the bottom of the window:
 
+- `Generate SSL`
+- `Web Dashboard`
+- `Adminer`
+- `Terminal`
+- `Copy Report`
+- `Copy Activity`
+
+Keyboard shortcuts:
+
+- `Esc` closes the main window through the normal shutdown flow
+- `Ctrl+Shift+R` copies the diagnostic report
+- `Ctrl+Shift+V` copies the activity log
+- `Ctrl+Shift+G` generates SSL certificates
+- `Ctrl+T` opens the terminal
+- `Ctrl+H` opens the local site
+- `Ctrl+D` opens the dashboard
+
+The diagnostic report includes current paths, versions, service state, ports, vhost count, and the last recorded Apache or MariaDB errors.
+
 - `Open Site` opens the local root site
 - `Open Adminer` opens Adminer if `home/adminer/index.php` exists
 - `Terminal` launches the configured terminal executable

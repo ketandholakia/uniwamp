@@ -798,6 +798,8 @@ begin
   CopyDiagnosticReportButton.ParentFont := False;
   CopyDiagnosticReportButton.TabOrder := 8;
   CopyDiagnosticReportButton.TabStop := True;
+  CopyDiagnosticReportButton.Hint := 'Copy a portable diagnostic snapshot to the clipboard';
+  CopyDiagnosticReportButton.ShowHint := True;
   CopyDiagnosticReportButton.OnClick := CopyDiagnosticReportClick;
   CopyActivityLogButton := TPanel.Create(Self);
   CopyActivityLogButton.Parent := pnltools;
@@ -811,6 +813,8 @@ begin
   CopyActivityLogButton.ParentFont := False;
   CopyActivityLogButton.TabOrder := 9;
   CopyActivityLogButton.TabStop := True;
+  CopyActivityLogButton.Hint := 'Copy the current activity log to the clipboard';
+  CopyActivityLogButton.ShowHint := True;
   CopyActivityLogButton.OnClick := CopyActivityLogClick;
   Panel8.OnClick := LaunchDashboardClick;
   Panel8.TabStop := True;
