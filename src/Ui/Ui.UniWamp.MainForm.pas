@@ -1235,6 +1235,7 @@ begin
   Item := AddItem(MenuItem, 'Open &Root', OpenVHostFolderClick);
   Item.ShortCut := ShortCut(Ord('R'), [ssCtrl]);
   Item := AddItem(MenuItem, 'Open &Terminal', OpenVHostTerminalClick);
+  Item.ShortCut := ShortCut(Ord('T'), [ssCtrl, ssShift]);
   Item := AddItem(MenuItem, '&Copy URL', CopyVHostUrlClick);
   Item.ShortCut := ShortCut(Ord('C'), [ssCtrl, ssShift]);
   AddItem(MenuItem, '-');
