@@ -81,6 +81,7 @@ type
     function LaunchNodeInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function LaunchWpCliInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function LaunchNpmInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
+    function LaunchYarnInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function LaunchMailpit: TRuntimeActionResult;
     function LaunchRedis: TRuntimeActionResult;
     function LaunchMemcached: TRuntimeActionResult;
@@ -682,6 +683,31 @@ begin
     Result.Message := 'npm launched'
   else
     Result.Message := 'Failed to launch npm';
+end;
+
+function TUniWampRuntime.LaunchYarnInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
+var
+  YarnExe: string;
+  Buffer: array[0..MAX_PATH] of Char;
+  BufferSize: DWORD;
+  FilePart: PChar;
+begin
+  YarnExe := '';
+  FilePart := nil;
+  BufferSize := SearchPath(nil, 'yarn.cmd', nil, Length(Buffer), Buffer, FilePart);
+  if BufferSize > 0 then
+    YarnExe := Buffer;
+  if YarnExe = '' then
+  begin
+    Result.Success := False;
+    Result.Message := 'yarn was not found on PATH.';
+    Exit;
+  end;
+  Result.Success := ShellExecute(0, 'open', 'cmd.exe', PChar('/K "' + YarnExe + '"'), PChar(WorkingDir), SW_SHOWNORMAL) > 32;
+  if Result.Success then
+    Result.Message := 'yarn launched'
+  else
+    Result.Message := 'Failed to launch yarn';
 end;
 
 function TUniWampRuntime.LaunchMailpit: TRuntimeActionResult;
