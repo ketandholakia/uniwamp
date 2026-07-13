@@ -1152,6 +1152,8 @@ begin
   Item := AddItem(FTrayMenu.Items, '&Generate SSL', GenerateSslClick);
   ApplyMenuIcon(Item, 'lock');
   Item.ShortCut := ShortCut(Ord('G'), [ssCtrl, ssShift]);
+  Item := AddItem(FTrayMenu.Items, '&Copy Diagnostic Report', CopyDiagnosticReportClick);
+  Item.ShortCut := ShortCut(Ord('R'), [ssCtrl, ssShift]);
   FTrayAutoStartItem := AddItem(FTrayMenu.Items, 'Start with &Windows', AutoStartClick);
   FTrayAutoStartItem.AutoCheck := True;
   Item := AddItem(FTrayMenu.Items, '&Terminal', LaunchTerminalClick);
