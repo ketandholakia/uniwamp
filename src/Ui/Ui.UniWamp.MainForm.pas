@@ -100,6 +100,7 @@ type
     Panel10: TPanel;
     Panel11: TPanel;
     Panel13: TPanel;
+    CopyDiagnosticReportButton: TPanel;
     OpenPhpExtensionsButton: TPanel;
     OpenPhpSettingsButton: TPanel;
     OpenApacheModulesButton: TPanel;
@@ -772,6 +773,18 @@ begin
   LaunchTerminalButton.OnClick := LaunchTerminalClick;
   SaveConfigButton.OnClick := SaveConfigClick;
   GenerateSslButton.OnClick := GenerateSslClick;
+  CopyDiagnosticReportButton := TPanel.Create(Self);
+  CopyDiagnosticReportButton.Parent := pnltools;
+  CopyDiagnosticReportButton.SetBounds(123, 41, 150, 24);
+  CopyDiagnosticReportButton.Cursor := crHandPoint;
+  CopyDiagnosticReportButton.BevelOuter := bvNone;
+  CopyDiagnosticReportButton.Caption := 'Copy Report';
+  CopyDiagnosticReportButton.Color := 16053492;
+  CopyDiagnosticReportButton.Font.Assign(GenerateSslButton.Font);
+  CopyDiagnosticReportButton.ParentBackground := False;
+  CopyDiagnosticReportButton.ParentFont := False;
+  CopyDiagnosticReportButton.TabOrder := 8;
+  CopyDiagnosticReportButton.OnClick := CopyDiagnosticReportClick;
   Panel8.OnClick := LaunchDashboardClick;
   Panel9.OnClick := LaunchAdminerClick;
   OpenPhpExtensionsButton.OnClick := OpenPhpExtensionsClick;
@@ -809,6 +822,7 @@ begin
   ApplyPanelIcon(MariaRestartButton, 'restart_alt');
   ApplyPanelIcon(GenerateSslButton, 'lock');
   ApplyPanelIcon(LaunchTerminalButton, 'terminal');
+  ApplyPanelIcon(CopyDiagnosticReportButton, 'description');
   ApplyPanelIcon(OpenPhpExtensionsButton, 'extension');
   ApplyPanelIcon(OpenPhpSettingsButton, 'settings');
   ApplyPanelIcon(OpenApacheModulesButton, 'dns');
@@ -830,6 +844,7 @@ begin
   SetButtonCaption(LaunchTerminalButton, 'Terminal');
   SetButtonCaption(SaveConfigButton, 'Save Config');
   SetButtonCaption(GenerateSslButton, 'Generate SSL');
+  SetButtonCaption(CopyDiagnosticReportButton, 'Copy Report');
   SetButtonCaption(OpenApacheLogButton, 'Apache Log');
   SetButtonCaption(OpenMariaLogButton, 'MariaDB Log');
   SetButtonCaption(ClearApacheLogButton, 'Clear Apache');
