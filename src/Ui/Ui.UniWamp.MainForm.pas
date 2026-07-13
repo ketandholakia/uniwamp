@@ -160,6 +160,8 @@ type
     FStatusRefreshBusy: Boolean;
     FActivityMemo: TMemo;
     FVHostEmptyLabel: TLabel;
+    FVHostFilterLabel: TLabel;
+    FVHostFilterEdit: TEdit;
     FHeaderCards: array[0..2] of THeaderStatusCard;
     procedure FormCreate(Sender: TObject);
     procedure FormResize(Sender: TObject);
@@ -200,6 +202,7 @@ type
     procedure StatusRefreshTimer(Sender: TObject);
     procedure AutoStartClick(Sender: TObject);
     procedure RefreshActivityLogView;
+    procedure VHostFilterChanged(Sender: TObject);
     function TryGetVHostEntry(const ServerName: string; out Entry: TVHostEntry): Boolean;
     procedure ToggleMainWindow;
     function VHostUrl(const ServerName: string): string;
@@ -758,6 +761,22 @@ begin
   FVHostEmptyLabel.Cursor := crHandPoint;
   FVHostEmptyLabel.OnClick := VHostEmptyLabelClick;
   FVHostEmptyLabel.Visible := False;
+  FVHostFilterLabel := TLabel.Create(Self);
+  FVHostFilterLabel.Parent := VHostCard;
+  FVHostFilterLabel.Left := 12;
+  FVHostFilterLabel.Top := 10;
+  FVHostFilterLabel.Caption := 'Filter';
+  FVHostFilterLabel.Font.Name := 'Segoe UI';
+  FVHostFilterLabel.Font.Size := 9;
+  FVHostFilterLabel.Font.Style := [fsBold];
+  FVHostFilterLabel.Transparent := True;
+  FVHostFilterEdit := TEdit.Create(Self);
+  FVHostFilterEdit.Parent := VHostCard;
+  FVHostFilterEdit.Left := 12;
+  FVHostFilterEdit.Top := 30;
+  FVHostFilterEdit.Width := 220;
+  FVHostFilterEdit.TextHint := 'Type a site name or document path';
+  FVHostFilterEdit.OnChange := VHostFilterChanged;
   FActivityMemo := TMemo.Create(Self);
   FActivityMemo.Parent := FActivityCard;
   FActivityMemo.Align := alClient;
@@ -1307,6 +1326,7 @@ var
   Version: string;
   Entry: TVHostEntry;
   VHosts: TArray<TVHostEntry>;
+  FilterText: string;
   RowIndex: Integer;
 begin
   HostNameEdit.Text := FConfig.HostName;
@@ -1334,7 +1354,23 @@ begin
   if PhpProfileCombo.ItemIndex < 0 then
     PhpProfileCombo.ItemIndex := 0;
 
-  VHosts := FConfig.VHosts;
+  FilterText := '';
+  if Assigned(FVHostFilterEdit) then
+    FilterText := Trim(LowerCase(FVHostFilterEdit.Text));
+  if FilterText = '' then
+    VHosts := FConfig.VHosts
+  else
+  begin
+    SetLength(VHosts, 0);
+    for Entry in FConfig.VHosts do
+      if (Pos(FilterText, LowerCase(Entry.ServerName)) > 0) or
+         (Pos(FilterText, LowerCase(Entry.DocumentRoot)) > 0) or
+         (Pos(FilterText, LowerCase(Entry.ServerAliases)) > 0) then
+      begin
+        SetLength(VHosts, Length(VHosts) + 1);
+        VHosts[High(VHosts)] := Entry;
+      end;
+  end;
   VHostGrid.RowCount := Length(VHosts) + 1;
   if VHostGrid.RowCount < 2 then
     VHostGrid.RowCount := 2;
@@ -1754,25 +1790,46 @@ end;
 
 procedure TMainForm.UpdateVHostEmptyState;
 var
-  HasVHosts: Boolean;
+  HasVisibleVHosts: Boolean;
+  FilterText: string;
+  RowIndex: Integer;
 begin
-  HasVHosts := Length(FConfig.VHosts) > 0;
-  VHostGrid.Visible := HasVHosts;
-  VHostGrid.Enabled := HasVHosts;
-  VHostGrid.TabStop := HasVHosts;
-  if not HasVHosts then
+  HasVisibleVHosts := False;
+  for RowIndex := 1 to VHostGrid.RowCount - 1 do
+    if Trim(VHostGrid.Cells[0, RowIndex]) <> '' then
+    begin
+      HasVisibleVHosts := True;
+      Break;
+    end;
+  VHostGrid.Visible := HasVisibleVHosts;
+  VHostGrid.Enabled := HasVisibleVHosts;
+  VHostGrid.TabStop := HasVisibleVHosts;
+  if not HasVisibleVHosts then
     VHostGrid.Row := 0;
   if Assigned(FVHostEmptyLabel) then
   begin
-    FVHostEmptyLabel.Visible := not HasVHosts;
-    FVHostEmptyLabel.ShowHint := not HasVHosts;
-    if HasVHosts then
+    FilterText := '';
+    if Assigned(FVHostFilterEdit) then
+      FilterText := Trim(FVHostFilterEdit.Text);
+    FVHostEmptyLabel.Visible := not HasVisibleVHosts;
+    if FilterText <> '' then
+      FVHostEmptyLabel.Caption := 'No vHosts match the current filter.' + sLineBreak + 'Clear the filter or create a new project.'
+    else
+      FVHostEmptyLabel.Caption := 'No projects or vHosts found.' + sLineBreak + 'Use Add to create your first project.';
+    FVHostEmptyLabel.ShowHint := not HasVisibleVHosts;
+    if HasVisibleVHosts then
       FVHostEmptyLabel.Font.Color := clGrayText
     else
       FVHostEmptyLabel.Font.Color := clBlue;
     if FVHostEmptyLabel.Visible then
       FVHostEmptyLabel.BringToFront;
   end;
+end;
+
+procedure TMainForm.VHostFilterChanged(Sender: TObject);
+begin
+  LoadStateIntoUi;
+  UpdateVHostActionState;
 end;
 
 procedure TMainForm.UpdateMenuState;
