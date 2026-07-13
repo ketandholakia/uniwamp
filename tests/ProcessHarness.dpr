@@ -130,6 +130,22 @@ begin
   AssertTrue(not TProcessManager.WaitForExit(999999999, 10), 'Waiting on an invalid PID should fail');
 end;
 
+procedure TestStopLiveProcessTerminatesIt;
+var
+  CmdExe: string;
+  StartResult: TProcessStartResult;
+begin
+  CmdExe := 'C:\Windows\System32\cmd.exe';
+  StartResult := TProcessManager.StartDetached(
+    CmdExe,
+    '/c "ping 127.0.0.1 -n 30 >nul"',
+    ExtractFileDir(CmdExe));
+  AssertTrue(StartResult.Success, 'Live process should start');
+  AssertTrue(TProcessManager.IsRunning(StartResult.ProcessId), 'Live process should be running before stop');
+  AssertTrue(TProcessManager.StopProcess(StartResult.ProcessId), 'Live process should stop cleanly');
+  AssertTrue(not TProcessManager.IsRunning(StartResult.ProcessId), 'Live process should not be running after stop');
+end;
+
 procedure TestStaleRuntimeStateCleanup;
 var
   RootDir: string;
@@ -694,6 +710,7 @@ begin
     TestDetachedStartMissingExecutable;
     TestStopInvalidPidFails;
     TestWaitInvalidPidFails;
+    TestStopLiveProcessTerminatesIt;
     TestStaleRuntimeStateCleanup;
     TestDuplicateStartShortCircuit;
     TestMariaDbDuplicateStartShortCircuit;

@@ -80,6 +80,8 @@ Completed:
 - Verified the Apache start path returns an already-running result instead of launching a second service instance.
 - Added process harness coverage for duplicate-start short-circuit behavior when MariaDB is already running.
 - Verified the MariaDB start path returns an already-running result instead of launching a second service instance.
+- Added process harness coverage for force-stopping a live process through `StopProcess`.
+- Verified the process manager terminates a running helper process and clears the running state afterward.
 
 ## Phase 3: Runtime-specific correctness
 
