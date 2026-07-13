@@ -96,6 +96,7 @@ type
     LaunchTerminalButton: TPanel;
     FActivityCard: TPanel;
     FActivityLabel: TPanel;
+    Label11: TPanel;
     Panel8: TPanel;
     Panel9: TPanel;
     Panel10: TPanel;
@@ -906,18 +907,18 @@ begin
   FVHostEmptyLabel.OnClick := VHostEmptyLabelClick;
   FVHostEmptyLabel.Visible := False;
   FVHostFilterLabel := TLabel.Create(Self);
-  FVHostFilterLabel.Parent := VHostCard;
+  FVHostFilterLabel.Parent := Label11;
   FVHostFilterLabel.Left := 12;
-  FVHostFilterLabel.Top := 10;
+  FVHostFilterLabel.Top := 29;
   FVHostFilterLabel.Caption := 'Filter';
   FVHostFilterLabel.Font.Name := 'Segoe UI';
   FVHostFilterLabel.Font.Size := 9;
   FVHostFilterLabel.Font.Style := [fsBold];
   FVHostFilterLabel.Transparent := True;
   FVHostFilterEdit := TEdit.Create(Self);
-  FVHostFilterEdit.Parent := VHostCard;
-  FVHostFilterEdit.Left := 12;
-  FVHostFilterEdit.Top := 30;
+  FVHostFilterEdit.Parent := Label11;
+  FVHostFilterEdit.Left := 62;
+  FVHostFilterEdit.Top := 26;
   FVHostFilterEdit.Width := 220;
   FVHostFilterEdit.TextHint := 'Type a site name or document path';
   FVHostFilterEdit.Hint := BuildToolPanelHint('Filter vHosts',
@@ -926,9 +927,9 @@ begin
   FVHostFilterEdit.OnChange := VHostFilterChanged;
   FVHostFilterEdit.OnKeyDown := VHostFilterKeyDown;
   FVHostFilterClearLabel := TLabel.Create(Self);
-  FVHostFilterClearLabel.Parent := VHostCard;
-  FVHostFilterClearLabel.Left := 244;
-  FVHostFilterClearLabel.Top := 33;
+  FVHostFilterClearLabel.Parent := Label11;
+  FVHostFilterClearLabel.Left := 292;
+  FVHostFilterClearLabel.Top := 29;
   FVHostFilterClearLabel.Caption := 'Clear';
   FVHostFilterClearLabel.Cursor := crHandPoint;
   FVHostFilterClearLabel.Font.Name := 'Segoe UI';
@@ -940,6 +941,8 @@ begin
     'Shows all projects and vHosts again.');
   FVHostFilterClearLabel.ShowHint := True;
   FVHostFilterClearLabel.OnClick := VHostFilterClearClick;
+  Label11.Caption := 'Virtual hosts';
+  Label11.Height := 56;
   ToolGroupWebLabel := TPanel.Create(Self);
   ToolGroupWebLabel.Parent := pnltools;
   ToolGroupWebLabel.BevelOuter := bvNone;

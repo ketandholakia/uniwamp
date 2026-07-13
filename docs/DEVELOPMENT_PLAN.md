@@ -182,6 +182,7 @@ Completed:
 - Normalized the log actions to use the same icon-free sidebar button styling as the other tools.
 - Removed icon overlays from the remaining sidebar tools so the right rail uses one consistent button style.
 - Darkened the sidebar section headers so they stand out from the button stacks.
+- Moved the vHost filter into the grid header strip so the title and filter share one control area.
 - Added process harness coverage for the vHost filter clear hint wording.
 - Added process harness coverage for the vHost filter search hint wording.
 - Added process harness coverage for the always-on status-bar hint wording.
