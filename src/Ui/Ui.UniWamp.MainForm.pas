@@ -265,6 +265,7 @@ type
   end;
 
 function BuildVHostEmptyStateCaption(const FilterText: string): string;
+function DetectProjectTypeLabel(const DocumentRoot: string): string;
 
 var
   MainForm: TMainForm;
@@ -383,6 +384,19 @@ begin
     Result := 'No vHosts match the current filter.' + sLineBreak + 'Clear the filter or create a new project.'
   else
     Result := 'No projects or vHosts found.' + sLineBreak + 'Use Add to create your first project.';
+end;
+
+function DetectProjectTypeLabel(const DocumentRoot: string): string;
+begin
+  if FileExists(TPath.Combine(DocumentRoot, 'wp-config.php')) then
+    Exit('WordPress');
+  if FileExists(TPath.Combine(DocumentRoot, 'artisan')) then
+    Exit('Laravel');
+  if FileExists(TPath.Combine(DocumentRoot, 'package.json')) then
+    Exit('Node');
+  if FileExists(TPath.Combine(DocumentRoot, 'composer.json')) then
+    Exit('PHP');
+  Result := 'Static';
 end;
 
 function IsDarkColor(const AColor: TColor): Boolean;

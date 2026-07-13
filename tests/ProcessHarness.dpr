@@ -1112,6 +1112,27 @@ begin
     'Filtered empty state should instruct the user to clear the filter');
 end;
 
+procedure TestProjectTypeDetectionPrefersKnownFrameworkMarkers;
+var
+  RootDir: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-project-type-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    AssertTrue(DetectProjectTypeLabel(RootDir) = 'Static', 'Empty project roots should default to Static');
+    TFile.WriteAllText(TPath.Combine(RootDir, 'composer.json'), '{}', TEncoding.UTF8);
+    AssertTrue(DetectProjectTypeLabel(RootDir) = 'PHP', 'composer.json should classify as PHP');
+    TFile.WriteAllText(TPath.Combine(RootDir, 'package.json'), '{}', TEncoding.UTF8);
+    AssertTrue(DetectProjectTypeLabel(RootDir) = 'Node', 'package.json should classify as Node');
+    TFile.WriteAllText(TPath.Combine(RootDir, 'artisan'), '', TEncoding.UTF8);
+    AssertTrue(DetectProjectTypeLabel(RootDir) = 'Laravel', 'artisan should classify as Laravel');
+    TFile.WriteAllText(TPath.Combine(RootDir, 'wp-config.php'), '<?php', TEncoding.UTF8);
+    AssertTrue(DetectProjectTypeLabel(RootDir) = 'WordPress', 'wp-config.php should take priority as WordPress');
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestMariaDbRootPasswordRequiresRunningService;
 var
   RootDir: string;
@@ -1179,6 +1200,7 @@ begin
     TestDiagnosticReportIncludesPortOwnersForOccupiedPorts;
     TestActivityLogClipboardSelectionPrefersLogFileThenMemo;
     TestVHostEmptyStateCaptionReflectsFilter;
+    TestProjectTypeDetectionPrefersKnownFrameworkMarkers;
     TestMariaDbRootPasswordRequiresRunningService;
     Writeln('Process harness passed.');
   except
