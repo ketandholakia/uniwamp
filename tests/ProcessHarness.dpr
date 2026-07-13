@@ -536,6 +536,45 @@ begin
   end;
 end;
 
+procedure TestManagedHostsSyncReportsReadOnlyFailure;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  HostsFile: string;
+  ResultInfo: TRuntimeActionResult;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-hosts-readonly-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    TTemplateRenderer.EnsureDefaultTemplates(Paths);
+    HostsFile := TPath.Combine(RootDir, 'hosts-dir');
+    TDirectory.CreateDirectory(HostsFile);
+    SetEnvironmentVariable('UNIWAMP_HOSTS_FILE', PChar(HostsFile));
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        ResultInfo := Runtime.AddVHost('readonly.test', TPath.Combine(RootDir, 'readonly-site'), '', False);
+        AssertTrue(ResultInfo.Success, 'VHost add should still save the vHost when hosts sync fails');
+        AssertContains(ResultInfo.Message, 'Hosts file update failed', 'Hosts sync failure should be reported');
+        AssertTrue(Config.LastHostsSyncStatus = 'Hosts update failed', 'Hosts sync status should reflect failure');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+      SetEnvironmentVariable('UNIWAMP_HOSTS_FILE', nil);
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestMariaDbStartReportsPortConflict;
 var
   RootDir: string;
@@ -934,6 +973,7 @@ begin
     TestMariaDbStartReportsPortConflict;
     TestMariaDbInitializationBacksUpDirtyDataDirectory;
     TestAddVHostNormalizesAliasesAndGeneratesConfig;
+    TestManagedHostsSyncReportsReadOnlyFailure;
     TestApacheStartSyncsPhpVersionSelection;
     TestStopPathsAreIdempotentWhenAlreadyStopped;
     TestApacheStartStopsOnConfigValidationFailure;
