@@ -9,6 +9,7 @@ uses
   System.Generics.Collections,
   System.SysUtils,
   System.Types,
+  System.Math,
   Vcl.Imaging.pngimage,
   Vcl.Controls,
   Vcl.ExtCtrls,
@@ -181,6 +182,7 @@ type
     FStatusRefreshBusy: Boolean;
     FActivityMemo: TMemo;
     FVHostEmptyLabel: TLabel;
+    FVHostHeaderTitle: TLabel;
     FVHostFilterLabel: TLabel;
     FVHostFilterEdit: TEdit;
     FVHostFilterClearLabel: TLabel;
@@ -907,10 +909,17 @@ begin
   FVHostEmptyLabel.Cursor := crHandPoint;
   FVHostEmptyLabel.OnClick := VHostEmptyLabelClick;
   FVHostEmptyLabel.Visible := False;
+  FVHostHeaderTitle := TLabel.Create(Self);
+  FVHostHeaderTitle.Parent := Label11;
+  FVHostHeaderTitle.Left := 12;
+  FVHostHeaderTitle.Top := 9;
+  FVHostHeaderTitle.Caption := 'Virtual hosts';
+  FVHostHeaderTitle.Font.Name := 'Segoe UI';
+  FVHostHeaderTitle.Font.Size := 9;
+  FVHostHeaderTitle.Font.Style := [fsBold];
+  FVHostHeaderTitle.Transparent := True;
   FVHostFilterLabel := TLabel.Create(Self);
   FVHostFilterLabel.Parent := Label11;
-  FVHostFilterLabel.Left := 12;
-  FVHostFilterLabel.Top := 10;
   FVHostFilterLabel.Caption := 'Filter';
   FVHostFilterLabel.Font.Name := 'Segoe UI';
   FVHostFilterLabel.Font.Size := 9;
@@ -918,9 +927,6 @@ begin
   FVHostFilterLabel.Transparent := True;
   FVHostFilterEdit := TEdit.Create(Self);
   FVHostFilterEdit.Parent := Label11;
-  FVHostFilterEdit.Left := 428;
-  FVHostFilterEdit.Top := 7;
-  FVHostFilterEdit.Width := 220;
   FVHostFilterEdit.TextHint := 'Type a site name or document path';
   FVHostFilterEdit.Hint := BuildToolPanelHint('Filter vHosts',
     'Search by site name, document root, or aliases.');
@@ -929,8 +935,6 @@ begin
   FVHostFilterEdit.OnKeyDown := VHostFilterKeyDown;
   FVHostFilterClearLabel := TLabel.Create(Self);
   FVHostFilterClearLabel.Parent := Label11;
-  FVHostFilterClearLabel.Left := 658;
-  FVHostFilterClearLabel.Top := 10;
   FVHostFilterClearLabel.Caption := 'Clear';
   FVHostFilterClearLabel.Cursor := crHandPoint;
   FVHostFilterClearLabel.Font.Name := 'Segoe UI';
@@ -942,8 +946,8 @@ begin
     'Shows all projects and vHosts again.');
   FVHostFilterClearLabel.ShowHint := True;
   FVHostFilterClearLabel.OnClick := VHostFilterClearClick;
-  Label11.Caption := 'Virtual hosts';
-  Label11.Height := 38;
+  Label11.Caption := '';
+  Label11.Height := 34;
   Label11.Alignment := taLeftJustify;
   ToolGroupWebLabel := TPanel.Create(Self);
   ToolGroupWebLabel.Parent := pnltools;
@@ -1675,6 +1679,36 @@ begin
     VHostGrid.ColWidths[1] := GridWidth - VHostGrid.ColWidths[0] - VHostGrid.ColWidths[2] - VHostGrid.ColWidths[3];
   if VHostGrid.ColWidths[1] < 1 then
     VHostGrid.ColWidths[1] := 1;
+
+  if Assigned(Label11) then
+  begin
+    Label11.Height := 34;
+    if Assigned(FVHostHeaderTitle) then
+    begin
+      FVHostHeaderTitle.Left := 12;
+      FVHostHeaderTitle.Top := (Label11.Height - FVHostHeaderTitle.Height) div 2;
+    end;
+    if Assigned(FVHostFilterClearLabel) then
+    begin
+      FVHostFilterClearLabel.Top := (Label11.Height - FVHostFilterClearLabel.Height) div 2;
+      FVHostFilterClearLabel.Left := Label11.Width - FVHostFilterClearLabel.Width - 12;
+    end;
+    if Assigned(FVHostFilterEdit) then
+    begin
+      FVHostFilterEdit.Top := (Label11.Height - FVHostFilterEdit.Height) div 2;
+      FVHostFilterEdit.Width := Min(240, Max(180, (Label11.Width div 3)));
+      if Assigned(FVHostFilterClearLabel) then
+        FVHostFilterEdit.Left := FVHostFilterClearLabel.Left - FVHostFilterEdit.Width - 10
+      else
+        FVHostFilterEdit.Left := Label11.Width - FVHostFilterEdit.Width - 12;
+    end;
+    if Assigned(FVHostFilterLabel) then
+    begin
+      FVHostFilterLabel.Top := (Label11.Height - FVHostFilterLabel.Height) div 2;
+      FVHostFilterLabel.Left := Max(FVHostHeaderTitle.Left + FVHostHeaderTitle.Width + 18,
+        FVHostFilterEdit.Left - FVHostFilterLabel.Width - 8);
+    end;
+  end;
 
   CardWidth := 170;
   CardGap := 18;

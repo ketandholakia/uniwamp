@@ -704,10 +704,10 @@ object MainForm: TMainForm
           Left = 0
           Top = 0
           Width = 768
-          Height = 28
+          Height = 34
           Align = alTop
           BevelOuter = bvNone
-          Caption = 'Virtual hosts'
+          Caption = ''
           Color = clWhite
           Font.Charset = DEFAULT_CHARSET
           Font.Color = clWindowText
@@ -720,7 +720,7 @@ object MainForm: TMainForm
         end
         object VHostGrid: TStringGrid
           Left = 0
-          Top = 28
+          Top = 34
           Width = 768
           Height = 421
           Align = alClient
