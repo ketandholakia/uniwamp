@@ -1034,6 +1034,40 @@ begin
   end;
 end;
 
+procedure TestMariaDbRootPasswordRequiresRunningService;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  ResultInfo: TRuntimeActionResult;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-mariadb-password-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      Config.MariaDbRunning := False;
+      Config.MariaDbPid := 0;
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        ResultInfo := Runtime.SetMariaDbRootPassword('secret123');
+        AssertTrue(not ResultInfo.Success, 'MariaDB root password should require a running service');
+        AssertContains(ResultInfo.Message, 'MariaDB must be running before setting the root password', 'Password change should report the running-service requirement');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 begin
   try
     TestMissingExecutable;
@@ -1064,6 +1098,7 @@ begin
     TestLogRedactionLeavesNonSecretsIntact;
     TestDiagnosticReportIncludesState;
     TestDiagnosticReportOmitsSensitiveValues;
+    TestMariaDbRootPasswordRequiresRunningService;
     Writeln('Process harness passed.');
   except
     on E: Exception do
