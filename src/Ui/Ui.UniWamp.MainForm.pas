@@ -823,6 +823,8 @@ begin
 end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
+var
+  PnpmButton: TPanel;
 begin
   DoubleBuffered := True;
   KeyPreview := True;
