@@ -93,6 +93,7 @@ type
     function ValidatePackageSha256(const PackageFileName, ExpectedSha256: string; out ErrorMessage: string): Boolean;
     function ValidateUpdateManifest(const ManifestFileName: string; out PackageFileName, ExpectedSha256, PackageVersion: string; out ErrorMessage: string): Boolean;
     function WriteUpdateStagingMetadata(const StagingDir, PackageFileName, ExpectedSha256, PackageVersion: string; out MetadataFileName, ErrorMessage: string): Boolean;
+    function CleanupUpdateWorkspace(const WorkspaceDir: string; out ErrorMessage: string): Boolean;
     function ValidateRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
     function ImportRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
     function PrepareUpdateStagingArea(const PackageName: string; out StagingDir: string; out ErrorMessage: string): Boolean;
@@ -542,6 +543,29 @@ begin
     end;
   finally
     JsonObject.Free;
+  end;
+end;
+
+function TUniWampRuntime.CleanupUpdateWorkspace(const WorkspaceDir: string; out ErrorMessage: string): Boolean;
+begin
+  Result := False;
+  ErrorMessage := '';
+  if Trim(WorkspaceDir) = '' then
+  begin
+    ErrorMessage := 'Workspace directory is required.';
+    Exit;
+  end;
+  if not TDirectory.Exists(WorkspaceDir) then
+  begin
+    Result := True;
+    Exit;
+  end;
+  try
+    TDirectory.Delete(WorkspaceDir, True);
+    Result := True;
+  except
+    on E: Exception do
+      ErrorMessage := 'Workspace cleanup failed: ' + E.Message;
   end;
 end;
 

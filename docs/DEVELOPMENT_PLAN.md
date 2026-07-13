@@ -201,6 +201,7 @@ Completed:
 - Added a yarn launcher in the tool panel for Node.js repository workflows.
 - Added a pnpm launcher in the tool panel for Node.js repository workflows.
 - Added a generic editor launcher in the tool panel for repository maintenance workflows.
+- Added update workspace cleanup support for staged updater maintenance.
 
 ## Priority model
 

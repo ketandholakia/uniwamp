@@ -1468,6 +1468,40 @@ begin
   end;
 end;
 
+procedure TestCleanupUpdateWorkspaceRemovesExistingDirectory;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  WorkspaceDir: string;
+  ErrorMessage: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-workspace-cleanup-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        WorkspaceDir := TPath.Combine(Paths.UpdatesDir, 'staging');
+        TDirectory.CreateDirectory(WorkspaceDir);
+        TFile.WriteAllText(TPath.Combine(WorkspaceDir, 'marker.txt'), 'marker', TEncoding.ASCII);
+        AssertTrue(Runtime.CleanupUpdateWorkspace(WorkspaceDir, ErrorMessage), ErrorMessage);
+        AssertTrue(not TDirectory.Exists(WorkspaceDir), 'Workspace cleanup should remove the directory');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestRuntimeZipValidationAcceptsNonEmptyZipArchives;
 var
   RootDir: string;
@@ -1840,6 +1874,7 @@ begin
   TestValidatePackageSha256ChecksTheExpectedDigest;
   TestValidateUpdateManifestReadsTheExpectedFields;
   TestWriteUpdateStagingMetadataCreatesTheExpectedJson;
+  TestCleanupUpdateWorkspaceRemovesExistingDirectory;
   TestRuntimeZipValidationAcceptsNonEmptyZipArchives;
   TestRuntimeZipImportExtractsArchiveContents;
   TestUpdateStagingAreaCreatesPortableWorkspace;
