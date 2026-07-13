@@ -1660,11 +1660,11 @@ end;
 
 procedure TMainForm.LayoutToolSidebar;
 const
-  SideMargin = 10;
-  RowGap = 6;
-  GroupGap = 10;
-  ButtonHeight = 24;
-  LabelHeight = 16;
+  SideMargin = 8;
+  RowGap = 4;
+  GroupGap = 8;
+  ButtonHeight = 22;
+  LabelHeight = 14;
 var
   ButtonWidth: Integer;
   Y: Integer;
@@ -1673,7 +1673,7 @@ var
     if not Assigned(Panel) then
       Exit;
     Panel.SetBounds(SideMargin, Y, ButtonWidth, LabelHeight);
-    Inc(Y, LabelHeight + 3);
+    Inc(Y, LabelHeight + 2);
   end;
   procedure PlaceButton(Button: TPanel);
   begin
@@ -1687,8 +1687,8 @@ begin
     Exit;
 
   ButtonWidth := pnltools.ClientWidth - (SideMargin * 2);
-  if ButtonWidth < 140 then
-    ButtonWidth := 140;
+  if ButtonWidth < 132 then
+    ButtonWidth := 132;
 
   Y := 10;
   PlaceLabel(ToolGroupWebLabel);
