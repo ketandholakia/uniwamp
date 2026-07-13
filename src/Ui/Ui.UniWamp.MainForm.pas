@@ -936,18 +936,33 @@ begin
   Label20.TabStop := True;
   Label20.TabOrder := 11;
   AddVHostButton.OnClick := AddVHostClick;
+  AddVHostButton.Hint := BuildToolPanelHint('Add a vHost',
+    'Creates a new local project entry and writes the matching Apache configuration.');
+  AddVHostButton.ShowHint := True;
   AddVHostButton.TabStop := True;
   AddVHostButton.TabOrder := 12;
   DeleteVHostButton.OnClick := DeleteVHostClick;
+  DeleteVHostButton.Hint := BuildToolPanelHint('Delete the selected vHost',
+    'Removes the selected project entry and its generated configuration.');
+  DeleteVHostButton.ShowHint := True;
   DeleteVHostButton.TabStop := True;
   DeleteVHostButton.TabOrder := 13;
   OpenVHostButton.OnClick := OpenVHostClick;
+  OpenVHostButton.Hint := BuildToolPanelHint('Open the selected site',
+    'Launches the selected vHost in the browser when Apache is running.');
+  OpenVHostButton.ShowHint := True;
   OpenVHostButton.TabStop := True;
   OpenVHostButton.TabOrder := 14;
   OpenVHostFolderButton.OnClick := OpenVHostFolderClick;
+  OpenVHostFolderButton.Hint := BuildToolPanelHint('Open the project folder',
+    'Shows the document root in File Explorer.');
+  OpenVHostFolderButton.ShowHint := True;
   OpenVHostFolderButton.TabStop := True;
   OpenVHostFolderButton.TabOrder := 15;
   CopyVHostUrlButton.OnClick := CopyVHostUrlClick;
+  CopyVHostUrlButton.Hint := BuildToolPanelHint('Copy the vHost URL',
+    'Copies the selected local site address to the clipboard.');
+  CopyVHostUrlButton.ShowHint := True;
   CopyVHostUrlButton.TabStop := True;
   CopyVHostUrlButton.TabOrder := 16;
   exitbutton.OnClick := ExitButtonClick;

@@ -1144,6 +1144,18 @@ begin
     'Empty detail text should not add an extra line');
 end;
 
+procedure TestVHostToolPanelHintTextStaysActionFocused;
+begin
+  AssertTrue(
+    BuildToolPanelHint('Delete the selected vHost', 'Removes the selected project entry and its generated configuration.') =
+      'Delete the selected vHost' + sLineBreak + 'Removes the selected project entry and its generated configuration.',
+    'VHost delete hint should stay concise and action-focused');
+  AssertTrue(
+    BuildToolPanelHint('Copy the vHost URL', 'Copies the selected local site address to the clipboard.') =
+      'Copy the vHost URL' + sLineBreak + 'Copies the selected local site address to the clipboard.',
+    'VHost copy hint should describe the clipboard action');
+end;
+
 procedure TestDiagnosticReportUsesConsistentServiceStateLabels;
 var
   RootDir: string;
@@ -1318,6 +1330,7 @@ begin
   TestVHostEmptyStateCaptionReflectsFilter;
   TestProjectTypeDetectionPrefersKnownFrameworkMarkers;
   TestToolPanelHintHelperBuildsMultilineHints;
+  TestVHostToolPanelHintTextStaysActionFocused;
   TestDiagnosticReportUsesConsistentServiceStateLabels;
   TestGeneratedEnvBatDoesNotStartWithUtf8Bom;
   TestTerminalExecutablePathResolvesRelativeConfigValues;
