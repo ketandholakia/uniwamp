@@ -78,6 +78,7 @@ The smoke test must verify a portable layout without requiring a fixed drive let
 | Hosts permission failure | State is retained and user receives an administrator-action message |
 | HTTPS | Certificate/configuration errors are actionable; trust installation is explicit |
 | Logs | Activity and runtime logs are viewable, bounded, and redacted where required |
+| Diagnostics | `Copy Report` and `Copy Activity` expose local state without secrets |
 | Move installation | A copied folder on another path starts without stale development-machine paths |
 
 ## Validation reporting
