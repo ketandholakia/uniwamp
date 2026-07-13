@@ -194,6 +194,7 @@ Completed:
 - Added a Mailpit launcher in the tool panel for local mail-preview workflows.
 - Added a Redis launcher in the tool panel for local cache/service workflows.
 - Added a Memcached launcher in the tool panel for local cache/service workflows.
+- Added a SHA-256 package validation helper for staged update integrity checks.
 
 ## Priority model
 

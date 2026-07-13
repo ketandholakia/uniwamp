@@ -1347,6 +1347,40 @@ begin
   end;
 end;
 
+procedure TestValidatePackageSha256ChecksTheExpectedDigest;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  SampleFile: string;
+  ErrorMessage: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-package-hash-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        SampleFile := TPath.Combine(RootDir, 'package.zip');
+        TFile.WriteAllText(SampleFile, 'abc', TEncoding.ASCII);
+        AssertTrue(Runtime.ValidatePackageSha256(SampleFile,
+          'BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD', ErrorMessage),
+          ErrorMessage);
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestRuntimeZipValidationAcceptsNonEmptyZipArchives;
 var
   RootDir: string;
@@ -1716,6 +1750,7 @@ begin
   TestGeneratedEnvBatDoesNotStartWithUtf8Bom;
   TestTerminalExecutablePathResolvesRelativeConfigValues;
   TestSha256HelperReturnsTheExpectedDigest;
+  TestValidatePackageSha256ChecksTheExpectedDigest;
   TestRuntimeZipValidationAcceptsNonEmptyZipArchives;
   TestRuntimeZipImportExtractsArchiveContents;
   TestUpdateStagingAreaCreatesPortableWorkspace;

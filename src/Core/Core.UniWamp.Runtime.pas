@@ -86,6 +86,7 @@ type
     function PreferredTextEditorExecutable: string;
     function LaunchTextEditor(const FileName: string): TRuntimeActionResult;
     function ComputeFileSha256Hex(const FileName: string): string;
+    function ValidatePackageSha256(const PackageFileName, ExpectedSha256: string; out ErrorMessage: string): Boolean;
     function ValidateRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
     function ImportRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
     function PrepareUpdateStagingArea(const PackageName: string; out StagingDir: string; out ErrorMessage: string): Boolean;
@@ -391,6 +392,36 @@ begin
   finally
     Stream.Free;
   end;
+end;
+
+function TUniWampRuntime.ValidatePackageSha256(const PackageFileName, ExpectedSha256: string; out ErrorMessage: string): Boolean;
+var
+  ActualSha256: string;
+begin
+  Result := False;
+  ErrorMessage := '';
+  if Trim(PackageFileName) = '' then
+  begin
+    ErrorMessage := 'Package file name is required.';
+    Exit;
+  end;
+  if not FileExists(PackageFileName) then
+  begin
+    ErrorMessage := 'Package file not found: ' + PackageFileName;
+    Exit;
+  end;
+  ActualSha256 := ComputeFileSha256Hex(PackageFileName);
+  if ActualSha256 = '' then
+  begin
+    ErrorMessage := 'Package hash could not be calculated.';
+    Exit;
+  end;
+  if not SameText(ActualSha256, Trim(ExpectedSha256)) then
+  begin
+    ErrorMessage := 'Package hash mismatch.';
+    Exit;
+  end;
+  Result := True;
 end;
 
 function TUniWampRuntime.ValidateRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
