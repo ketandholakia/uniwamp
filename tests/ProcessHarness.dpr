@@ -1219,6 +1219,14 @@ begin
     'Status bar hint should stay short when there is no error');
 end;
 
+procedure TestVHostFilterHintMakesTheClearActionExplicit;
+begin
+  AssertTrue(
+    BuildToolPanelHint('Clear the vHost filter', 'Shows all projects and vHosts again.') =
+      'Clear the vHost filter' + sLineBreak + 'Shows all projects and vHosts again.',
+    'Filter clear hint should explain the reset action');
+end;
+
 procedure TestDiagnosticReportUsesConsistentServiceStateLabels;
 var
   RootDir: string;
@@ -1399,6 +1407,7 @@ begin
   TestConfigEditorHintsDescribeGeneratedConfigTargets;
   TestCopyActionHintsUseConsistentClipboardLanguage;
   TestStatusBarHintExplainsMariaDbAttention;
+  TestVHostFilterHintMakesTheClearActionExplicit;
   TestDiagnosticReportUsesConsistentServiceStateLabels;
   TestGeneratedEnvBatDoesNotStartWithUtf8Bom;
   TestTerminalExecutablePathResolvesRelativeConfigValues;

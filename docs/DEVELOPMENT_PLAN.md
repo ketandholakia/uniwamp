@@ -169,6 +169,7 @@ Completed:
 - Added process harness coverage for config editor hints on php.ini, httpd.conf, and mariadb.ini actions.
 - Added process harness coverage for copy action hints on diagnostic report and activity log actions.
 - Added process harness coverage for the MariaDB status-bar hint wording.
+- Added process harness coverage for the vHost filter clear hint wording.
 
 ## Priority model
 

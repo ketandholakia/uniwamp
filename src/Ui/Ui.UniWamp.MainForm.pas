@@ -833,6 +833,9 @@ begin
   FVHostFilterClearLabel.Font.Color := clBlue;
   FVHostFilterClearLabel.Font.Style := [fsUnderline];
   FVHostFilterClearLabel.Transparent := True;
+  FVHostFilterClearLabel.Hint := BuildToolPanelHint('Clear the vHost filter',
+    'Shows all projects and vHosts again.');
+  FVHostFilterClearLabel.ShowHint := True;
   FVHostFilterClearLabel.OnClick := VHostFilterClearClick;
   FActivityMemo := TMemo.Create(Self);
   FActivityMemo.Parent := FActivityCard;
