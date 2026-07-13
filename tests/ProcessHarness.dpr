@@ -1230,6 +1230,18 @@ begin
     'Header subtitle hint should describe the dashboard overview');
 end;
 
+procedure TestHeaderCardHintSummarizesStatusAndPorts;
+begin
+  AssertTrue(
+    BuildHeaderCardHint('Apache', 'HTTP 8080', 'HTTPS 8443') =
+      'Apache' + sLineBreak + 'HTTP 8080' + sLineBreak + 'HTTPS 8443',
+    'Apache header card hint should include both port lines');
+  AssertTrue(
+    BuildHeaderCardHint('PHP', 'php85', 'node-v22.23.1-win-x64') =
+      'PHP' + sLineBreak + 'php85' + sLineBreak + 'node-v22.23.1-win-x64',
+    'PHP header card hint should include the runtime lines');
+end;
+
 procedure TestVHostFilterHintMakesTheClearActionExplicit;
 begin
   AssertTrue(
@@ -1429,6 +1441,7 @@ begin
   TestVHostFilterHintMakesTheClearActionExplicit;
   TestVHostFilterSearchHintDescribesSearchFields;
   TestHeaderSubtitleHintDescribesTheStackOverview;
+  TestHeaderCardHintSummarizesStatusAndPorts;
   TestDiagnosticReportUsesConsistentServiceStateLabels;
   TestGeneratedEnvBatDoesNotStartWithUtf8Bom;
   TestTerminalExecutablePathResolvesRelativeConfigValues;

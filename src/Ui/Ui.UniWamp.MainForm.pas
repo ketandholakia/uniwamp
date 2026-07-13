@@ -269,6 +269,7 @@ function DetectProjectTypeLabel(const DocumentRoot: string): string;
 function BuildToolPanelHint(const ActionName, DetailText: string): string;
 function BuildStatusBarHint(const ErrorMessage: string): string;
 function BuildHeaderSubtitleHint: string;
+function BuildHeaderCardHint(const TitleText, PrimaryText, SecondaryText: string): string;
 
 var
   MainForm: TMainForm;
@@ -419,6 +420,15 @@ end;
 function BuildHeaderSubtitleHint: string;
 begin
   Result := 'Stack overview' + sLineBreak + 'Shows the current local development dashboard summary.';
+end;
+
+function BuildHeaderCardHint(const TitleText, PrimaryText, SecondaryText: string): string;
+begin
+  Result := TitleText;
+  if Trim(PrimaryText) <> '' then
+    Result := Result + sLineBreak + PrimaryText;
+  if Trim(SecondaryText) <> '' then
+    Result := Result + sLineBreak + SecondaryText;
 end;
 
 function IsDarkColor(const AColor: TColor): Boolean;
@@ -1140,6 +1150,7 @@ begin
     FHeaderCards[I].Panel.ParentBackground := False;
     FHeaderCards[I].Panel.DoubleBuffered := True;
     FHeaderCards[I].Panel.Anchors := [akTop, akRight];
+    FHeaderCards[I].Panel.ShowHint := True;
 
     FHeaderCards[I].Dot := TShape.Create(Self);
     FHeaderCards[I].Dot.Parent := FHeaderCards[I].Panel;
@@ -1217,6 +1228,12 @@ begin
   FHeaderCards[0].Panel.Visible := True;
   FHeaderCards[1].Panel.Visible := True;
   FHeaderCards[2].Panel.Visible := True;
+  FHeaderCards[0].Panel.Hint := BuildHeaderCardHint(FHeaderCards[0].Title.Caption,
+    FHeaderCards[0].Detail1.Caption, FHeaderCards[0].Detail2.Caption);
+  FHeaderCards[1].Panel.Hint := BuildHeaderCardHint(FHeaderCards[1].Title.Caption,
+    FHeaderCards[1].Detail1.Caption, FHeaderCards[1].Detail2.Caption);
+  FHeaderCards[2].Panel.Hint := BuildHeaderCardHint(FHeaderCards[2].Title.Caption,
+    FHeaderCards[2].Detail1.Caption, FHeaderCards[2].Detail2.Caption);
 end;
 
 procedure TMainForm.FormResize(Sender: TObject);
