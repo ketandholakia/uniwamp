@@ -291,6 +291,44 @@ begin
   end;
 end;
 
+procedure TestMissingRuntimeDependencies;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  ResultInfo: TRuntimeActionResult;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-deps-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        ResultInfo := Runtime.StartApache;
+        AssertTrue(not ResultInfo.Success, 'Apache should fail without runtime dependencies');
+        AssertContains(ResultInfo.Message, 'Selected PHP runtime is missing', 'Apache dependency failure should be explicit');
+        AssertContains(Config.LastApacheError, 'Selected PHP runtime is missing', 'Apache dependency failure should be stored');
+
+        ResultInfo := Runtime.StartMariaDb;
+        AssertTrue(not ResultInfo.Success, 'MariaDB should fail without runtime dependencies');
+        AssertContains(ResultInfo.Message, 'MariaDB initializer not found', 'MariaDB dependency failure should be explicit');
+        AssertContains(Config.LastMariaDbError, 'MariaDB initializer not found', 'MariaDB dependency failure should be stored');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 begin
   try
     TestMissingExecutable;
@@ -303,6 +341,7 @@ begin
     TestDuplicateStartShortCircuit;
     TestMariaDbDuplicateStartShortCircuit;
     TestRestartFailureMessages;
+    TestMissingRuntimeDependencies;
     Writeln('Process harness passed.');
   except
     on E: Exception do

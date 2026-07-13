@@ -69,6 +69,7 @@ Tests: stale PID, PID reuse, duplicate start, timeout, failed executable, gracef
 - Handle MariaDB first-run initialization, startup timeout, safe shutdown, and damaged-data-directory reporting.
 - Validate PHP runtime compatibility, CLI version, Apache module compatibility, and rollback on failed selection.
 - Validate HTTP, HTTPS, and MariaDB ports and report conflicting processes where available.
+- Persist startup dependency failures and restart-phase failures in the runtime error state so the UI and logs stay aligned.
 - Keep generated configuration separate from vendor files.
 
 ## Phase 4: Virtual hosts, hosts file, and HTTPS

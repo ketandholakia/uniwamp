@@ -52,6 +52,7 @@ Current priority coverage:
 - `LoadOrCreate` should return a migrated state only when the configuration was created, repaired, or rewritten.
 - Atomic save behavior should be exercised with a small harness that can simulate write failures without touching real user data.
 - Process-manager behavior should be exercised with a small harness that checks missing executables, timeouts, non-zero exits, stale PID cleanup, duplicate-start short-circuits, and restart failure labeling.
+- Runtime startup should be exercised with cases that verify Apache and MariaDB dependency failures persist their error messages in the runtime state.
 
 ### Process tests
 

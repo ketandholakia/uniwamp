@@ -1160,18 +1160,21 @@ begin
   Result.Success := False;
   if not ValidateApachePorts(ErrorMessage) then
   begin
+    FConfig.LastApacheError := ErrorMessage;
     Result.Message := ErrorMessage;
     Exit;
   end;
 
   if not FileExists(SelectedPhpExe) then
   begin
+    FConfig.LastApacheError := 'Selected PHP runtime is missing: ' + SelectedPhpExe;
     Result.Message := 'Selected PHP runtime is missing: ' + SelectedPhpExe;
     Exit;
   end;
 
   if not FileExists(ApacheModuleForSelectedPhp) then
   begin
+    FConfig.LastApacheError := 'Apache PHP module missing for ' + FConfig.SelectedPhpVersion;
     Result.Message := 'Apache PHP module missing for ' + FConfig.SelectedPhpVersion;
     Exit;
   end;
@@ -1180,6 +1183,7 @@ begin
   begin
     if not EnsureDefaultSslCertificate(ErrorMessage) then
     begin
+      FConfig.LastApacheError := ErrorMessage;
       Result.Message := ErrorMessage;
       Exit;
     end;
@@ -1338,6 +1342,7 @@ begin
   Result.Success := False;
   if not ValidateMariaDbPorts(ErrorMessage) then
   begin
+    FConfig.LastMariaDbError := ErrorMessage;
     Result.Message := ErrorMessage;
     Exit;
   end;
