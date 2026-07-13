@@ -1469,6 +1469,46 @@ begin
   end;
 end;
 
+procedure TestRollbackUpdateStagingAreaRestoresRollbackSnapshot;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  StagingDir: string;
+  SnapshotDir: string;
+  FilePath: string;
+  ErrorMessage: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-rollback-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        StagingDir := TPath.Combine(Paths.UpdatesDir, 'UniWamp-1.0.0.zip');
+        TDirectory.CreateDirectory(StagingDir);
+        FilePath := TPath.Combine(StagingDir, 'payload.txt');
+        TFile.WriteAllText(FilePath, 'payload', TEncoding.ASCII);
+        AssertTrue(Runtime.CreateUpdateRollbackSnapshot(StagingDir, 'UniWamp-1.0.0', SnapshotDir, ErrorMessage), ErrorMessage);
+        TDirectory.Delete(StagingDir, True);
+        AssertTrue(Runtime.RollbackUpdateStagingArea(SnapshotDir, StagingDir, ErrorMessage), ErrorMessage);
+        AssertTrue(TFile.Exists(TPath.Combine(StagingDir, 'payload.txt')),
+          'Rollback restore should bring back the staged payload');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestVHostFilterHintMakesTheClearActionExplicit;
 begin
   AssertTrue(
@@ -1679,6 +1719,7 @@ begin
   TestRuntimeZipValidationAcceptsNonEmptyZipArchives;
   TestRuntimeZipImportExtractsArchiveContents;
   TestUpdateStagingAreaCreatesPortableWorkspace;
+  TestRollbackUpdateStagingAreaRestoresRollbackSnapshot;
   TestMariaDbRootPasswordRequiresRunningService;
   Writeln('Process harness passed.');
   except

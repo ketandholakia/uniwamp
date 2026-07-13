@@ -82,6 +82,8 @@ type
     function ValidateRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
     function ImportRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
     function PrepareUpdateStagingArea(const PackageName: string; out StagingDir: string; out ErrorMessage: string): Boolean;
+    function CreateUpdateRollbackSnapshot(const StagingDir, SnapshotName: string; out SnapshotDir: string; out ErrorMessage: string): Boolean;
+    function RollbackUpdateStagingArea(const SnapshotDir, RestoreDir: string; out ErrorMessage: string): Boolean;
     function LaunchAdminer: TRuntimeActionResult;
     function LaunchTerminal: TRuntimeActionResult;
     function LaunchTerminalInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
@@ -467,6 +469,61 @@ begin
   except
     on E: Exception do
       ErrorMessage := 'Update staging area could not be prepared: ' + E.Message;
+  end;
+end;
+
+function TUniWampRuntime.CreateUpdateRollbackSnapshot(const StagingDir, SnapshotName: string; out SnapshotDir: string; out ErrorMessage: string): Boolean;
+var
+  CleanName: string;
+begin
+  Result := False;
+  ErrorMessage := '';
+  SnapshotDir := '';
+  if not TDirectory.Exists(StagingDir) then
+  begin
+    ErrorMessage := 'Staging directory not found: ' + StagingDir;
+    Exit;
+  end;
+  CleanName := Trim(SnapshotName);
+  if CleanName = '' then
+  begin
+    ErrorMessage := 'Snapshot name is required.';
+    Exit;
+  end;
+  CleanName := StringReplace(CleanName, '\', '_', [rfReplaceAll]);
+  CleanName := StringReplace(CleanName, '/', '_', [rfReplaceAll]);
+  CleanName := StringReplace(CleanName, ':', '_', [rfReplaceAll]);
+  SnapshotDir := TPath.Combine(FPaths.UpdatesDir, 'rollback\' + CleanName);
+  try
+    if TDirectory.Exists(SnapshotDir) then
+      TDirectory.Delete(SnapshotDir, True);
+    TDirectory.CreateDirectory(TPath.GetDirectoryName(SnapshotDir));
+    TDirectory.Copy(StagingDir, SnapshotDir);
+    Result := True;
+  except
+    on E: Exception do
+      ErrorMessage := 'Rollback snapshot could not be created: ' + E.Message;
+  end;
+end;
+
+function TUniWampRuntime.RollbackUpdateStagingArea(const SnapshotDir, RestoreDir: string; out ErrorMessage: string): Boolean;
+begin
+  Result := False;
+  ErrorMessage := '';
+  if not TDirectory.Exists(SnapshotDir) then
+  begin
+    ErrorMessage := 'Rollback snapshot not found: ' + SnapshotDir;
+    Exit;
+  end;
+  try
+    if TDirectory.Exists(RestoreDir) then
+      TDirectory.Delete(RestoreDir, True);
+    TDirectory.CreateDirectory(TPath.GetDirectoryName(RestoreDir));
+    TDirectory.Copy(SnapshotDir, RestoreDir);
+    Result := True;
+  except
+    on E: Exception do
+      ErrorMessage := 'Rollback restore failed: ' + E.Message;
   end;
 end;
 
