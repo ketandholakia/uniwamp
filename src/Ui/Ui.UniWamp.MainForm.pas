@@ -875,7 +875,8 @@ begin
   CopyDiagnosticReportButton.ParentFont := False;
   CopyDiagnosticReportButton.TabOrder := 8;
   CopyDiagnosticReportButton.TabStop := True;
-  CopyDiagnosticReportButton.Hint := 'Copy a portable diagnostic snapshot to the clipboard';
+  CopyDiagnosticReportButton.Hint := BuildToolPanelHint('Copy diagnostic report',
+    'Copies a portable snapshot of the current state to the clipboard.');
   CopyDiagnosticReportButton.ShowHint := True;
   CopyDiagnosticReportButton.OnClick := CopyDiagnosticReportClick;
   CopyActivityLogButton := TPanel.Create(Self);
@@ -890,7 +891,8 @@ begin
   CopyActivityLogButton.ParentFont := False;
   CopyActivityLogButton.TabOrder := 9;
   CopyActivityLogButton.TabStop := True;
-  CopyActivityLogButton.Hint := 'Copy the current activity log to the clipboard';
+  CopyActivityLogButton.Hint := BuildToolPanelHint('Copy activity log',
+    'Copies the current activity log text to the clipboard.');
   CopyActivityLogButton.ShowHint := True;
   CopyActivityLogButton.OnClick := CopyActivityLogClick;
   Panel8.Hint := BuildToolPanelHint('Open the local dashboard',

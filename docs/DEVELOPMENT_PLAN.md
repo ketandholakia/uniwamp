@@ -167,6 +167,7 @@ Completed:
 - Added process harness coverage for log action hints on open and clear operations.
 - Added process harness coverage for primary action hints on save configuration and SSL generation.
 - Added process harness coverage for config editor hints on php.ini, httpd.conf, and mariadb.ini actions.
+- Added process harness coverage for copy action hints on diagnostic report and activity log actions.
 
 ## Priority model
 

@@ -1196,6 +1196,18 @@ begin
     'MariaDB config hint should describe the generated target');
 end;
 
+procedure TestCopyActionHintsUseConsistentClipboardLanguage;
+begin
+  AssertTrue(
+    BuildToolPanelHint('Copy diagnostic report', 'Copies a portable snapshot of the current state to the clipboard.') =
+      'Copy diagnostic report' + sLineBreak + 'Copies a portable snapshot of the current state to the clipboard.',
+    'Diagnostic copy hint should describe the clipboard snapshot');
+  AssertTrue(
+    BuildToolPanelHint('Copy activity log', 'Copies the current activity log text to the clipboard.') =
+      'Copy activity log' + sLineBreak + 'Copies the current activity log text to the clipboard.',
+    'Activity copy hint should describe the clipboard text');
+end;
+
 procedure TestDiagnosticReportUsesConsistentServiceStateLabels;
 var
   RootDir: string;
@@ -1374,6 +1386,7 @@ begin
   TestLogToolPanelHintsDescribeTheUnderlyingAction;
   TestPrimaryActionHintsCoverSaveAndSslActions;
   TestConfigEditorHintsDescribeGeneratedConfigTargets;
+  TestCopyActionHintsUseConsistentClipboardLanguage;
   TestDiagnosticReportUsesConsistentServiceStateLabels;
   TestGeneratedEnvBatDoesNotStartWithUtf8Bom;
   TestTerminalExecutablePathResolvesRelativeConfigValues;
