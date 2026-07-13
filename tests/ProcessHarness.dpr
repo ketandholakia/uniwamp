@@ -310,6 +310,59 @@ begin
   end;
 end;
 
+procedure TestMariaDbDuplicateStartReturnsAlreadyRunning;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  StartResult: TProcessStartResult;
+  CmdExe: string;
+  PidFile: string;
+  ResultInfo: TRuntimeActionResult;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-mariadb-duplicate-start-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    TDirectory.CreateDirectory(Paths.MariaDbBinDir);
+    TFile.WriteAllText(TPath.Combine(Paths.MariaDbBinDir, 'mariadbd.exe'), '', TEncoding.ASCII);
+    TFile.WriteAllText(TPath.Combine(Paths.MariaDbBinDir, 'mariadb-install-db.exe'), '', TEncoding.ASCII);
+    TFile.WriteAllText(TPath.Combine(Paths.MariaDbBinDir, 'mysqladmin.exe'), '', TEncoding.ASCII);
+    TFile.WriteAllText(TPath.Combine(Paths.GeneratedConfigDir, 'mariadb.ini'), 'port=3307', TEncoding.UTF8);
+    CmdExe := 'C:\Windows\System32\cmd.exe';
+    StartResult := TProcessManager.StartDetached(CmdExe, '/c "ping 127.0.0.1 -n 30 >nul"', ExtractFileDir(CmdExe));
+    AssertTrue(StartResult.Success, 'Test helper process should start');
+    PidFile := TPath.Combine(Paths.LogsDir, 'mariadb.pid');
+    TFile.WriteAllText(PidFile, StartResult.ProcessId.ToString, TEncoding.UTF8);
+
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      Config.MariaDbPid := StartResult.ProcessId;
+      Config.MariaDbRunning := True;
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        ResultInfo := Runtime.StartMariaDb;
+        AssertTrue(ResultInfo.Success, 'MariaDB start should short-circuit when already running');
+        AssertContains(ResultInfo.Message, 'already running', 'MariaDB duplicate start should report already running');
+        AssertTrue(Config.MariaDbPid = StartResult.ProcessId, 'MariaDB pid should stay unchanged');
+        AssertTrue(Config.MariaDbRunning, 'MariaDB running flag should stay true');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+
+    TProcessManager.StopProcess(StartResult.ProcessId);
+    TFile.Delete(PidFile);
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestRestartFailureMessages;
 var
   RootDir: string;
@@ -645,6 +698,7 @@ begin
     TestDuplicateStartShortCircuit;
     TestMariaDbDuplicateStartShortCircuit;
     TestDuplicateStartReturnsAlreadyRunning;
+    TestMariaDbDuplicateStartReturnsAlreadyRunning;
     TestRestartFailureMessages;
     TestMissingRuntimeDependencies;
     TestStopPathsAreIdempotentWhenAlreadyStopped;

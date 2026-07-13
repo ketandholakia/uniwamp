@@ -78,6 +78,8 @@ Completed:
 - Verified stop paths still clear service state and report success in the no-op case.
 - Added process harness coverage for duplicate-start short-circuit behavior when Apache is already running.
 - Verified the Apache start path returns an already-running result instead of launching a second service instance.
+- Added process harness coverage for duplicate-start short-circuit behavior when MariaDB is already running.
+- Verified the MariaDB start path returns an already-running result instead of launching a second service instance.
 
 ## Phase 3: Runtime-specific correctness
 
