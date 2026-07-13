@@ -93,6 +93,11 @@ Completed:
 - Persist startup dependency failures and restart-phase failures in the runtime error state so the UI and logs stay aligned.
 - Keep generated configuration separate from vendor files.
 
+Completed:
+
+- Added process harness coverage for Apache start syncing to the detected PHP runtime when the selected version is missing.
+- Verified the runtime updates `SelectedPhpVersion` to the installed PHP directory before continuing Apache startup validation.
+
 ## Phase 4: Virtual hosts, hosts file, and HTTPS
 
 - Validate domains and document roots.

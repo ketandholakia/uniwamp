@@ -577,6 +577,49 @@ begin
   end;
 end;
 
+procedure TestApacheStartSyncsPhpVersionSelection;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  ResultInfo: TRuntimeActionResult;
+  ApacheExePath: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-php-sync-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    TTemplateRenderer.EnsureDefaultTemplates(Paths);
+    TDirectory.CreateDirectory(TPath.Combine(Paths.PhpDir, 'php83'));
+    TFile.WriteAllText(TPath.Combine(Paths.PhpDir, 'php83\php.exe'), '', TEncoding.ASCII);
+    TFile.WriteAllText(TPath.Combine(Paths.PhpDir, 'php83\php83apache2_4.dll'), '', TEncoding.ASCII);
+    TDirectory.CreateDirectory(Paths.ApacheBinDir);
+    ApacheExePath := TPath.Combine(Paths.ApacheBinDir, 'httpd.exe');
+    TFile.Copy('C:\Windows\System32\robocopy.exe', ApacheExePath, True);
+
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      Config.SelectedPhpVersion := 'php-missing';
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        ResultInfo := Runtime.StartApache;
+        AssertTrue(Config.SelectedPhpVersion = 'php83', 'Apache start should sync to the installed PHP version');
+        AssertTrue(not ResultInfo.Success, 'Apache start should still fail because the Apache stub is not a real httpd binary');
+        AssertTrue(Config.LastApacheError <> '', 'Apache start should set an error message');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestStopPathsAreIdempotentWhenAlreadyStopped;
 var
   RootDir: string;
@@ -795,6 +838,7 @@ begin
     TestRestartFailureMessages;
     TestMissingRuntimeDependencies;
     TestMariaDbStartReportsPortConflict;
+    TestApacheStartSyncsPhpVersionSelection;
     TestStopPathsAreIdempotentWhenAlreadyStopped;
     TestApacheStartStopsOnConfigValidationFailure;
     TestManagedHostsSyncUsesOverride;
