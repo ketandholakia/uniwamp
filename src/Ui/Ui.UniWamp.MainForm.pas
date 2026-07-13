@@ -114,6 +114,7 @@ type
     WpCliButton: TPanel;
     MailpitButton: TPanel;
     RedisButton: TPanel;
+    MemcachedButton: TPanel;
 
   published
     HeaderPanel: TPanel;
@@ -250,6 +251,7 @@ type
     procedure LaunchWpCliClick(Sender: TObject);
     procedure LaunchMailpitClick(Sender: TObject);
     procedure LaunchRedisClick(Sender: TObject);
+    procedure LaunchMemcachedClick(Sender: TObject);
     procedure GenerateSslClick(Sender: TObject);
     procedure OpenApacheLogClick(Sender: TObject);
     procedure OpenMariaDbLogClick(Sender: TObject);
@@ -1048,6 +1050,25 @@ begin
   RedisButton.Hint := BuildToolPanelHint('Launch Redis from the UniWamp application root',
     'Opens redis-server.exe when available on PATH.');
   RedisButton.ShowHint := True;
+  MemcachedButton := TPanel.Create(Self);
+  MemcachedButton.Parent := pnltools;
+  MemcachedButton.SetBounds(100, 73, 100, 24);
+  MemcachedButton.Cursor := crHandPoint;
+  MemcachedButton.BevelOuter := bvNone;
+  MemcachedButton.Caption := 'Memcached';
+  MemcachedButton.Color := 16053492;
+  MemcachedButton.Font.Charset := DEFAULT_CHARSET;
+  MemcachedButton.Font.Color := clWindowText;
+  MemcachedButton.Font.Height := -11;
+  MemcachedButton.Font.Name := 'Segoe UI';
+  MemcachedButton.Font.Style := [fsBold];
+  MemcachedButton.ParentBackground := False;
+  MemcachedButton.ParentFont := False;
+  MemcachedButton.TabOrder := 12;
+  MemcachedButton.OnClick := LaunchMemcachedClick;
+  MemcachedButton.Hint := BuildToolPanelHint('Launch Memcached from the UniWamp application root',
+    'Opens memcached.exe when available on PATH.');
+  MemcachedButton.ShowHint := True;
   SaveConfigButton.OnClick := SaveConfigClick;
   SaveConfigButton.Hint := BuildToolPanelHint('Save configuration',
     'Persists the current dashboard settings to config/uniwamp.json.');
@@ -1235,6 +1256,7 @@ begin
   ApplyPanelIcon(WpCliButton, 'wordpress');
   ApplyPanelIcon(MailpitButton, 'mail');
   ApplyPanelIcon(RedisButton, 'dns');
+  ApplyPanelIcon(MemcachedButton, 'dns');
   ApplyPanelIcon(CopyDiagnosticReportButton, 'description');
   ApplyPanelIcon(CopyActivityLogButton, 'content_copy');
   ApplyPanelIcon(OpenPhpExtensionsButton, 'extension');
@@ -1263,6 +1285,7 @@ begin
   SetButtonCaption(WpCliButton, 'WP-CLI');
   SetButtonCaption(MailpitButton, 'Mailpit');
   SetButtonCaption(RedisButton, 'Redis');
+  SetButtonCaption(MemcachedButton, 'Memcached');
   SetButtonCaption(SaveConfigButton, 'Save Config');
   SetButtonCaption(GenerateSslButton, 'Generate SSL');
   SetButtonCaption(CopyDiagnosticReportButton, 'Copy Report');
@@ -2900,6 +2923,14 @@ var
   ResultInfo: TRuntimeActionResult;
 begin
   ResultInfo := FRuntime.LaunchRedis;
+  AppendStatus(ResultInfo.Message);
+end;
+
+procedure TMainForm.LaunchMemcachedClick(Sender: TObject);
+var
+  ResultInfo: TRuntimeActionResult;
+begin
+  ResultInfo := FRuntime.LaunchMemcached;
   AppendStatus(ResultInfo.Message);
 end;
 

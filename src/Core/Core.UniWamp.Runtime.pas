@@ -82,6 +82,7 @@ type
     function LaunchWpCliInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function LaunchMailpit: TRuntimeActionResult;
     function LaunchRedis: TRuntimeActionResult;
+    function LaunchMemcached: TRuntimeActionResult;
     function PreferredTextEditorExecutable: string;
     function LaunchTextEditor(const FileName: string): TRuntimeActionResult;
     function ComputeFileSha256Hex(const FileName: string): string;
@@ -593,6 +594,31 @@ begin
     Result.Message := 'Redis launched'
   else
     Result.Message := 'Failed to launch Redis';
+end;
+
+function TUniWampRuntime.LaunchMemcached: TRuntimeActionResult;
+var
+  MemcachedExe: string;
+  Buffer: array[0..MAX_PATH] of Char;
+  BufferSize: DWORD;
+  FilePart: PChar;
+begin
+  MemcachedExe := '';
+  FilePart := nil;
+  BufferSize := SearchPath(nil, 'memcached.exe', nil, Length(Buffer), Buffer, FilePart);
+  if BufferSize > 0 then
+    MemcachedExe := Buffer;
+  if MemcachedExe = '' then
+  begin
+    Result.Success := False;
+    Result.Message := 'Memcached was not found on PATH.';
+    Exit;
+  end;
+  Result.Success := ShellExecute(0, 'open', PChar(MemcachedExe), nil, PChar(FPaths.AppRoot), SW_SHOWNORMAL) > 32;
+  if Result.Success then
+    Result.Message := 'Memcached launched'
+  else
+    Result.Message := 'Failed to launch Memcached';
 end;
 
 function TUniWampRuntime.PrepareUpdateStagingArea(const PackageName: string; out StagingDir: string; out ErrorMessage: string): Boolean;
