@@ -150,6 +150,8 @@ Completed:
 - Verified the empty state switches between the default and filtered messages.
 - Added process harness coverage for project type detection across common framework markers.
 - Verified the detector prioritizes WordPress, then Laravel, then Node, then PHP, then static roots.
+- Added process harness coverage for consistent service-state labels in diagnostic reports.
+- Verified the diagnostic report uses the shared running/stopped labels for Apache and MariaDB.
 
 ## Phase 7: Optional integrations and update model
 

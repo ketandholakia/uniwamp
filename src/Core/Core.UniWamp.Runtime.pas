@@ -39,6 +39,7 @@ type
     function SelectedNodeDir: string;
     function RenderPhpExtensionLines: string;
     function EnsureDefaultSslCertificate(out ErrorMessage: string): Boolean;
+    function ServiceStateLabel(const Running: Boolean): string;
     procedure GenerateApacheConfig;
     procedure GenerateMariaDbConfig;
     procedure GeneratePhpConfig;
@@ -631,20 +632,9 @@ var
   HttpOwner: string;
   HttpsOwner: string;
   DbOwner: string;
-  ApacheState: string;
-  MariaState: string;
 begin
   Lines := TStringList.Create;
   try
-    if FConfig.ApacheRunning then
-      ApacheState := 'running'
-    else
-      ApacheState := 'stopped';
-    if FConfig.MariaDbRunning then
-      MariaState := 'running'
-    else
-      MariaState := 'stopped';
-
     HttpOwner := DescribePortOwner(FConfig.HttpPort);
     HttpsOwner := DescribePortOwner(FConfig.HttpsPort);
     DbOwner := DescribePortOwner(FConfig.DatabasePort);
@@ -660,10 +650,10 @@ begin
     Lines.Add('PHP version: ' + FConfig.SelectedPhpVersion);
     Lines.Add('PHP profile: ' + FConfig.PhpProfile);
     Lines.Add('Node version: ' + FConfig.SelectedNodeVersion);
-    Lines.Add('Apache: ' + ApacheState + ' pid=' + IntToStr(FConfig.ApachePid) + ' port=' + IntToStr(FConfig.HttpPort));
+    Lines.Add('Apache: ' + ServiceStateLabel(FConfig.ApacheRunning) + ' pid=' + IntToStr(FConfig.ApachePid) + ' port=' + IntToStr(FConfig.HttpPort));
     Lines.Add('Apache port owner: ' + HttpOwner);
     Lines.Add('Apache SSL port owner: ' + HttpsOwner);
-    Lines.Add('MariaDB: ' + MariaState + ' pid=' + IntToStr(FConfig.MariaDbPid) + ' port=' + IntToStr(FConfig.DatabasePort));
+    Lines.Add('MariaDB: ' + ServiceStateLabel(FConfig.MariaDbRunning) + ' pid=' + IntToStr(FConfig.MariaDbPid) + ' port=' + IntToStr(FConfig.DatabasePort));
     Lines.Add('MariaDB port owner: ' + DbOwner);
     Lines.Add('VHosts: ' + IntToStr(Length(FConfig.VHosts)));
     Lines.Add('Last hosts sync: ' + FConfig.LastHostsSyncStatus);
@@ -1850,6 +1840,14 @@ begin
   else
     Result.Message := 'VHost removed: ' + ServerName + ' (' + HostsError + ')';
   Result.Success := True;
+end;
+
+function TUniWampRuntime.ServiceStateLabel(const Running: Boolean): string;
+begin
+  if Running then
+    Result := 'running'
+  else
+    Result := 'stopped';
 end;
 
 end.

@@ -1133,6 +1133,39 @@ begin
   end;
 end;
 
+procedure TestDiagnosticReportUsesConsistentServiceStateLabels;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  Report: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-service-state-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Config.ApacheRunning := True;
+      Config.MariaDbRunning := False;
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        Report := Runtime.BuildDiagnosticReport;
+        AssertContains(Report, 'Apache: running', 'Running services should be reported with the running label');
+        AssertContains(Report, 'MariaDB: stopped', 'Stopped services should be reported with the stopped label');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestMariaDbRootPasswordRequiresRunningService;
 var
   RootDir: string;
@@ -1198,10 +1231,11 @@ begin
     TestDiagnosticReportIncludesState;
     TestDiagnosticReportOmitsSensitiveValues;
     TestDiagnosticReportIncludesPortOwnersForOccupiedPorts;
-    TestActivityLogClipboardSelectionPrefersLogFileThenMemo;
-    TestVHostEmptyStateCaptionReflectsFilter;
-    TestProjectTypeDetectionPrefersKnownFrameworkMarkers;
-    TestMariaDbRootPasswordRequiresRunningService;
+  TestActivityLogClipboardSelectionPrefersLogFileThenMemo;
+  TestVHostEmptyStateCaptionReflectsFilter;
+  TestProjectTypeDetectionPrefersKnownFrameworkMarkers;
+  TestDiagnosticReportUsesConsistentServiceStateLabels;
+  TestMariaDbRootPasswordRequiresRunningService;
     Writeln('Process harness passed.');
   except
     on E: Exception do
