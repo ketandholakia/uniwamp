@@ -109,7 +109,6 @@ begin
     if Prompt <> '' then
       Dialog.FStatusLabel.Caption := Prompt;
     Dialog.FPasswordEdit.SelectAll;
-    Dialog.FPasswordEdit.SetFocus;
     Result.Accepted := Dialog.ShowModal = mrOk;
     if Result.Accepted then
       Result.Password := Dialog.FPasswordEdit.Text;
