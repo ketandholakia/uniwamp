@@ -1242,6 +1242,14 @@ begin
     'PHP header card hint should include the runtime lines');
 end;
 
+procedure TestHeaderTitleHintStaysOnBrand;
+begin
+  AssertTrue(
+    BuildHeaderTitleHint =
+      'UniWamp' + sLineBreak + 'Portable WAMP dashboard for local development.',
+    'Header title hint should stay on brand');
+end;
+
 procedure TestVHostFilterHintMakesTheClearActionExplicit;
 begin
   AssertTrue(
@@ -1442,6 +1450,7 @@ begin
   TestVHostFilterSearchHintDescribesSearchFields;
   TestHeaderSubtitleHintDescribesTheStackOverview;
   TestHeaderCardHintSummarizesStatusAndPorts;
+  TestHeaderTitleHintStaysOnBrand;
   TestDiagnosticReportUsesConsistentServiceStateLabels;
   TestGeneratedEnvBatDoesNotStartWithUtf8Bom;
   TestTerminalExecutablePathResolvesRelativeConfigValues;

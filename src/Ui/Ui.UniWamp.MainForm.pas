@@ -270,6 +270,7 @@ function BuildToolPanelHint(const ActionName, DetailText: string): string;
 function BuildStatusBarHint(const ErrorMessage: string): string;
 function BuildHeaderSubtitleHint: string;
 function BuildHeaderCardHint(const TitleText, PrimaryText, SecondaryText: string): string;
+function BuildHeaderTitleHint: string;
 
 var
   MainForm: TMainForm;
@@ -429,6 +430,11 @@ begin
     Result := Result + sLineBreak + PrimaryText;
   if Trim(SecondaryText) <> '' then
     Result := Result + sLineBreak + SecondaryText;
+end;
+
+function BuildHeaderTitleHint: string;
+begin
+  Result := 'UniWamp' + sLineBreak + 'Portable WAMP dashboard for local development.';
 end;
 
 function IsDarkColor(const AColor: TColor): Boolean;
@@ -796,6 +802,8 @@ begin
   Label18.Color := HeaderOfflineColor;
   Label19.Color := HeaderOfflineColor;
   Label18.Visible := true;
+  Label18.Hint := BuildHeaderTitleHint;
+  Label18.ShowHint := True;
   Label19.Alignment := taLeftJustify;
   Label19.Font.Color := HeaderSubTextColor;
   Label19.Caption := 'Portable WAMP dashboard for local development';
