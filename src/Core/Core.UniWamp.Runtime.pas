@@ -86,6 +86,7 @@ type
     function LaunchMailpit: TRuntimeActionResult;
     function LaunchRedis: TRuntimeActionResult;
     function LaunchMemcached: TRuntimeActionResult;
+    function LaunchEditor: TRuntimeActionResult;
     function PreferredTextEditorExecutable: string;
     function LaunchTextEditor(const FileName: string): TRuntimeActionResult;
     function ComputeFileSha256Hex(const FileName: string): string;
@@ -809,6 +810,11 @@ begin
     Result.Message := 'Memcached launched'
   else
     Result.Message := 'Failed to launch Memcached';
+end;
+
+function TUniWampRuntime.LaunchEditor: TRuntimeActionResult;
+begin
+  Result := LaunchTextEditor(FPaths.AppRoot);
 end;
 
 function TUniWampRuntime.PrepareUpdateStagingArea(const PackageName: string; out StagingDir: string; out ErrorMessage: string): Boolean;

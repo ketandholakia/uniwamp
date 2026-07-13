@@ -118,6 +118,7 @@ type
     NpmButton: TPanel;
     YarnButton: TPanel;
     PnpmButton: TPanel;
+    EditorButton: TPanel;
 
   published
     HeaderPanel: TPanel;
@@ -258,6 +259,7 @@ type
     procedure LaunchNpmClick(Sender: TObject);
     procedure LaunchYarnClick(Sender: TObject);
     procedure LaunchPnpmClick(Sender: TObject);
+    procedure LaunchEditorClick(Sender: TObject);
     procedure GenerateSslClick(Sender: TObject);
     procedure OpenApacheLogClick(Sender: TObject);
     procedure OpenMariaDbLogClick(Sender: TObject);
@@ -1132,6 +1134,25 @@ begin
   PnpmButton.Hint := BuildToolPanelHint('Launch pnpm from the selected Node.js runtime',
     'Opens pnpm.cmd from PATH in the UniWamp application root.');
   PnpmButton.ShowHint := True;
+  EditorButton := TPanel.Create(Self);
+  EditorButton.Parent := pnltools;
+  EditorButton.SetBounds(456, 73, 82, 24);
+  EditorButton.Cursor := crHandPoint;
+  EditorButton.BevelOuter := bvNone;
+  EditorButton.Caption := 'Editor';
+  EditorButton.Color := 16053492;
+  EditorButton.Font.Charset := DEFAULT_CHARSET;
+  EditorButton.Font.Color := clWindowText;
+  EditorButton.Font.Height := -11;
+  EditorButton.Font.Name := 'Segoe UI';
+  EditorButton.Font.Style := [fsBold];
+  EditorButton.ParentBackground := False;
+  EditorButton.ParentFont := False;
+  EditorButton.TabOrder := 16;
+  EditorButton.OnClick := LaunchEditorClick;
+  EditorButton.Hint := BuildToolPanelHint('Launch the preferred text editor',
+    'Opens the repository root in the editor selected by EDITOR or Notepad.');
+  EditorButton.ShowHint := True;
   SaveConfigButton.OnClick := SaveConfigClick;
   SaveConfigButton.Hint := BuildToolPanelHint('Save configuration',
     'Persists the current dashboard settings to config/uniwamp.json.');
@@ -1323,6 +1344,7 @@ begin
   ApplyPanelIcon(NpmButton, 'dns');
   ApplyPanelIcon(YarnButton, 'dns');
   ApplyPanelIcon(PnpmButton, 'dns');
+  ApplyPanelIcon(EditorButton, 'edit');
   ApplyPanelIcon(CopyDiagnosticReportButton, 'description');
   ApplyPanelIcon(CopyActivityLogButton, 'content_copy');
   ApplyPanelIcon(OpenPhpExtensionsButton, 'extension');
@@ -1355,6 +1377,7 @@ begin
   SetButtonCaption(NpmButton, 'npm');
   SetButtonCaption(YarnButton, 'yarn');
   SetButtonCaption(PnpmButton, 'pnpm');
+  SetButtonCaption(EditorButton, 'Editor');
   SetButtonCaption(SaveConfigButton, 'Save Config');
   SetButtonCaption(GenerateSslButton, 'Generate SSL');
   SetButtonCaption(CopyDiagnosticReportButton, 'Copy Report');
@@ -3024,6 +3047,14 @@ var
   ResultInfo: TRuntimeActionResult;
 begin
   ResultInfo := FRuntime.LaunchPnpmInWorkingDir(FPaths.AppRoot);
+  AppendStatus(ResultInfo.Message);
+end;
+
+procedure TMainForm.LaunchEditorClick(Sender: TObject);
+var
+  ResultInfo: TRuntimeActionResult;
+begin
+  ResultInfo := FRuntime.LaunchEditor;
   AppendStatus(ResultInfo.Message);
 end;
 
