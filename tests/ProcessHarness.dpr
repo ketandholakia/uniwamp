@@ -256,6 +256,60 @@ begin
   end;
 end;
 
+procedure TestDuplicateStartReturnsAlreadyRunning;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  StartResult: TProcessStartResult;
+  CmdExe: string;
+  PidFile: string;
+  ResultInfo: TRuntimeActionResult;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-duplicate-start-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    TDirectory.CreateDirectory(TPath.Combine(Paths.PhpDir, 'php85'));
+    TDirectory.CreateDirectory(Paths.ApacheBinDir);
+    TFile.WriteAllText(TPath.Combine(Paths.PhpDir, 'php85\php.exe'), '', TEncoding.ASCII);
+    TFile.WriteAllText(TPath.Combine(Paths.PhpDir, 'php85\php85apache2_4.dll'), '', TEncoding.ASCII);
+    TFile.WriteAllText(Paths.ApacheHttpdConfFile, 'ServerName localhost', TEncoding.UTF8);
+    CmdExe := 'C:\Windows\System32\cmd.exe';
+    StartResult := TProcessManager.StartDetached(CmdExe, '/c "ping 127.0.0.1 -n 30 >nul"', ExtractFileDir(CmdExe));
+    AssertTrue(StartResult.Success, 'Test helper process should start');
+    PidFile := TPath.Combine(Paths.LogsDir, 'httpd.pid');
+    TFile.WriteAllText(PidFile, StartResult.ProcessId.ToString, TEncoding.UTF8);
+
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      Config.SelectedPhpVersion := 'php85';
+      Config.ApachePid := StartResult.ProcessId;
+      Config.ApacheRunning := True;
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        ResultInfo := Runtime.StartApache;
+        AssertTrue(ResultInfo.Success, 'Apache start should short-circuit when already running');
+        AssertContains(ResultInfo.Message, 'already running', 'Apache duplicate start should report already running');
+        AssertTrue(Config.ApachePid = StartResult.ProcessId, 'Apache pid should stay unchanged');
+        AssertTrue(Config.ApacheRunning, 'Apache running flag should stay true');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+
+    TProcessManager.StopProcess(StartResult.ProcessId);
+    TFile.Delete(PidFile);
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestRestartFailureMessages;
 var
   RootDir: string;
@@ -590,6 +644,7 @@ begin
     TestStaleRuntimeStateCleanup;
     TestDuplicateStartShortCircuit;
     TestMariaDbDuplicateStartShortCircuit;
+    TestDuplicateStartReturnsAlreadyRunning;
     TestRestartFailureMessages;
     TestMissingRuntimeDependencies;
     TestStopPathsAreIdempotentWhenAlreadyStopped;
