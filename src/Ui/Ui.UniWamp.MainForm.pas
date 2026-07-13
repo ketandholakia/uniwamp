@@ -233,6 +233,7 @@ type
     procedure OpenApacheModulesClick(Sender: TObject);
     procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure VHostEmptyLabelClick(Sender: TObject);
+    procedure VHostFilterKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure SetMariaDbRootPasswordClick(Sender: TObject);
     procedure LaunchTerminalClick(Sender: TObject);
     procedure GenerateSslClick(Sender: TObject);
@@ -779,6 +780,7 @@ begin
   FVHostFilterEdit.Width := 220;
   FVHostFilterEdit.TextHint := 'Type a site name or document path';
   FVHostFilterEdit.OnChange := VHostFilterChanged;
+  FVHostFilterEdit.OnKeyDown := VHostFilterKeyDown;
   FVHostFilterClearLabel := TLabel.Create(Self);
   FVHostFilterClearLabel.Parent := VHostCard;
   FVHostFilterClearLabel.Left := 244;
@@ -2685,9 +2687,21 @@ end;
 
 procedure TMainForm.FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
 begin
+  if (ssCtrl in Shift) and (Key = Ord('F')) then
+  begin
+    Key := 0;
+    if Assigned(FVHostFilterEdit) then
+      FVHostFilterEdit.SetFocus;
+    Exit;
+  end;
   if Key = VK_ESCAPE then
   begin
     Key := 0;
+    if Assigned(FVHostFilterEdit) and FVHostFilterEdit.Focused and (Trim(FVHostFilterEdit.Text) <> '') then
+    begin
+      FVHostFilterEdit.Clear;
+      Exit;
+    end;
     ExitButtonClick(Sender);
   end;
 end;
@@ -2695,6 +2709,18 @@ end;
 procedure TMainForm.VHostEmptyLabelClick(Sender: TObject);
 begin
   AddVHostClick(Sender);
+end;
+
+procedure TMainForm.VHostFilterKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+begin
+  if Key = VK_ESCAPE then
+  begin
+    Key := 0;
+    if Trim(FVHostFilterEdit.Text) <> '' then
+      FVHostFilterEdit.Clear
+    else
+      ActiveControl := nil;
+  end;
 end;
 
 procedure TMainForm.EditPhpIniClick(Sender: TObject);
