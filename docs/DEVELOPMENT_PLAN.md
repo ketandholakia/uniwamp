@@ -82,6 +82,8 @@ Completed:
 - Verified the MariaDB start path returns an already-running result instead of launching a second service instance.
 - Added process harness coverage for force-stopping a live process through `StopProcess`.
 - Verified the process manager terminates a running helper process and clears the running state afterward.
+- Added process harness coverage for MariaDB port-conflict reporting before startup.
+- Verified the MariaDB start path reports the occupied port and leaves runtime state cleared.
 
 ## Phase 3: Runtime-specific correctness
 

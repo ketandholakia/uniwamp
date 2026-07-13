@@ -7,9 +7,11 @@ uses
   System.IOUtils,
   System.SysUtils,
   Winapi.Windows,
+  Winapi.Winsock2,
   Core.UniWamp.Config,
   Core.UniWamp.Diagnostics,
   Core.UniWamp.Paths,
+  Core.UniWamp.PortUtils,
   Core.UniWamp.TemplateRenderer,
   Core.UniWamp.Runtime,
   Core.UniWamp.ProcessManager;
@@ -29,6 +31,39 @@ procedure AssertContains(const Haystack, Needle, MessageText: string);
 begin
   if Pos(LowerCase(Needle), LowerCase(Haystack)) = 0 then
     Fail(Format('%s Haystack="%s" Needle="%s"', [MessageText, Haystack, Needle]));
+end;
+
+function ReserveTcpPort(const Port: Integer; out SocketHandle: TSocket): Boolean;
+var
+  WsaData: TWSAData;
+  Addr: sockaddr_in;
+begin
+  Result := False;
+  SocketHandle := INVALID_SOCKET;
+  if WSAStartup($0202, WsaData) <> 0 then
+    Exit;
+  SocketHandle := socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  if SocketHandle = INVALID_SOCKET then
+    Exit;
+  ZeroMemory(@Addr, SizeOf(Addr));
+  Addr.sin_family := AF_INET;
+  Addr.sin_addr.S_addr := INADDR_ANY;
+  Addr.sin_port := htons(Port);
+  if bind(SocketHandle, PSockAddr(@Addr)^, SizeOf(Addr)) <> 0 then
+    Exit;
+  if listen(SocketHandle, 1) <> 0 then
+    Exit;
+  Result := True;
+end;
+
+procedure ReleaseTcpPort(var SocketHandle: TSocket);
+begin
+  if SocketHandle <> INVALID_SOCKET then
+  begin
+    closesocket(SocketHandle);
+    WSACleanup;
+    SocketHandle := INVALID_SOCKET;
+  end;
 end;
 
 function BuildPaths(const Root: string): TAppPaths;
@@ -501,6 +536,47 @@ begin
   end;
 end;
 
+procedure TestMariaDbStartReportsPortConflict;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  ResultInfo: TRuntimeActionResult;
+  PortSocket: TSocket;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-mariadb-port-conflict-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    AssertTrue(ReserveTcpPort(3307, PortSocket), 'Port listener should start');
+    AssertTrue(not IsTcpPortAvailable(3307), 'Database port should be occupied before starting MariaDB');
+
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      Config.DatabasePort := 3307;
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        ResultInfo := Runtime.StartMariaDb;
+        AssertTrue(not ResultInfo.Success, 'MariaDB should fail when the database port is occupied');
+        AssertContains(ResultInfo.Message, 'Database port 3307 is already in use', 'MariaDB port conflict should be reported');
+        AssertTrue(Config.MariaDbPid = 0, 'MariaDB pid should remain cleared on port conflict');
+        AssertTrue(not Config.MariaDbRunning, 'MariaDB running flag should remain false on port conflict');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+
+    ReleaseTcpPort(PortSocket);
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestStopPathsAreIdempotentWhenAlreadyStopped;
 var
   RootDir: string;
@@ -718,6 +794,7 @@ begin
     TestMariaDbDuplicateStartReturnsAlreadyRunning;
     TestRestartFailureMessages;
     TestMissingRuntimeDependencies;
+    TestMariaDbStartReportsPortConflict;
     TestStopPathsAreIdempotentWhenAlreadyStopped;
     TestApacheStartStopsOnConfigValidationFailure;
     TestManagedHostsSyncUsesOverride;
