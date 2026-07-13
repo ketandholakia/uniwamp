@@ -1662,6 +1662,10 @@ var
 begin
   HasVHosts := Length(FConfig.VHosts) > 0;
   VHostGrid.Visible := HasVHosts;
+  VHostGrid.Enabled := HasVHosts;
+  VHostGrid.TabStop := HasVHosts;
+  if not HasVHosts then
+    VHostGrid.Row := 0;
   if Assigned(FVHostEmptyLabel) then
   begin
     FVHostEmptyLabel.Visible := not HasVHosts;
