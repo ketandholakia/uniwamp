@@ -42,7 +42,7 @@ The app ships with sensible defaults stored in `config/uniwamp.json`. Current de
 - **HTTP port:** 8080
 - **HTTPS port:** 8443
 - **MariaDB port:** 3309
-- **Default document root:** 
+- **Default document root:** `www`
 - **Selected PHP version:** php85
 - **Selected Node version:** node-v22.23.1-win-x64
 - **Terminal executable (terminalExePath):** bin\\cmder\\Cmder.exe
@@ -76,6 +76,12 @@ Default value:
 - `bin\\cmder\\Cmder.exe`
 
 If you want a different Cmder location, update `terminalExePath` to the full path or a path relative to the UniWamp root.
+
+The main Tools menu and tool panel also expose:
+
+- `Copy Report` to copy a diagnostic snapshot with paths, versions, ports, service state, and recent errors
+- `Copy Activity` to copy the current activity log to the clipboard
+- `Esc` to close the main window through the normal shutdown flow
 
 ## Configuration
 
