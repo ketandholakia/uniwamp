@@ -944,7 +944,7 @@ begin
   ToolGroupWebLabel.Parent := pnltools;
   ToolGroupWebLabel.BevelOuter := bvNone;
   ToolGroupWebLabel.Caption := 'Web and config';
-  ToolGroupWebLabel.Color := clWhite;
+  ToolGroupWebLabel.Color := RGB(232, 236, 243);
   ToolGroupWebLabel.Font.Name := 'Segoe UI';
   ToolGroupWebLabel.Font.Size := 9;
   ToolGroupWebLabel.Font.Style := [fsBold];
@@ -957,7 +957,7 @@ begin
   ToolGroupRuntimeLabel.Parent := pnltools;
   ToolGroupRuntimeLabel.BevelOuter := bvNone;
   ToolGroupRuntimeLabel.Caption := 'Runtime tools';
-  ToolGroupRuntimeLabel.Color := clWhite;
+  ToolGroupRuntimeLabel.Color := RGB(232, 236, 243);
   ToolGroupRuntimeLabel.Font.Name := 'Segoe UI';
   ToolGroupRuntimeLabel.Font.Size := 9;
   ToolGroupRuntimeLabel.Font.Style := [fsBold];
@@ -970,7 +970,7 @@ begin
   ToolGroupLogsLabel.Parent := pnltools;
   ToolGroupLogsLabel.BevelOuter := bvNone;
   ToolGroupLogsLabel.Caption := 'Logs';
-  ToolGroupLogsLabel.Color := clWhite;
+  ToolGroupLogsLabel.Color := RGB(232, 236, 243);
   ToolGroupLogsLabel.Font.Name := 'Segoe UI';
   ToolGroupLogsLabel.Font.Size := 9;
   ToolGroupLogsLabel.Font.Style := [fsBold];
@@ -983,7 +983,7 @@ begin
   ToolGroupMaintenanceLabel.Parent := pnltools;
   ToolGroupMaintenanceLabel.BevelOuter := bvNone;
   ToolGroupMaintenanceLabel.Caption := 'Maintenance';
-  ToolGroupMaintenanceLabel.Color := clWhite;
+  ToolGroupMaintenanceLabel.Color := RGB(232, 236, 243);
   ToolGroupMaintenanceLabel.Font.Name := 'Segoe UI';
   ToolGroupMaintenanceLabel.Font.Size := 9;
   ToolGroupMaintenanceLabel.Font.Style := [fsBold];
