@@ -1227,6 +1227,14 @@ begin
     'Filter clear hint should explain the reset action');
 end;
 
+procedure TestVHostFilterSearchHintDescribesSearchFields;
+begin
+  AssertTrue(
+    BuildToolPanelHint('Filter vHosts', 'Search by site name, document root, or aliases.') =
+      'Filter vHosts' + sLineBreak + 'Search by site name, document root, or aliases.',
+    'Filter search hint should describe the searchable fields');
+end;
+
 procedure TestDiagnosticReportUsesConsistentServiceStateLabels;
 var
   RootDir: string;
@@ -1408,6 +1416,7 @@ begin
   TestCopyActionHintsUseConsistentClipboardLanguage;
   TestStatusBarHintExplainsMariaDbAttention;
   TestVHostFilterHintMakesTheClearActionExplicit;
+  TestVHostFilterSearchHintDescribesSearchFields;
   TestDiagnosticReportUsesConsistentServiceStateLabels;
   TestGeneratedEnvBatDoesNotStartWithUtf8Bom;
   TestTerminalExecutablePathResolvesRelativeConfigValues;

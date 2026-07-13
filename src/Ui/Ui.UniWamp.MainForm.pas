@@ -820,6 +820,9 @@ begin
   FVHostFilterEdit.Top := 30;
   FVHostFilterEdit.Width := 220;
   FVHostFilterEdit.TextHint := 'Type a site name or document path';
+  FVHostFilterEdit.Hint := BuildToolPanelHint('Filter vHosts',
+    'Search by site name, document root, or aliases.');
+  FVHostFilterEdit.ShowHint := True;
   FVHostFilterEdit.OnChange := VHostFilterChanged;
   FVHostFilterEdit.OnKeyDown := VHostFilterKeyDown;
   FVHostFilterClearLabel := TLabel.Create(Self);
