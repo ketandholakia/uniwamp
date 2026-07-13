@@ -80,6 +80,7 @@ type
     function LaunchTextEditor(const FileName: string): TRuntimeActionResult;
     function ComputeFileSha256Hex(const FileName: string): string;
     function ValidateRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
+    function ImportRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
     function LaunchAdminer: TRuntimeActionResult;
     function LaunchTerminal: TRuntimeActionResult;
     function LaunchTerminalInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
@@ -412,6 +413,30 @@ begin
     except
       on E: Exception do
         ErrorMessage := 'Runtime archive validation failed: ' + E.Message;
+    end;
+  finally
+    Zip.Free;
+  end;
+end;
+
+function TUniWampRuntime.ImportRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
+var
+  Zip: TZipFile;
+begin
+  Result := False;
+  ErrorMessage := '';
+  if not ValidateRuntimeZipArchive(ZipFileName, ErrorMessage) then
+    Exit;
+
+  Zip := TZipFile.Create;
+  try
+    try
+      Zip.Open(ZipFileName, zmRead);
+      Zip.ExtractAll(FPaths.AppRoot);
+      Result := True;
+    except
+      on E: Exception do
+        ErrorMessage := 'Runtime archive import failed: ' + E.Message;
     end;
   finally
     Zip.Free;
