@@ -875,6 +875,11 @@ begin
   MainPanel.Color := AppBackgroundColor;
   LeftPanel.Color := AppBackgroundColor;
   RightPanel.Color := AppBackgroundColor;
+  pnltools.Parent := MainPanel;
+  pnltools.Align := alRight;
+  pnltools.Width := 240;
+  pnltools.Height := MainPanel.ClientHeight;
+  pnltools.BringToFront;
   HeaderPanel.Height := 86;
   CreateHeaderStatusCards;
   FVHostEmptyLabel := TLabel.Create(Self);
