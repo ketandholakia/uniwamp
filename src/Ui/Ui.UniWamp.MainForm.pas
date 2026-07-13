@@ -271,6 +271,7 @@ function BuildStatusBarHint(const ErrorMessage: string): string;
 function BuildHeaderSubtitleHint: string;
 function BuildHeaderCardHint(const TitleText, PrimaryText, SecondaryText: string): string;
 function BuildHeaderTitleHint: string;
+function BuildHeaderOverviewHint: string;
 
 var
   MainForm: TMainForm;
@@ -435,6 +436,11 @@ end;
 function BuildHeaderTitleHint: string;
 begin
   Result := 'UniWamp' + sLineBreak + 'Portable WAMP dashboard for local development.';
+end;
+
+function BuildHeaderOverviewHint: string;
+begin
+  Result := 'Header overview' + sLineBreak + 'Shows Apache, PHP, and MariaDB status at a glance.';
 end;
 
 function IsDarkColor(const AColor: TColor): Boolean;
@@ -796,6 +802,8 @@ begin
   MainPanel.DoubleBuffered := True;
   LeftPanel.DoubleBuffered := True;
   RightPanel.DoubleBuffered := True;
+  HeaderPanel.Hint := BuildHeaderOverviewHint;
+  HeaderPanel.ShowHint := True;
   StatusBar.Color := RGB(248, 250, 252);
   StatusBar.Font.Color := RGB(55, 65, 81);
   HeaderPanel.Color := HeaderOfflineColor;

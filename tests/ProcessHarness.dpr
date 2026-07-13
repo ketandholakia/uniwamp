@@ -1250,6 +1250,14 @@ begin
     'Header title hint should stay on brand');
 end;
 
+procedure TestHeaderOverviewHintDescribesTheDashboardSummary;
+begin
+  AssertTrue(
+    BuildHeaderOverviewHint =
+      'Header overview' + sLineBreak + 'Shows Apache, PHP, and MariaDB status at a glance.',
+    'Header overview hint should describe the stack status area');
+end;
+
 procedure TestVHostFilterHintMakesTheClearActionExplicit;
 begin
   AssertTrue(
@@ -1451,6 +1459,7 @@ begin
   TestHeaderSubtitleHintDescribesTheStackOverview;
   TestHeaderCardHintSummarizesStatusAndPorts;
   TestHeaderTitleHintStaysOnBrand;
+  TestHeaderOverviewHintDescribesTheDashboardSummary;
   TestDiagnosticReportUsesConsistentServiceStateLabels;
   TestGeneratedEnvBatDoesNotStartWithUtf8Bom;
   TestTerminalExecutablePathResolvesRelativeConfigValues;
