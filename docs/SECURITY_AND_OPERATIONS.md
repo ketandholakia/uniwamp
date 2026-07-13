@@ -24,6 +24,8 @@
 
 Require explicit confirmation for database reset, vhost deletion, runtime removal, configuration reset, certificate replacement, and restore. Create backups before replacement, and leave the previous valid state available after failure.
 
+For staged updates, validate the manifest and package hash before extraction, promote only a verified workspace, and keep the previous target tree available in a backup directory until the replacement is confirmed.
+
 ## Hosts file
 
 Only the following managed block may be changed:
@@ -44,6 +46,7 @@ Write through a temporary file, preserve unrelated content, back up the previous
 - Prefer graceful shutdown and make force termination a visible fallback.
 - Never automatically delete or recreate an existing MariaDB data directory.
 - Treat generated files as disposable outputs and vendor runtime files as user-owned inputs.
+- External developer-tool launchers should remain PATH-based, local-only, and explicit about missing executables rather than attempting downloads.
 
 ## Release checklist
 
