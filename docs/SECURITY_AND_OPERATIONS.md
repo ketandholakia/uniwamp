@@ -29,10 +29,10 @@ Require explicit confirmation for database reset, vhost deletion, runtime remova
 Only the following managed block may be changed:
 
 ```text
-# BEGIN UNIWAMP
+# BEGIN UniWamp Managed Hosts
 127.0.0.1 example.test
 ::1 example.test
-# END UNIWAMP
+# END UniWamp Managed Hosts
 ```
 
 Write through a temporary file, preserve unrelated content, back up the previous file, and report administrator permission failures without overwriting application state.
@@ -54,4 +54,5 @@ Write through a temporary file, preserve unrelated content, back up the previous
 - Test a portable move to a path containing spaces.
 - Verify localhost-only management behavior.
 - Verify logs and diagnostic bundles contain no secrets.
+- Verify `Copy Report` and `Copy Activity` only expose local, redacted diagnostics.
 - Record known runtime and permission limitations in release notes.
