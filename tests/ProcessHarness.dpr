@@ -1156,6 +1156,18 @@ begin
     'VHost copy hint should describe the clipboard action');
 end;
 
+procedure TestLogToolPanelHintsDescribeTheUnderlyingAction;
+begin
+  AssertTrue(
+    BuildToolPanelHint('Open Apache Log', 'Shows the Apache error log in the default text editor.') =
+      'Open Apache Log' + sLineBreak + 'Shows the Apache error log in the default text editor.',
+    'Apache log hint should describe the open action');
+  AssertTrue(
+    BuildToolPanelHint('Clear activity log', 'Clears the in-memory activity memo and the persisted activity log file.') =
+      'Clear activity log' + sLineBreak + 'Clears the in-memory activity memo and the persisted activity log file.',
+    'Activity log hint should describe the clear action');
+end;
+
 procedure TestDiagnosticReportUsesConsistentServiceStateLabels;
 var
   RootDir: string;
@@ -1331,6 +1343,7 @@ begin
   TestProjectTypeDetectionPrefersKnownFrameworkMarkers;
   TestToolPanelHintHelperBuildsMultilineHints;
   TestVHostToolPanelHintTextStaysActionFocused;
+  TestLogToolPanelHintsDescribeTheUnderlyingAction;
   TestDiagnosticReportUsesConsistentServiceStateLabels;
   TestGeneratedEnvBatDoesNotStartWithUtf8Bom;
   TestTerminalExecutablePathResolvesRelativeConfigValues;

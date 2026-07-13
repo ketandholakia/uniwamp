@@ -164,6 +164,7 @@ Completed:
 - Added process harness coverage that verifies relative terminal executable paths resolve against the app root.
 - Added process harness coverage for multiline tool-panel hints on dashboard, Adminer, PHP, and terminal actions.
 - Added process harness coverage for vHost action hints on add, delete, open, folder, and copy actions.
+- Added process harness coverage for log action hints on open and clear operations.
 
 ## Priority model
 

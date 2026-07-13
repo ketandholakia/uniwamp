@@ -918,21 +918,39 @@ begin
   OpenApacheModulesButton.TabStop := True;
   OpenApacheModulesButton.TabOrder := 5;
   OpenApacheLogButton.OnClick := OpenApacheLogClick;
+  OpenApacheLogButton.Hint := BuildToolPanelHint('Open Apache Log',
+    'Shows the Apache error log in the default text editor.');
+  OpenApacheLogButton.ShowHint := True;
   OpenApacheLogButton.TabStop := True;
   OpenApacheLogButton.TabOrder := 6;
   OpenMariaLogButton.OnClick := OpenMariaDbLogClick;
+  OpenMariaLogButton.Hint := BuildToolPanelHint('Open MariaDB Log',
+    'Shows the MariaDB error log in the default text editor.');
+  OpenMariaLogButton.ShowHint := True;
   OpenMariaLogButton.TabStop := True;
   OpenMariaLogButton.TabOrder := 7;
   ClearApacheLogButton.OnClick := ClearApacheLogClick;
+  ClearApacheLogButton.Hint := BuildToolPanelHint('Clear Apache Log',
+    'Removes the current Apache error log contents.');
+  ClearApacheLogButton.ShowHint := True;
   ClearApacheLogButton.TabStop := True;
   ClearApacheLogButton.TabOrder := 8;
   ClearMariaLogButton.OnClick := ClearMariaDbLogClick;
+  ClearMariaLogButton.Hint := BuildToolPanelHint('Clear MariaDB Log',
+    'Removes the current MariaDB error log contents.');
+  ClearMariaLogButton.ShowHint := True;
   ClearMariaLogButton.TabStop := True;
   ClearMariaLogButton.TabOrder := 9;
   ClearActivityLogButton.OnClick := ClearActivityLogClick;
+  ClearActivityLogButton.Hint := BuildToolPanelHint('Clear activity log',
+    'Clears the in-memory activity memo and the persisted activity log file.');
+  ClearActivityLogButton.ShowHint := True;
   ClearActivityLogButton.TabStop := True;
   ClearActivityLogButton.TabOrder := 10;
   Label20.OnClick := OpenActivityClick;
+  Label20.Hint := BuildToolPanelHint('Open Activity Log',
+    'Shows the activity log in the log file location.');
+  Label20.ShowHint := True;
   Label20.TabStop := True;
   Label20.TabOrder := 11;
   AddVHostButton.OnClick := AddVHostClick;
