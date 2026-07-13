@@ -172,6 +172,7 @@ Completed:
 - Refined the sidebar styling with centered labels, icon-free action buttons, and distinct section colors.
 - Tightened sidebar spacing so more actions fit in the right rail with less vertical waste.
 - Moved log actions into the right sidebar and expanded the activity area to use the freed bottom space.
+- Extended the sidebar to the full available height and shrank the activity strip to emphasize live output.
 - Added process harness coverage for the vHost filter clear hint wording.
 - Added process harness coverage for the vHost filter search hint wording.
 - Added process harness coverage for the always-on status-bar hint wording.

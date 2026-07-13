@@ -983,6 +983,11 @@ begin
   ClearMariaLogButton.Parent := pnltools;
   ClearActivityLogButton.Parent := pnltools;
   Panel4.Visible := False;
+  Panel7.Align := alBottom;
+  Panel7.Height := 96;
+  FActivityCard.Align := alClient;
+  FActivityCard.Left := 0;
+  FActivityCard.Width := Panel7.ClientWidth;
   FActivityMemo := TMemo.Create(Self);
   FActivityMemo.Parent := FActivityCard;
   FActivityMemo.Align := alClient;
