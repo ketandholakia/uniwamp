@@ -80,6 +80,7 @@ The smoke test must verify a portable layout without requiring a fixed drive let
 | Logs | Activity and runtime logs are viewable, bounded, and redacted where required |
 | Diagnostics | `Copy Report` and `Copy Activity` expose local state without secrets |
 | Move installation | A copied folder on another path starts without stale development-machine paths |
+| Staged update | Manifest validation, hash checking, workspace staging, promotion backup, and cleanup all succeed without touching the live install until promotion |
 
 ## Validation reporting
 

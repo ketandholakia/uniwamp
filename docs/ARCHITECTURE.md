@@ -18,6 +18,7 @@ UniWamp is a portable Windows development stack manager. The Delphi VCL applicat
 | Process execution | `Core.UniWamp.ProcessManager` |
 | Port checks | `Core.UniWamp.PortUtils` and runtime-level diagnostics |
 | Configuration generation | `Core.UniWamp.TemplateRenderer` and files in `templates/` |
+| Staged updater | Manifest validation, SHA-256 verification, workspace staging, promotion, rollback backup, and cleanup in `Core.UniWamp.Runtime` |
 | Web dashboard | PHP pages/assets in `home/dashboard/`, served by Apache |
 | Adminer | `home/adminer/index.php` |
 | Installer | Inno Setup scripts in `installer/` |
@@ -32,6 +33,7 @@ UniWamp is a portable Windows development stack manager. The Delphi VCL applicat
 5. Port checks and executable checks run before service startup.
 6. `TProcessManager` starts or stops Apache and MariaDB.
 7. The UI refreshes service state, logs, port ownership, virtual hosts, and action availability.
+8. Staged update packages are validated by manifest and hash, extracted into a workspace, promoted with backup support, and cleaned up after use.
 
 ## Ownership boundaries
 
