@@ -177,6 +177,7 @@ Completed:
 - Removed stacked icon text overlays from the sidebar buttons so captions render as a single centered line.
 - Rebalanced the three-column layout by narrowing the sidebar dock so the center workspace has more room.
 - Tightened sidebar group spacing and label sizing so the third column reads cleanly in the narrower rail.
+- Converted the top sidebar tool cluster into a compact two-column grid to avoid label crowding.
 - Added process harness coverage for the vHost filter clear hint wording.
 - Added process harness coverage for the vHost filter search hint wording.
 - Added process harness coverage for the always-on status-bar hint wording.

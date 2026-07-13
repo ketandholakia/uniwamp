@@ -1708,8 +1708,10 @@ const
   GroupGap = 6;
   ButtonHeight = 21;
   LabelHeight = 13;
+  ColumnGap = 5;
 var
   ButtonWidth: Integer;
+  HalfButtonWidth: Integer;
   Y: Integer;
   procedure PlaceLabel(Panel: TPanel);
   begin
@@ -1725,6 +1727,19 @@ var
     Button.SetBounds(SideMargin, Y, ButtonWidth, ButtonHeight);
     Inc(Y, ButtonHeight + RowGap);
   end;
+  procedure PlaceTwoColumnButtons(LeftButton, RightButton: TPanel);
+  var
+    LeftWidth: Integer;
+  begin
+    LeftWidth := HalfButtonWidth;
+    if LeftWidth < 40 then
+      LeftWidth := 40;
+    if Assigned(LeftButton) then
+      LeftButton.SetBounds(SideMargin, Y, LeftWidth, ButtonHeight);
+    if Assigned(RightButton) then
+      RightButton.SetBounds(SideMargin + LeftWidth + ColumnGap, Y, ButtonWidth - LeftWidth - ColumnGap, ButtonHeight);
+    Inc(Y, ButtonHeight + RowGap);
+  end;
 begin
   if not Assigned(pnltools) then
     Exit;
@@ -1732,13 +1747,12 @@ begin
   ButtonWidth := pnltools.ClientWidth - (SideMargin * 2);
   if ButtonWidth < 122 then
     ButtonWidth := 122;
+  HalfButtonWidth := (ButtonWidth - ColumnGap) div 2;
 
   Y := 8;
   PlaceLabel(ToolGroupWebLabel);
-  PlaceButton(GenerateSslButton);
-  PlaceButton(Panel8);
-  PlaceButton(Panel9);
-  PlaceButton(LaunchTerminalButton);
+  PlaceTwoColumnButtons(GenerateSslButton, Panel8);
+  PlaceTwoColumnButtons(Panel9, LaunchTerminalButton);
   PlaceButton(OpenRepoTerminalButton);
   Inc(Y, GroupGap);
   PlaceLabel(ToolGroupRuntimeLabel);
