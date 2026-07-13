@@ -105,6 +105,7 @@ type
     CopyActivityLogButton: TPanel;
     ToolGroupWebLabel: TPanel;
     ToolGroupRuntimeLabel: TPanel;
+    ToolGroupLogsLabel: TPanel;
     ToolGroupMaintenanceLabel: TPanel;
     OpenPhpExtensionsButton: TPanel;
     OpenPhpSettingsButton: TPanel;
@@ -689,9 +690,13 @@ procedure TMainForm.SetButtonCaption(Button: TPanel; const CaptionText: string);
 var
   TextLabel: TLabel;
 begin
+  Button.Alignment := taCenter;
   TextLabel := GetButtonTextLabel(Button);
   if Assigned(TextLabel) then
+  begin
+    TextLabel.Alignment := taCenter;
     TextLabel.Caption := CaptionText
+  end
   else
     Button.Caption := CaptionText;
 end;
@@ -948,6 +953,18 @@ begin
   ToolGroupRuntimeLabel.ParentBackground := False;
   ToolGroupRuntimeLabel.ParentFont := False;
   ToolGroupRuntimeLabel.Alignment := taLeftJustify;
+  ToolGroupLogsLabel := TPanel.Create(Self);
+  ToolGroupLogsLabel.Parent := pnltools;
+  ToolGroupLogsLabel.BevelOuter := bvNone;
+  ToolGroupLogsLabel.Caption := 'Logs';
+  ToolGroupLogsLabel.Color := clWhite;
+  ToolGroupLogsLabel.Font.Name := 'Segoe UI';
+  ToolGroupLogsLabel.Font.Size := 9;
+  ToolGroupLogsLabel.Font.Style := [fsBold];
+  ToolGroupLogsLabel.Font.Color := RGB(180, 83, 9);
+  ToolGroupLogsLabel.ParentBackground := False;
+  ToolGroupLogsLabel.ParentFont := False;
+  ToolGroupLogsLabel.Alignment := taLeftJustify;
   ToolGroupMaintenanceLabel := TPanel.Create(Self);
   ToolGroupMaintenanceLabel.Parent := pnltools;
   ToolGroupMaintenanceLabel.BevelOuter := bvNone;
@@ -960,6 +977,12 @@ begin
   ToolGroupMaintenanceLabel.ParentBackground := False;
   ToolGroupMaintenanceLabel.ParentFont := False;
   ToolGroupMaintenanceLabel.Alignment := taLeftJustify;
+  OpenApacheLogButton.Parent := pnltools;
+  OpenMariaLogButton.Parent := pnltools;
+  ClearApacheLogButton.Parent := pnltools;
+  ClearMariaLogButton.Parent := pnltools;
+  ClearActivityLogButton.Parent := pnltools;
+  Panel4.Visible := False;
   FActivityMemo := TMemo.Create(Self);
   FActivityMemo.Parent := FActivityCard;
   FActivityMemo.Align := alClient;
@@ -1713,6 +1736,13 @@ begin
   PlaceButton(YarnButton);
   PlaceButton(PnpmButton);
   PlaceButton(EditorButton);
+  Inc(Y, GroupGap);
+  PlaceLabel(ToolGroupLogsLabel);
+  PlaceButton(OpenApacheLogButton);
+  PlaceButton(OpenMariaLogButton);
+  PlaceButton(ClearApacheLogButton);
+  PlaceButton(ClearMariaLogButton);
+  PlaceButton(ClearActivityLogButton);
   Inc(Y, GroupGap);
   PlaceLabel(ToolGroupMaintenanceLabel);
   PlaceButton(SaveConfigButton);
