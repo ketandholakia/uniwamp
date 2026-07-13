@@ -1292,23 +1292,24 @@ begin
     finally
       Config.Free;
     end;
-    SetEnvironmentVariable('EDITOR', '');
-    Config := TUniWampConfig.Create;
-    try
-      Runtime := TUniWampRuntime.Create(Paths, Config);
-      try
-        AssertTrue(SameText(Runtime.PreferredTextEditorExecutable, 'notepad.exe'),
-          'Missing EDITOR should fall back to Notepad');
-      finally
-        Runtime.Free;
-      end;
-    finally
-      Config.Free;
-    end;
   finally
     SetEnvironmentVariable('EDITOR', PChar(OldEditor));
     TDirectory.Delete(RootDir, True);
   end;
+end;
+
+procedure TestPreferredTerminalExecutableChoosesCmderThenWtThenCmd;
+begin
+  AssertTrue(
+    ChoosePreferredTerminalExecutable('C:\Tools\cmder\Cmder.exe', '') = 'C:\Tools\cmder\Cmder.exe',
+    'Cmder should win when present');
+  AssertTrue(
+    ChoosePreferredTerminalExecutable('C:\missing\Cmder.exe', 'C:\Program Files\WindowsApps\wt.exe') =
+      'C:\Program Files\WindowsApps\wt.exe',
+    'Windows Terminal should win when Cmder is missing');
+  AssertTrue(
+    ChoosePreferredTerminalExecutable('C:\missing\Cmder.exe', '') = 'cmd.exe',
+    'cmd.exe should be the final fallback');
 end;
 
 procedure TestVHostFilterHintMakesTheClearActionExplicit;

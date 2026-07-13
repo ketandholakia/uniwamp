@@ -8,6 +8,8 @@ uses
   Core.UniWamp.Config,
   Core.UniWamp.Paths;
 
+function ChoosePreferredTerminalExecutable(const CmderPath, WindowsTerminalPath: string): string;
+
 type
   TRuntimeActionResult = record
     Success: Boolean;
@@ -31,6 +33,7 @@ type
     function WaitForMariaDbStartup(const ProcessId: Cardinal; out ErrorMessage: string): Boolean;
     function ResolvePortablePath(const PathValue: string): string;
     function CmderExe: string;
+    function WindowsTerminalExe: string;
     function RenderManagedHostsBlock: string;
     function ApacheModuleDir: string;
     function RenderApacheModuleLines: string;
@@ -60,6 +63,7 @@ type
     function MariaDbIsRunning: Boolean;
     function ApacheProcessId: Cardinal;
     function TerminalExecutablePath: string;
+    function PreferredTerminalExecutable: string;
     procedure GenerateEnvBat;
     procedure GenerateAllConfigs;
     function StartApache: TRuntimeActionResult;
@@ -115,6 +119,15 @@ begin
     FileName,
     FormatDateTime('hh:nn:ss', Now) + '  ' + Text + sLineBreak,
     TEncoding.UTF8);
+end;
+
+function ChoosePreferredTerminalExecutable(const CmderPath, WindowsTerminalPath: string): string;
+begin
+  if FileExists(CmderPath) then
+    Exit(CmderPath);
+  if WindowsTerminalPath <> '' then
+    Exit(WindowsTerminalPath);
+  Result := 'cmd.exe';
 end;
 
 constructor TUniWampRuntime.Create(const Paths: TAppPaths; Config: TUniWampConfig);
@@ -337,9 +350,27 @@ begin
   Result := TPath.Combine(FPaths.CmderDir, 'Cmder.exe');
 end;
 
+function TUniWampRuntime.WindowsTerminalExe: string;
+var
+  Buffer: array[0..MAX_PATH] of Char;
+  BufferSize: DWORD;
+  FilePart: PChar;
+begin
+  Result := '';
+  FilePart := nil;
+  BufferSize := SearchPath(nil, 'wt.exe', nil, Length(Buffer), Buffer, FilePart);
+  if BufferSize > 0 then
+    Result := Buffer;
+end;
+
 function TUniWampRuntime.TerminalExecutablePath: string;
 begin
   Result := CmderExe;
+end;
+
+function TUniWampRuntime.PreferredTerminalExecutable: string;
+begin
+  Result := ChoosePreferredTerminalExecutable(TerminalExecutablePath, WindowsTerminalExe);
 end;
 
 function TUniWampRuntime.ApacheModuleDir: string;
@@ -1702,7 +1733,7 @@ var
   TerminalExe: string;
 begin
   GenerateEnvBat;
-  TerminalExe := TerminalExecutablePath;
+  TerminalExe := PreferredTerminalExecutable;
 
   if FileExists(TerminalExe) then
   begin
@@ -1717,6 +1748,14 @@ begin
       Result.Message := 'Launched Cmder terminal'
     else
       Result.Message := 'Failed to launch Cmder terminal';
+  end
+  else if SameText(ExtractFileName(TerminalExe), 'wt.exe') then
+  begin
+    Result.Success := ShellExecute(0, 'open', PChar(TerminalExe), PChar('-d "' + WorkingDir + '"'), nil, SW_SHOWNORMAL) > 32;
+    if Result.Success then
+      Result.Message := 'Launched Windows Terminal'
+    else
+      Result.Message := 'Failed to launch Windows Terminal';
   end
   else
   begin
