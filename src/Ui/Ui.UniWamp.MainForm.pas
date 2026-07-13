@@ -162,6 +162,7 @@ type
     FVHostEmptyLabel: TLabel;
     FVHostFilterLabel: TLabel;
     FVHostFilterEdit: TEdit;
+    FVHostFilterClearLabel: TLabel;
     FHeaderCards: array[0..2] of THeaderStatusCard;
     procedure FormCreate(Sender: TObject);
     procedure FormResize(Sender: TObject);
@@ -203,6 +204,7 @@ type
     procedure AutoStartClick(Sender: TObject);
     procedure RefreshActivityLogView;
     procedure VHostFilterChanged(Sender: TObject);
+    procedure VHostFilterClearClick(Sender: TObject);
     function TryGetVHostEntry(const ServerName: string; out Entry: TVHostEntry): Boolean;
     procedure ToggleMainWindow;
     function VHostUrl(const ServerName: string): string;
@@ -777,6 +779,18 @@ begin
   FVHostFilterEdit.Width := 220;
   FVHostFilterEdit.TextHint := 'Type a site name or document path';
   FVHostFilterEdit.OnChange := VHostFilterChanged;
+  FVHostFilterClearLabel := TLabel.Create(Self);
+  FVHostFilterClearLabel.Parent := VHostCard;
+  FVHostFilterClearLabel.Left := 244;
+  FVHostFilterClearLabel.Top := 33;
+  FVHostFilterClearLabel.Caption := 'Clear';
+  FVHostFilterClearLabel.Cursor := crHandPoint;
+  FVHostFilterClearLabel.Font.Name := 'Segoe UI';
+  FVHostFilterClearLabel.Font.Size := 9;
+  FVHostFilterClearLabel.Font.Color := clBlue;
+  FVHostFilterClearLabel.Font.Style := [fsUnderline];
+  FVHostFilterClearLabel.Transparent := True;
+  FVHostFilterClearLabel.OnClick := VHostFilterClearClick;
   FActivityMemo := TMemo.Create(Self);
   FActivityMemo.Parent := FActivityCard;
   FActivityMemo.Align := alClient;
@@ -1824,6 +1838,8 @@ begin
     if FVHostEmptyLabel.Visible then
       FVHostEmptyLabel.BringToFront;
   end;
+  if Assigned(FVHostFilterClearLabel) then
+    FVHostFilterClearLabel.Visible := Assigned(FVHostFilterEdit) and (Trim(FVHostFilterEdit.Text) <> '');
 end;
 
 procedure TMainForm.VHostFilterChanged(Sender: TObject);
@@ -1831,6 +1847,12 @@ begin
   VHostGrid.Row := 0;
   LoadStateIntoUi;
   UpdateVHostActionState;
+end;
+
+procedure TMainForm.VHostFilterClearClick(Sender: TObject);
+begin
+  if Assigned(FVHostFilterEdit) then
+    FVHostFilterEdit.Text := '';
 end;
 
 procedure TMainForm.UpdateMenuState;
