@@ -1442,9 +1442,6 @@ begin
   StopAllButton.OnClick := StopButtonClick;
   StopAllButton.TabStop := True;
   StopAllButton.TabOrder := 22;
-  StyleLinkButton(ClearApacheLogButton, True);
-  StyleLinkButton(ClearMariaLogButton, True);
-  StyleLinkButton(ClearActivityLogButton, True);
   StyleLinkButton(Label20, True);
   Label20.Visible := True;
   exitbutton.Color := $00FFD3D3;
@@ -1482,11 +1479,11 @@ begin
   ApplyPanelIcon(OpenVHostFolderButton, 'folder_open');
   ApplyPanelIcon(CopyVHostUrlButton, 'content_copy');
   ApplyPanelIcon(DeleteVHostButton, 'delete');
-  ApplyPanelIcon(OpenApacheLogButton, 'terminal');
-  ApplyPanelIcon(OpenMariaLogButton, 'database');
-  ApplyPanelIcon(ClearApacheLogButton, 'delete_sweep');
-  ApplyPanelIcon(ClearMariaLogButton, 'delete_sweep');
-  ApplyPanelIcon(ClearActivityLogButton, 'delete_sweep');
+  ClearPanelIcon(OpenApacheLogButton);
+  ClearPanelIcon(OpenMariaLogButton);
+  ClearPanelIcon(ClearApacheLogButton);
+  ClearPanelIcon(ClearMariaLogButton);
+  ClearPanelIcon(ClearActivityLogButton);
   ApplyPanelIcon(EditPhpIniButton, 'code');
   ApplyPanelIcon(EditHttpdConfButton, 'web');
   ApplyPanelIcon(EditMariaDbIniButton, 'database');

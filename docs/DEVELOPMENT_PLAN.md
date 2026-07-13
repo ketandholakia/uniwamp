@@ -179,6 +179,7 @@ Completed:
 - Tightened sidebar group spacing and label sizing so the third column reads cleanly in the narrower rail.
 - Converted the top sidebar tool cluster into a compact two-column grid to avoid label crowding.
 - Reverted the top sidebar tool cluster to a single-column stack so long captions no longer collide.
+- Normalized the log actions to use the same icon-free sidebar button styling as the other tools.
 - Added process harness coverage for the vHost filter clear hint wording.
 - Added process harness coverage for the vHost filter search hint wording.
 - Added process harness coverage for the always-on status-bar hint wording.
