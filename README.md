@@ -194,6 +194,18 @@ UniWamp now includes a local staged update flow for future package management wo
 
 Remote downloads are intentionally not part of the current flow.
 
+Example manifest:
+
+```json
+{
+  "packageFileName": "runtime.zip",
+  "expectedSha256": "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF",
+  "packageVersion": "1.0.0"
+}
+```
+
+Use the `Update` button in the tool panel to select the manifest, stage the package into `tmp\updates`, and record the workspace metadata before any promotion step.
+
 ## Notes
 
 - UniWamp does not install Windows services.
