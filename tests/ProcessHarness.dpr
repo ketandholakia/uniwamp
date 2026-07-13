@@ -4,6 +4,7 @@ program ProcessHarness;
 
 uses
   System.Classes,
+  System.JSON,
   System.IOUtils,
   System.Zip,
   System.SysUtils,
@@ -1421,6 +1422,52 @@ begin
   end;
 end;
 
+procedure TestWriteUpdateStagingMetadataCreatesTheExpectedJson;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  StagingDir: string;
+  MetadataFileName: string;
+  ErrorMessage: string;
+  JsonValue: TJSONValue;
+  JsonObject: TJSONObject;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-staging-metadata-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        StagingDir := TPath.Combine(Paths.UpdatesDir, 'UniWamp-1.0.0');
+        TDirectory.CreateDirectory(StagingDir);
+        AssertTrue(Runtime.WriteUpdateStagingMetadata(StagingDir, 'runtime.zip', 'abc', '1.0.0', MetadataFileName, ErrorMessage), ErrorMessage);
+        AssertTrue(TFile.Exists(MetadataFileName), 'Staging metadata should be written');
+        JsonValue := TJSONObject.ParseJSONValue(TFile.ReadAllText(MetadataFileName, TEncoding.UTF8));
+        try
+          AssertTrue(JsonValue is TJSONObject, 'Staging metadata should be valid JSON');
+          JsonObject := TJSONObject(JsonValue);
+          AssertTrue(JsonObject.GetValue<string>('packageFileName', '') = 'runtime.zip', 'Metadata should include the package file');
+          AssertTrue(JsonObject.GetValue<string>('expectedSha256', '') = 'abc', 'Metadata should include the package hash');
+          AssertTrue(JsonObject.GetValue<string>('packageVersion', '') = '1.0.0', 'Metadata should include the package version');
+        finally
+          JsonValue.Free;
+        end;
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestRuntimeZipValidationAcceptsNonEmptyZipArchives;
 var
   RootDir: string;
@@ -1792,6 +1839,7 @@ begin
   TestSha256HelperReturnsTheExpectedDigest;
   TestValidatePackageSha256ChecksTheExpectedDigest;
   TestValidateUpdateManifestReadsTheExpectedFields;
+  TestWriteUpdateStagingMetadataCreatesTheExpectedJson;
   TestRuntimeZipValidationAcceptsNonEmptyZipArchives;
   TestRuntimeZipImportExtractsArchiveContents;
   TestUpdateStagingAreaCreatesPortableWorkspace;

@@ -88,6 +88,7 @@ type
     function ComputeFileSha256Hex(const FileName: string): string;
     function ValidatePackageSha256(const PackageFileName, ExpectedSha256: string; out ErrorMessage: string): Boolean;
     function ValidateUpdateManifest(const ManifestFileName: string; out PackageFileName, ExpectedSha256, PackageVersion: string; out ErrorMessage: string): Boolean;
+    function WriteUpdateStagingMetadata(const StagingDir, PackageFileName, ExpectedSha256, PackageVersion: string; out MetadataFileName, ErrorMessage: string): Boolean;
     function ValidateRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
     function ImportRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
     function PrepareUpdateStagingArea(const PackageName: string; out StagingDir: string; out ErrorMessage: string): Boolean;
@@ -506,6 +507,37 @@ begin
     Result := True;
   finally
     JsonValue.Free;
+  end;
+end;
+
+function TUniWampRuntime.WriteUpdateStagingMetadata(const StagingDir, PackageFileName, ExpectedSha256, PackageVersion: string; out MetadataFileName, ErrorMessage: string): Boolean;
+var
+  JsonObject: TJSONObject;
+begin
+  Result := False;
+  ErrorMessage := '';
+  MetadataFileName := '';
+  if not TDirectory.Exists(StagingDir) then
+  begin
+    ErrorMessage := 'Staging directory not found: ' + StagingDir;
+    Exit;
+  end;
+  MetadataFileName := TPath.Combine(StagingDir, 'update-staging.json');
+  JsonObject := TJSONObject.Create;
+  try
+    try
+      JsonObject.AddPair('packageFileName', PackageFileName);
+      JsonObject.AddPair('expectedSha256', ExpectedSha256);
+      JsonObject.AddPair('packageVersion', PackageVersion);
+      JsonObject.AddPair('stagingDir', StagingDir);
+      TFile.WriteAllText(MetadataFileName, JsonObject.Format, TEncoding.UTF8);
+      Result := True;
+    except
+      on E: Exception do
+        ErrorMessage := 'Update staging metadata could not be written: ' + E.Message;
+    end;
+  finally
+    JsonObject.Free;
   end;
 end;
 
