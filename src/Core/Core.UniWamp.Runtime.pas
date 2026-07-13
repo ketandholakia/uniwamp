@@ -4,6 +4,7 @@ interface
 
 uses
   System.Generics.Collections,
+  System.Hash,
   System.SysUtils,
   Core.UniWamp.Config,
   Core.UniWamp.Paths;
@@ -76,6 +77,7 @@ type
     function LaunchUrl(const Url: string): TRuntimeActionResult;
     function PreferredTextEditorExecutable: string;
     function LaunchTextEditor(const FileName: string): TRuntimeActionResult;
+    function ComputeFileSha256Hex(const FileName: string): string;
     function LaunchAdminer: TRuntimeActionResult;
     function LaunchTerminal: TRuntimeActionResult;
     function LaunchTerminalInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
@@ -361,6 +363,21 @@ begin
   BufferSize := SearchPath(nil, 'wt.exe', nil, Length(Buffer), Buffer, FilePart);
   if BufferSize > 0 then
     Result := Buffer;
+end;
+
+function TUniWampRuntime.ComputeFileSha256Hex(const FileName: string): string;
+var
+  Stream: TFileStream;
+begin
+  Result := '';
+  if not FileExists(FileName) then
+    Exit;
+  Stream := TFileStream.Create(FileName, fmOpenRead or fmShareDenyWrite);
+  try
+    Result := THashSHA2.GetHashString(Stream);
+  finally
+    Stream.Free;
+  end;
 end;
 
 function TUniWampRuntime.TerminalExecutablePath: string;

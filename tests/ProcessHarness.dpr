@@ -1312,6 +1312,39 @@ begin
     'cmd.exe should be the final fallback');
 end;
 
+procedure TestSha256HelperReturnsTheExpectedDigest;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  SampleFile: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-sha256-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        SampleFile := TPath.Combine(RootDir, 'sample.txt');
+        TFile.WriteAllText(SampleFile, 'abc', TEncoding.ASCII);
+        AssertTrue(SameText(Runtime.ComputeFileSha256Hex(SampleFile),
+          'BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD'),
+          'SHA-256 helper should match the known digest for abc');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestVHostFilterHintMakesTheClearActionExplicit;
 begin
   AssertTrue(
@@ -1518,6 +1551,7 @@ begin
   TestDiagnosticReportUsesConsistentServiceStateLabels;
   TestGeneratedEnvBatDoesNotStartWithUtf8Bom;
   TestTerminalExecutablePathResolvesRelativeConfigValues;
+  TestSha256HelperReturnsTheExpectedDigest;
   TestMariaDbRootPasswordRequiresRunningService;
   Writeln('Process harness passed.');
   except

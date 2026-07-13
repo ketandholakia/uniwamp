@@ -1,4 +1,4 @@
-# UniWamp Development Plan
+,S286859# UniWamp Development Plan
 
 ## Objective
 
@@ -181,6 +181,7 @@ Completed:
 - Added process harness coverage for the text-editor fallback defaulting to Notepad.
 - Added process harness coverage for terminal executable fallback ordering across Cmder, Windows Terminal, and cmd.exe.
 - Added a repo-root terminal shortcut in the tool panel for Git and maintenance workflows.
+- Added a SHA-256 file digest helper to support future runtime archive integrity checks.
 
 ## Priority model
 
