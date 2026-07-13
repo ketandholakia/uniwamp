@@ -748,7 +748,8 @@ begin
   FVHostEmptyLabel.Transparent := True;
   FVHostEmptyLabel.Font.Name := 'Segoe UI';
   FVHostEmptyLabel.Font.Size := 11;
-  FVHostEmptyLabel.Font.Color := clGrayText;
+  FVHostEmptyLabel.Font.Color := clBlue;
+  FVHostEmptyLabel.Font.Style := [fsUnderline];
   FVHostEmptyLabel.Caption := 'No projects or vHosts found.' + sLineBreak + 'Use Add to create your first project.';
   FVHostEmptyLabel.Hint := 'Click Add to create a new project or vHost.';
   FVHostEmptyLabel.ShowHint := True;
@@ -1693,6 +1694,10 @@ begin
   begin
     FVHostEmptyLabel.Visible := not HasVHosts;
     FVHostEmptyLabel.ShowHint := not HasVHosts;
+    if HasVHosts then
+      FVHostEmptyLabel.Font.Color := clGrayText
+    else
+      FVHostEmptyLabel.Font.Color := clBlue;
     if FVHostEmptyLabel.Visible then
       FVHostEmptyLabel.BringToFront;
   end;
