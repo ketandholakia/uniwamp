@@ -378,6 +378,50 @@ begin
   end;
 end;
 
+procedure TestStopPathsAreIdempotentWhenAlreadyStopped;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  ResultInfo: TRuntimeActionResult;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-stop-idempotent-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      Config.ApachePid := 0;
+      Config.ApacheRunning := False;
+      Config.MariaDbPid := 0;
+      Config.MariaDbRunning := False;
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        ResultInfo := Runtime.StopApache;
+        AssertTrue(ResultInfo.Success, 'Stopping Apache when already stopped should succeed');
+        AssertContains(ResultInfo.Message, 'Apache stopped', 'Apache stop should report success when already stopped');
+        AssertTrue(Config.ApachePid = 0, 'Apache pid should stay cleared');
+        AssertTrue(not Config.ApacheRunning, 'Apache running flag should stay false');
+
+        ResultInfo := Runtime.StopMariaDb;
+        AssertTrue(ResultInfo.Success, 'Stopping MariaDB when already stopped should succeed');
+        AssertContains(ResultInfo.Message, 'MariaDB stopped', 'MariaDB stop should report success when already stopped');
+        AssertTrue(Config.MariaDbPid = 0, 'MariaDB pid should stay cleared');
+        AssertTrue(not Config.MariaDbRunning, 'MariaDB running flag should stay false');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestApacheStartStopsOnConfigValidationFailure;
 var
   RootDir: string;
@@ -548,6 +592,7 @@ begin
     TestMariaDbDuplicateStartShortCircuit;
     TestRestartFailureMessages;
     TestMissingRuntimeDependencies;
+    TestStopPathsAreIdempotentWhenAlreadyStopped;
     TestApacheStartStopsOnConfigValidationFailure;
     TestManagedHostsSyncUsesOverride;
     TestRotatedLogAppendsAndTrims;

@@ -74,6 +74,8 @@ Completed:
 
 - Added process harness coverage for Apache start blocking when configuration validation fails.
 - Verified the start path reports the real validation failure output and does not leave Apache state marked as running.
+- Added process harness coverage for idempotent stop behavior when Apache and MariaDB are already stopped.
+- Verified stop paths still clear service state and report success in the no-op case.
 
 ## Phase 3: Runtime-specific correctness
 
