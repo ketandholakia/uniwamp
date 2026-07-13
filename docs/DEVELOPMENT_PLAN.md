@@ -1,4 +1,4 @@
-,S286859# UniWamp Development Plan
+# UniWamp Development Plan
 
 ## Objective
 
