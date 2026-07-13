@@ -189,6 +189,7 @@ Completed:
 - Added rollback snapshot and restore helpers for staged update workspaces.
 - Added a Composer launcher in the tool panel for repository-root maintenance workflows.
 - Added a Git launcher in the tool panel for repository-root maintenance workflows.
+- Added a Node launcher in the tool panel for repository-root maintenance workflows.
 
 ## Priority model
 

@@ -78,6 +78,7 @@ type
     function LaunchUrl(const Url: string): TRuntimeActionResult;
     function LaunchComposerInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function LaunchGitInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
+    function LaunchNodeInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function PreferredTextEditorExecutable: string;
     function LaunchTextEditor(const FileName: string): TRuntimeActionResult;
     function ComputeFileSha256Hex(const FileName: string): string;
@@ -496,6 +497,24 @@ begin
     Result.Message := 'Git launched'
   else
     Result.Message := 'Failed to launch Git';
+end;
+
+function TUniWampRuntime.LaunchNodeInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
+var
+  NodeExe: string;
+begin
+  NodeExe := TPath.Combine(SelectedNodeDir, 'node.exe');
+  if not FileExists(NodeExe) then
+  begin
+    Result.Success := False;
+    Result.Message := 'Node executable not found for ' + FConfig.SelectedNodeVersion + '.';
+    Exit;
+  end;
+  Result.Success := ShellExecute(0, 'open', PChar(NodeExe), nil, PChar(WorkingDir), SW_SHOWNORMAL) > 32;
+  if Result.Success then
+    Result.Message := 'Node launched'
+  else
+    Result.Message := 'Failed to launch Node';
 end;
 
 function TUniWampRuntime.PrepareUpdateStagingArea(const PackageName: string; out StagingDir: string; out ErrorMessage: string): Boolean;
