@@ -338,6 +338,7 @@ var
   Config: TUniWampConfig;
   Runtime: TUniWampRuntime;
   HostsFile: string;
+  HostsBackup: string;
   ResultInfo: TRuntimeActionResult;
   HostsText: string;
 begin
@@ -348,6 +349,7 @@ begin
     EnsurePortableLayout(Paths);
     TTemplateRenderer.EnsureDefaultTemplates(Paths);
     HostsFile := TPath.Combine(RootDir, 'hosts');
+    HostsBackup := HostsFile + '.bak';
     TFile.WriteAllText(HostsFile, '127.0.0.1 localhost' + sLineBreak, TEncoding.ASCII);
     SetEnvironmentVariable('UNIWAMP_HOSTS_FILE', PChar(HostsFile));
     Config := TUniWampConfig.Create;
@@ -361,6 +363,7 @@ begin
         HostsText := TFile.ReadAllText(HostsFile, TEncoding.ASCII);
         AssertContains(HostsText, '# BEGIN UniWamp Managed Hosts', 'Managed hosts block should be written');
         AssertContains(HostsText, '127.0.0.1 example.test', 'Managed hosts block should contain the vhost');
+        AssertTrue(FileExists(HostsBackup), 'Hosts backup should be created before update');
       finally
         Runtime.Free;
       end;

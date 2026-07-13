@@ -441,6 +441,7 @@ end;
 function TUniWampRuntime.SyncHostsFile(out ErrorMessage: string): Boolean;
 var
   HostsPath: string;
+  BackupPath: string;
   HostsText: string;
   StartPos: Integer;
   EndPos: Integer;
@@ -453,11 +454,15 @@ begin
   Result := False;
   ErrorMessage := '';
   HostsPath := HostsFilePath;
+  BackupPath := HostsPath + '.bak';
   ManagedBlock := RenderManagedHostsBlock;
 
   try
     if FileExists(HostsPath) then
+    begin
+      TFile.Copy(HostsPath, BackupPath, True);
       HostsText := TFile.ReadAllText(HostsPath, TEncoding.ASCII)
+    end
     else
       HostsText := '';
 
