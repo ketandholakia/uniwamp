@@ -921,7 +921,7 @@ object MainForm: TMainForm
           object AddVHostButton: TPanel
             Left = 17
             Top = 15
-            Width = 100
+            Width = 110
             Height = 24
             Cursor = crHandPoint
             BevelOuter = bvNone
@@ -937,9 +937,9 @@ object MainForm: TMainForm
             TabOrder = 0
           end
           object OpenVHostButton: TPanel
-            Left = 121
+            Left = 131
             Top = 15
-            Width = 93
+            Width = 118
             Height = 24
             Cursor = crHandPoint
             BevelOuter = bvNone
@@ -955,9 +955,9 @@ object MainForm: TMainForm
             TabOrder = 1
           end
           object OpenVHostFolderButton: TPanel
-            Left = 225
+            Left = 259
             Top = 15
-            Width = 84
+            Width = 100
             Height = 24
             Cursor = crHandPoint
             BevelOuter = bvNone
@@ -973,9 +973,9 @@ object MainForm: TMainForm
             TabOrder = 2
           end
           object CopyVHostUrlButton: TPanel
-            Left = 329
+            Left = 369
             Top = 15
-            Width = 89
+            Width = 100
             Height = 24
             Cursor = crHandPoint
             BevelOuter = bvNone
@@ -991,9 +991,9 @@ object MainForm: TMainForm
             TabOrder = 3
           end
           object DeleteVHostButton: TPanel
-            Left = 434
+            Left = 479
             Top = 15
-            Width = 116
+            Width = 130
             Height = 24
             Cursor = crHandPoint
             BevelOuter = bvNone
