@@ -268,6 +268,7 @@ function BuildVHostEmptyStateCaption(const FilterText: string): string;
 function DetectProjectTypeLabel(const DocumentRoot: string): string;
 function BuildToolPanelHint(const ActionName, DetailText: string): string;
 function BuildStatusBarHint(const ErrorMessage: string): string;
+function BuildHeaderSubtitleHint: string;
 
 var
   MainForm: TMainForm;
@@ -413,6 +414,11 @@ begin
   Result := 'Status summary';
   if Trim(ErrorMessage) <> '' then
     Result := Result + sLineBreak + 'MariaDB requires attention: ' + Trim(ErrorMessage);
+end;
+
+function BuildHeaderSubtitleHint: string;
+begin
+  Result := 'Stack overview' + sLineBreak + 'Shows the current local development dashboard summary.';
 end;
 
 function IsDarkColor(const AColor: TColor): Boolean;
@@ -783,6 +789,8 @@ begin
   Label19.Alignment := taLeftJustify;
   Label19.Font.Color := HeaderSubTextColor;
   Label19.Caption := 'Portable WAMP dashboard for local development';
+  Label19.Hint := BuildHeaderSubtitleHint;
+  Label19.ShowHint := True;
   MainPanel.Color := AppBackgroundColor;
   LeftPanel.Color := AppBackgroundColor;
   RightPanel.Color := AppBackgroundColor;

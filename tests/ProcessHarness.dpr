@@ -1222,6 +1222,14 @@ begin
     'Whitespace-only errors should not add an extra line');
 end;
 
+procedure TestHeaderSubtitleHintDescribesTheStackOverview;
+begin
+  AssertTrue(
+    BuildHeaderSubtitleHint =
+      'Stack overview' + sLineBreak + 'Shows the current local development dashboard summary.',
+    'Header subtitle hint should describe the dashboard overview');
+end;
+
 procedure TestVHostFilterHintMakesTheClearActionExplicit;
 begin
   AssertTrue(
@@ -1420,6 +1428,7 @@ begin
   TestStatusBarHintExplainsMariaDbAttention;
   TestVHostFilterHintMakesTheClearActionExplicit;
   TestVHostFilterSearchHintDescribesSearchFields;
+  TestHeaderSubtitleHintDescribesTheStackOverview;
   TestDiagnosticReportUsesConsistentServiceStateLabels;
   TestGeneratedEnvBatDoesNotStartWithUtf8Bom;
   TestTerminalExecutablePathResolvesRelativeConfigValues;
