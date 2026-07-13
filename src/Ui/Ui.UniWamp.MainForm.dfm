@@ -2,7 +2,7 @@ object MainForm: TMainForm
   Left = 0
   Top = 0
   Caption = 'UniWamp'
-  ClientHeight = 789
+  ClientHeight = 810
   ClientWidth = 1053
   Color = 15066597
   Font.Charset = DEFAULT_CHARSET
@@ -16,7 +16,7 @@ object MainForm: TMainForm
     Left = 0
     Top = 0
     Width = 1053
-    Height = 55
+    Height = 68
     Align = alTop
     BevelOuter = bvNone
     Color = 6229470
@@ -24,16 +24,17 @@ object MainForm: TMainForm
     TabOrder = 0
     object Label18: TPanel
       Left = 17
-      Top = 4
+      Top = 10
       Width = 200
       Height = 34
+      Alignment = taLeftJustify
       BevelOuter = bvNone
       Caption = 'UNIWAMP'
       Color = 6229470
-      Font.Charset = DEFAULT_CHARSET
+      Font.Charset = ANSI_CHARSET
       Font.Color = clWhite
-      Font.Height = -24
-      Font.Name = 'Segoe UI'
+      Font.Height = -35
+      Font.Name = 'Segoe UI Black'
       Font.Style = [fsBold]
       ParentBackground = False
       ParentFont = False
@@ -41,17 +42,18 @@ object MainForm: TMainForm
     end
     object Label19: TPanel
       Left = 21
-      Top = 30
-      Width = 262
-      Height = 15
+      Top = 44
+      Width = 348
+      Height = 19
+      Alignment = taLeftJustify
       BevelOuter = bvNone
       Caption = 'Portable WAMP dashboard for local development'
       Color = 6229470
-      Font.Charset = DEFAULT_CHARSET
+      Font.Charset = ANSI_CHARSET
       Font.Color = 16053492
-      Font.Height = -11
-      Font.Name = 'Segoe UI'
-      Font.Style = []
+      Font.Height = -13
+      Font.Name = 'Segoe UI Semibold'
+      Font.Style = [fsBold]
       ParentBackground = False
       ParentFont = False
       TabOrder = 1
@@ -59,9 +61,9 @@ object MainForm: TMainForm
   end
   object MainPanel: TPanel
     Left = 0
-    Top = 55
+    Top = 68
     Width = 1053
-    Height = 734
+    Height = 742
     Align = alClient
     BevelOuter = bvNone
     ParentBackground = False
@@ -69,8 +71,8 @@ object MainForm: TMainForm
     object LeftPanel: TPanel
       Left = 0
       Top = 0
-      Width = 297
-      Height = 714
+      Width = 281
+      Height = 722
       Align = alLeft
       BevelOuter = bvNone
       Color = 15066597
@@ -79,35 +81,15 @@ object MainForm: TMainForm
       object ActionsCard: TPanel
         Left = 0
         Top = 0
-        Width = 284
-        Height = 714
-        Align = alLeft
+        Width = 281
+        Height = 722
+        Align = alClient
         Alignment = taLeftJustify
         BevelKind = bkTile
         BevelOuter = bvNone
-        Color = clCream
+        Color = clWhite
         ParentBackground = False
         TabOrder = 0
-        ExplicitLeft = 10
-        ExplicitTop = 11
-        ExplicitHeight = 697
-        object LabelEditors: TPanel
-          Left = 17
-          Top = 550
-          Width = 80
-          Height = 15
-          BevelOuter = bvNone
-          Caption = 'Config Editors'
-          Color = clWhite
-          Font.Charset = DEFAULT_CHARSET
-          Font.Color = clWindowText
-          Font.Height = -11
-          Font.Name = 'Segoe UI'
-          Font.Style = [fsBold]
-          ParentBackground = False
-          ParentFont = False
-          TabOrder = 0
-        end
         object EditPhpIniButton: TPanel
           Left = 17
           Top = 579
@@ -124,7 +106,7 @@ object MainForm: TMainForm
           Font.Style = [fsBold]
           ParentBackground = False
           ParentFont = False
-          TabOrder = 1
+          TabOrder = 0
         end
         object EditHttpdConfButton: TPanel
           Left = 99
@@ -142,7 +124,7 @@ object MainForm: TMainForm
           Font.Style = [fsBold]
           ParentBackground = False
           ParentFont = False
-          TabOrder = 2
+          TabOrder = 1
         end
         object EditMariaDbIniButton: TPanel
           Left = 187
@@ -160,13 +142,13 @@ object MainForm: TMainForm
           Font.Style = [fsBold]
           ParentBackground = False
           ParentFont = False
-          TabOrder = 3
+          TabOrder = 2
         end
         object GroupBox1: TGroupBox
           Left = 17
           Top = 11
           Width = 250
-          Height = 160
+          Height = 147
           Caption = 'Apache'
           Font.Charset = DEFAULT_CHARSET
           Font.Color = clWindowText
@@ -174,7 +156,7 @@ object MainForm: TMainForm
           Font.Name = 'Segoe UI'
           Font.Style = [fsBold]
           ParentFont = False
-          TabOrder = 4
+          TabOrder = 3
           object FHttpPortOwnerLabel: TLabel
             Left = 104
             Top = 85
@@ -346,14 +328,20 @@ object MainForm: TMainForm
         end
         object GroupBox2: TGroupBox
           Left = 17
-          Top = 161
+          Top = 168
           Width = 249
-          Height = 125
+          Height = 115
           Caption = 'MariaDB'
-          TabOrder = 5
+          Font.Charset = DEFAULT_CHARSET
+          Font.Color = clWindowText
+          Font.Height = -13
+          Font.Name = 'Segoe UI'
+          Font.Style = [fsBold]
+          ParentFont = False
+          TabOrder = 4
           object FDbPortOwnerLabel: TLabel
-            Left = 9
-            Top = 108
+            Left = 102
+            Top = 86
             Width = 226
             Height = 12
             AutoSize = False
@@ -430,28 +418,40 @@ object MainForm: TMainForm
             BevelOuter = bvNone
             Caption = 'DB Port'
             Color = clWhite
+            Font.Charset = DEFAULT_CHARSET
+            Font.Color = clWindowText
+            Font.Height = -12
+            Font.Name = 'Segoe UI'
+            Font.Style = []
             ParentBackground = False
+            ParentFont = False
             TabOrder = 3
           end
           object DbPortEdit: TEdit
             Left = 17
             Top = 83
             Width = 74
-            Height = 21
+            Height = 23
+            Font.Charset = DEFAULT_CHARSET
+            Font.Color = clWindowText
+            Font.Height = -12
+            Font.Name = 'Segoe UI'
+            Font.Style = []
+            ParentFont = False
             TabOrder = 4
             Text = '3307'
           end
         end
         object Panel3: TPanel
           Left = 16
-          Top = 391
+          Top = 418
           Width = 248
-          Height = 152
+          Height = 151
           BevelKind = bkTile
           BevelOuter = bvNone
-          Color = clCream
+          Color = clWhite
           ParentBackground = False
-          TabOrder = 6
+          TabOrder = 5
           object Label3: TPanel
             Left = 8
             Top = 8
@@ -516,76 +516,66 @@ object MainForm: TMainForm
         end
         object Panel1: TPanel
           Left = 17
-          Top = 290
+          Top = 296
           Width = 249
-          Height = 86
+          Height = 105
           BevelKind = bkTile
           BevelOuter = bvNone
-          Color = clCream
+          Color = clWhite
           ParentBackground = False
-          TabOrder = 7
-          object Label4: TPanel
-            Left = 8
-            Top = 9
-            Width = 111
-            Height = 12
-            Alignment = taLeftJustify
-            AutoSize = True
-            BevelOuter = bvNone
-            Caption = 'PHP version'
-            Color = clWhite
-            ParentBackground = False
-            TabOrder = 0
+          TabOrder = 6
+          object Label1: TLabel
+            Left = 11
+            Top = 47
+            Width = 69
+            Height = 13
+            Caption = 'Node Version'
+          end
+          object Label2: TLabel
+            Left = 11
+            Top = 12
+            Width = 61
+            Height = 13
+            Caption = 'PHP Version'
           end
           object PhpVersionCombo: TComboBox
-            Left = 87
-            Top = 5
+            Left = 86
+            Top = 8
+            Width = 143
+            Height = 21
+            Style = csDropDownList
+            TabOrder = 0
+          end
+          object NodeVersionCombo: TComboBox
+            Left = 86
+            Top = 43
             Width = 143
             Height = 21
             Style = csDropDownList
             TabOrder = 1
           end
-          object LabelNode: TPanel
-            Left = 8
-            Top = 34
-            Width = 125
-            Height = 15
-            Alignment = taLeftJustify
-            BevelOuter = bvNone
-            Caption = 'Node version'
-            Color = clWhite
-            ParentBackground = False
-            TabOrder = 2
-          end
-          object NodeVersionCombo: TComboBox
-            Left = 87
-            Top = 30
-            Width = 143
-            Height = 21
-            Style = csDropDownList
-            TabOrder = 3
-          end
           object EnableSslCheck: TCheckBox
-            Left = 7
-            Top = 57
+            Left = 6
+            Top = 73
             Width = 169
             Height = 17
             Caption = 'Enable SSL for localhost'
-            TabOrder = 4
+            TabOrder = 2
           end
         end
         object BottomActionsPanel: TPanel
-          Left = 15
-          Top = 635
-          Width = 251
+          Left = 0
+          Top = 614
+          Width = 277
           Height = 52
+          Align = alBottom
           BevelKind = bkTile
           BevelOuter = bvNone
           Color = clWhite
           ParentBackground = False
-          TabOrder = 8
+          TabOrder = 7
           object StartAllButton: TPanel
-            Left = 8
+            Left = 14
             Top = 8
             Width = 108
             Height = 34
@@ -603,7 +593,7 @@ object MainForm: TMainForm
             TabOrder = 0
           end
           object StopAllButton: TPanel
-            Left = 131
+            Left = 151
             Top = 8
             Width = 108
             Height = 34
@@ -639,13 +629,61 @@ object MainForm: TMainForm
             TabOrder = 2
           end
         end
+        object Panel10: TPanel
+          Left = 0
+          Top = 666
+          Width = 277
+          Height = 52
+          Align = alBottom
+          BevelKind = bkTile
+          BevelOuter = bvNone
+          Color = clWhite
+          ParentBackground = False
+          TabOrder = 8
+          object Panel11: TPanel
+            Left = 14
+            Top = 8
+            Width = 245
+            Height = 34
+            Cursor = crHandPoint
+            BevelOuter = bvNone
+            Caption = 'Exit'
+            Color = clSilver
+            Font.Charset = DEFAULT_CHARSET
+            Font.Color = clWindowText
+            Font.Height = -15
+            Font.Name = 'Segoe UI'
+            Font.Style = [fsBold]
+            ParentBackground = False
+            ParentFont = False
+            TabOrder = 0
+          end
+          object Panel13: TPanel
+            Left = 82
+            Top = 48
+            Width = 98
+            Height = 34
+            Cursor = crHandPoint
+            BevelOuter = bvNone
+            Caption = 'Exit '
+            Color = clSilver
+            Font.Charset = DEFAULT_CHARSET
+            Font.Color = clWindowText
+            Font.Height = -15
+            Font.Name = 'Segoe UI'
+            Font.Style = [fsBold]
+            ParentBackground = False
+            ParentFont = False
+            TabOrder = 1
+          end
+        end
       end
     end
     object RightPanel: TPanel
-      Left = 297
+      Left = 281
       Top = 0
-      Width = 756
-      Height = 714
+      Width = 772
+      Height = 722
       Align = alClient
       BevelOuter = bvNone
       Color = 15066597
@@ -654,22 +692,18 @@ object MainForm: TMainForm
       object VHostCard: TPanel
         Left = 0
         Top = 0
-        Width = 756
-        Height = 714
+        Width = 772
+        Height = 722
         Align = alClient
         BevelKind = bkTile
         BevelOuter = bvNone
         Color = clWhite
         ParentBackground = False
         TabOrder = 0
-        ExplicitLeft = 6
-        ExplicitTop = 6
-        ExplicitWidth = 743
-        ExplicitHeight = 702
         object Label11: TPanel
           Left = 0
           Top = 0
-          Width = 752
+          Width = 768
           Height = 28
           Align = alTop
           BevelOuter = bvNone
@@ -687,8 +721,8 @@ object MainForm: TMainForm
         object VHostGrid: TStringGrid
           Left = 0
           Top = 28
-          Width = 752
-          Height = 433
+          Width = 768
+          Height = 421
           Align = alClient
           ColCount = 4
           DefaultRowHeight = 28
@@ -696,16 +730,12 @@ object MainForm: TMainForm
           RowCount = 2
           Options = [goFixedVertLine, goFixedHorzLine, goVertLine, goHorzLine, goRangeSelect, goRowSelect]
           TabOrder = 0
-          ExplicitLeft = 16
-          ExplicitTop = 34
-          ExplicitWidth = 709
-          ExplicitHeight = 183
         end
-        object Panel5: TPanel
+        object pnltools: TPanel
           Left = 0
-          Top = 654
-          Width = 752
-          Height = 56
+          Top = 642
+          Width = 768
+          Height = 76
           Align = alBottom
           Alignment = taLeftJustify
           BevelKind = bkTile
@@ -713,11 +743,9 @@ object MainForm: TMainForm
           Color = clWhite
           ParentBackground = False
           TabOrder = 2
-          ExplicitLeft = 4
-          ExplicitTop = 650
           object GenerateSslButton: TPanel
-            Left = 16
-            Top = 14
+            Left = 10
+            Top = 9
             Width = 100
             Height = 24
             Cursor = crHandPoint
@@ -734,9 +762,9 @@ object MainForm: TMainForm
             TabOrder = 0
           end
           object Panel8: TPanel
-            Left = 132
-            Top = 14
-            Width = 141
+            Left = 123
+            Top = 9
+            Width = 93
             Height = 24
             Cursor = crHandPoint
             BevelOuter = bvNone
@@ -752,8 +780,8 @@ object MainForm: TMainForm
             TabOrder = 1
           end
           object Panel9: TPanel
-            Left = 298
-            Top = 14
+            Left = 550
+            Top = 9
             Width = 92
             Height = 24
             Cursor = crHandPoint
@@ -769,11 +797,101 @@ object MainForm: TMainForm
             ParentFont = False
             TabOrder = 2
           end
+          object SaveConfigButton: TPanel
+            Left = 10
+            Top = 41
+            Width = 100
+            Height = 24
+            Cursor = crHandPoint
+            BevelOuter = bvNone
+            Caption = 'Save Config'
+            Color = 16053492
+            Font.Charset = DEFAULT_CHARSET
+            Font.Color = clWindowText
+            Font.Height = -11
+            Font.Name = 'Segoe UI'
+            Font.Style = [fsBold]
+            ParentBackground = False
+            ParentFont = False
+            TabOrder = 3
+          end
+          object LaunchTerminalButton: TPanel
+            Left = 653
+            Top = 9
+            Width = 97
+            Height = 24
+            Cursor = crHandPoint
+            BevelOuter = bvNone
+            Caption = 'Terminal'
+            Color = 16053492
+            Font.Charset = DEFAULT_CHARSET
+            Font.Color = clWindowText
+            Font.Height = -11
+            Font.Name = 'Segoe UI'
+            Font.Style = [fsBold]
+            ParentBackground = False
+            ParentFont = False
+            TabOrder = 4
+          end
+          object OpenPhpExtensionsButton: TPanel
+            Left = 452
+            Top = 9
+            Width = 116
+            Height = 24
+            Cursor = crHandPoint
+            BevelOuter = bvNone
+            Caption = 'PHP Extensions'
+            Color = 16053492
+            Font.Charset = DEFAULT_CHARSET
+            Font.Color = clWindowText
+            Font.Height = -11
+            Font.Name = 'Segoe UI'
+            Font.Style = [fsBold]
+            ParentBackground = False
+            ParentFont = False
+            TabOrder = 5
+          end
+          object OpenPhpSettingsButton: TPanel
+            Left = 226
+            Top = 9
+            Width = 101
+            Height = 24
+            Cursor = crHandPoint
+            BevelOuter = bvNone
+            Caption = 'PHP Settings'
+            Color = 16053492
+            Font.Charset = DEFAULT_CHARSET
+            Font.Color = clWindowText
+            Font.Height = -11
+            Font.Name = 'Segoe UI'
+            Font.Style = [fsBold]
+            ParentBackground = False
+            ParentFont = False
+            TabOrder = 6
+          end
+          object OpenApacheModulesButton: TPanel
+            Left = 338
+            Top = 9
+            Width = 112
+            Height = 24
+            Cursor = crHandPoint
+            BevelOuter = bvNone
+            Caption = 'Apache Modules'
+            Color = 16053492
+            Font.Charset = DEFAULT_CHARSET
+            Font.Color = clWindowText
+            Font.Height = -11
+            Font.Name = 'Segoe UI'
+            Font.Style = [fsBold]
+            ParentBackground = False
+            ParentFont = False
+            TabOrder = 7
+          end
         end
         object Panel6: TPanel
           Left = 0
-          Top = 461
-          Width = 752
+          Top = 449
+          Width = 768
           Height = 56
           Align = alBottom
           Alignment = taLeftJustify
@@ -782,8 +900,6 @@ object MainForm: TMainForm
           Color = clWhite
           ParentBackground = False
           TabOrder = 3
-          ExplicitLeft = -16
-          ExplicitTop = 360
           object AddVHostButton: TPanel
             Left = 17
             Top = 15
@@ -877,8 +993,8 @@ object MainForm: TMainForm
         end
         object Panel7: TPanel
           Left = 0
-          Top = 517
-          Width = 752
+          Top = 505
+          Width = 768
           Height = 137
           Align = alBottom
           Alignment = taLeftJustify
@@ -887,11 +1003,10 @@ object MainForm: TMainForm
           Color = clWhite
           ParentBackground = False
           TabOrder = 4
-          ExplicitTop = 461
           object Panel4: TPanel
             Left = 0
             Top = 0
-            Width = 220
+            Width = 260
             Height = 133
             Align = alLeft
             BevelKind = bkTile
@@ -899,13 +1014,10 @@ object MainForm: TMainForm
             Color = clWhite
             ParentBackground = False
             TabOrder = 0
-            ExplicitLeft = 6
-            ExplicitTop = -18
-            ExplicitHeight = 132
             object OpenApacheLogButton: TPanel
-              Left = 17
-              Top = 18
-              Width = 92
+              Left = 14
+              Top = 16
+              Width = 112
               Height = 24
               Cursor = crHandPoint
               BevelOuter = bvNone
@@ -921,9 +1033,9 @@ object MainForm: TMainForm
               TabOrder = 0
             end
             object OpenMariaLogButton: TPanel
-              Left = 19
-              Top = 55
-              Width = 92
+              Left = 14
+              Top = 50
+              Width = 112
               Height = 24
               Cursor = crHandPoint
               BevelOuter = bvNone
@@ -939,10 +1051,10 @@ object MainForm: TMainForm
               TabOrder = 1
             end
             object ClearApacheLogButton: TPanel
-              Left = 119
-              Top = 21
-              Width = 92
-              Height = 16
+              Left = 138
+              Top = 16
+              Width = 112
+              Height = 24
               Cursor = crHandPoint
               BevelOuter = bvNone
               Caption = 'Clear Apache'
@@ -957,10 +1069,10 @@ object MainForm: TMainForm
               TabOrder = 2
             end
             object ClearMariaLogButton: TPanel
-              Left = 118
-              Top = 59
-              Width = 92
-              Height = 16
+              Left = 138
+              Top = 50
+              Width = 112
+              Height = 24
               Cursor = crHandPoint
               BevelOuter = bvNone
               Caption = 'Clear MariaDB'
@@ -975,11 +1087,10 @@ object MainForm: TMainForm
               TabOrder = 3
             end
             object Label20: TPanel
-              Left = 26
-              Top = 94
-              Width = 103
-              Height = 15
-              Alignment = taLeftJustify
+              Left = 14
+              Top = 84
+              Width = 112
+              Height = 24
               BevelOuter = bvNone
               Caption = 'View activity log'
               Color = clWhite
@@ -993,10 +1104,10 @@ object MainForm: TMainForm
               TabOrder = 4
             end
             object ClearActivityLogButton: TPanel
-              Left = 111
-              Top = 93
-              Width = 103
-              Height = 16
+              Left = 138
+              Top = 84
+              Width = 112
+              Height = 24
               Cursor = crHandPoint
               BevelOuter = bvNone
               Caption = 'Clear activity'
@@ -1010,65 +1121,11 @@ object MainForm: TMainForm
               ParentFont = False
               TabOrder = 5
             end
-            object SaveConfigButton: TPanel
-              Left = 410
-              Top = 13
-              Width = 100
-              Height = 24
-              Cursor = crHandPoint
-              BevelOuter = bvNone
-              Caption = 'Save Config'
-              Color = 16053492
-              Font.Charset = DEFAULT_CHARSET
-              Font.Color = clWindowText
-              Font.Height = -11
-              Font.Name = 'Segoe UI'
-              Font.Style = [fsBold]
-              ParentBackground = False
-              ParentFont = False
-              TabOrder = 6
-            end
-            object LaunchDashboardButton: TPanel
-              Left = 228
-              Top = 14
-              Width = 101
-              Height = 24
-              Cursor = crHandPoint
-              BevelOuter = bvNone
-              Caption = 'Dashboard'
-              Color = 16053492
-              Font.Charset = DEFAULT_CHARSET
-              Font.Color = clWindowText
-              Font.Height = -11
-              Font.Name = 'Segoe UI'
-              Font.Style = [fsBold]
-              ParentBackground = False
-              ParentFont = False
-              TabOrder = 7
-            end
-            object LaunchTerminalButton: TPanel
-              Left = 340
-              Top = 12
-              Width = 97
-              Height = 24
-              Cursor = crHandPoint
-              BevelOuter = bvNone
-              Caption = 'Terminal'
-              Color = 16053492
-              Font.Charset = DEFAULT_CHARSET
-              Font.Color = clWindowText
-              Font.Height = -11
-              Font.Name = 'Segoe UI'
-              Font.Style = [fsBold]
-              ParentBackground = False
-              ParentFont = False
-              TabOrder = 8
-            end
           end
           object FActivityCard: TPanel
-            Left = 220
+            Left = 260
             Top = 0
-            Width = 528
+            Width = 504
             Height = 133
             Align = alClient
             BevelKind = bkTile
@@ -1076,10 +1133,6 @@ object MainForm: TMainForm
             Color = clWhite
             ParentBackground = False
             TabOrder = 1
-            ExplicitLeft = 226
-            ExplicitTop = -18
-            ExplicitWidth = 513
-            ExplicitHeight = 132
             object FActivityLabel: TPanel
               Left = 10
               Top = 5
@@ -1104,7 +1157,7 @@ object MainForm: TMainForm
     end
     object StatusBar: TStatusBar
       Left = 0
-      Top = 714
+      Top = 722
       Width = 1053
       Height = 20
       Panels = <>

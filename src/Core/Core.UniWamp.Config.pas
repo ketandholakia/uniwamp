@@ -266,7 +266,7 @@ begin
   SelectedPhpVersion := 'php83';
   SelectedNodeVersion := '';
   PhpProfile := 'development';
-  EnableSsl := True;
+  EnableSsl := False;
   TerminalExePath := 'bin\cmder\Cmder.exe';
   ApachePid := 0;
   MariaDbPid := 0;

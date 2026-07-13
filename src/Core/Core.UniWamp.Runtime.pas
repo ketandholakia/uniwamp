@@ -37,6 +37,7 @@ type
     function SelectedPhpExe: string;
     function SelectedNodeDir: string;
     function RenderPhpExtensionLines: string;
+    function EnsureDefaultSslCertificate(out ErrorMessage: string): Boolean;
     procedure GenerateApacheConfig;
     procedure GenerateMariaDbConfig;
     procedure GeneratePhpConfig;
@@ -472,6 +473,26 @@ begin
   Result := TPath.Combine(SelectedPhpDir, 'php8apache2_4.dll');
   if not FileExists(Result) then
     Result := TPath.Combine(SelectedPhpDir, 'php7apache2_4.dll');
+end;
+
+function TUniWampRuntime.EnsureDefaultSslCertificate(out ErrorMessage: string): Boolean;
+var
+  CertFile: string;
+  KeyFile: string;
+  ResultInfo: TRuntimeActionResult;
+begin
+  Result := True;
+  ErrorMessage := '';
+
+  CertFile := TPath.Combine(FPaths.SslDir, 'server.crt');
+  KeyFile := TPath.Combine(FPaths.SslDir, 'server.key');
+  if FileExists(CertFile) and FileExists(KeyFile) then
+    Exit;
+
+  ResultInfo := GenerateSslCertificateFor(FConfig.HostName, CertFile, KeyFile);
+  Result := ResultInfo.Success;
+  if not Result then
+    ErrorMessage := ResultInfo.Message;
 end;
 
 function TUniWampRuntime.DescribePortOwner(const Port: Integer): string;
@@ -952,7 +973,7 @@ begin
   PhpDir := SelectedPhpDir;
   NodeDir := SelectedNodeDir;
   Lines := TStringList.Create;
-  Encoding := TEncoding.UTF8;
+  Encoding := TUTF8Encoding.Create(False);
   try
     Lines.Add('@echo off');
     Lines.Add('title UniWamp Cmder');
@@ -988,6 +1009,7 @@ begin
     Lines.SaveToFile(FPaths.EnvBatFile, Encoding);
   finally
     Lines.Free;
+    Encoding.Free;
   end;
 end;
 
@@ -1034,6 +1056,15 @@ begin
   begin
     Result.Message := 'Apache PHP module missing for ' + FConfig.SelectedPhpVersion;
     Exit;
+  end;
+
+  if FConfig.EnableSsl then
+  begin
+    if not EnsureDefaultSslCertificate(ErrorMessage) then
+    begin
+      Result.Message := ErrorMessage;
+      Exit;
+    end;
   end;
 
   GenerateAllConfigs;
@@ -1367,8 +1398,12 @@ begin
     EnsureDirectory(ProfileDir);
     TargetCmd := TPath.Combine(ProfileDir, 'uniwamp_env.cmd');
     ProfileText := TFile.ReadAllText(FPaths.EnvBatFile, TEncoding.UTF8);
-    ProfileEncoding := TEncoding.UTF8;
-    TFile.WriteAllText(TargetCmd, ProfileText, ProfileEncoding);
+    ProfileEncoding := TUTF8Encoding.Create(False);
+    try
+      TFile.WriteAllText(TargetCmd, ProfileText, ProfileEncoding);
+    finally
+      ProfileEncoding.Free;
+    end;
 
     Result.Success := ShellExecute(0, 'open', PChar(TerminalExe), PChar('/START "' + FConfig.DocumentRoot + '"'), nil, SW_SHOWNORMAL) > 32;
     if Result.Success then

@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 title UniWamp Cmder
 color 0A
 set "UNIWAMP_ROOT=D:\ketan\github\uniwamp"

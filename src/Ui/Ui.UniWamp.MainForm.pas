@@ -66,9 +66,7 @@ type
     Label10: TPanel;
     DocumentRootEdit: TEdit;
     Panel1: TPanel;
-    Label4: TPanel;
     PhpVersionCombo: TComboBox;
-    LabelNode: TPanel;
     NodeVersionCombo: TComboBox;
     EnableSslCheck: TCheckBox;
     StatusBar: TStatusBar;
@@ -76,7 +74,7 @@ type
     StartAllButton: TPanel;
     StopAllButton: TPanel;
     Panel2: TPanel;
-    Panel5: TPanel;
+    pnltools: TPanel;
     GenerateSslButton: TPanel;
     Panel6: TPanel;
     AddVHostButton: TPanel;
@@ -93,12 +91,19 @@ type
     Label20: TPanel;
     ClearActivityLogButton: TPanel;
     SaveConfigButton: TPanel;
-    LaunchDashboardButton: TPanel;
     LaunchTerminalButton: TPanel;
     FActivityCard: TPanel;
     FActivityLabel: TPanel;
     Panel8: TPanel;
     Panel9: TPanel;
+    Panel10: TPanel;
+    Panel11: TPanel;
+    Panel13: TPanel;
+    OpenPhpExtensionsButton: TPanel;
+    OpenPhpSettingsButton: TPanel;
+    OpenApacheModulesButton: TPanel;
+    Label1: TLabel;
+    Label2: TLabel;
 
   published
     HeaderPanel: TPanel;
@@ -151,7 +156,7 @@ type
     FLastActivityLogWriteTime: TDateTime;
     FStatusRefreshBusy: Boolean;
     FActivityMemo: TMemo;
-    FHeaderLogo: TImage;
+    FVHostEmptyLabel: TLabel;
     FHeaderCards: array[0..2] of THeaderStatusCard;
     procedure FormCreate(Sender: TObject);
     procedure FormResize(Sender: TObject);
@@ -178,13 +183,15 @@ type
     procedure RefreshStatus;
     procedure UpdateHeaderStateColors;
     procedure UpdateHeaderStatusCards;
-    procedure CreateHeaderLogo;
     procedure UpdateServiceButtonState;
     procedure UpdateDashboardLabels;
     procedure UpdatePortConflictLabels;
     procedure UpdateStackActionState;
     procedure UpdateVHostActionState;
     procedure UpdateMenuState;
+    procedure UpdateVHostEmptyState;
+    function AreServicesHealthyForDashboard: Boolean;
+    procedure LaunchDashboardIfHealthy;
     function IsAutoStartEnabled: Boolean;
     procedure SetAutoStartEnabled(const Enabled: Boolean);
     procedure StatusRefreshTimer(Sender: TObject);
@@ -284,8 +291,6 @@ const
   PanelIconSize = 13;
   PanelIconLeft = 9;
   MenuIconSize = 14;
-  HeaderLogoWidth = 236;
-  HeaderLogoHeight = 34;
 
 function IsDarkColor(const AColor: TColor): Boolean; forward;
 
@@ -603,6 +608,7 @@ begin
     TextLabel.Layout := tlCenter;
     TextLabel.WordWrap := False;
     TextLabel.Tag := 0;
+    TextLabel.Cursor := Button.Cursor;
     Button.Tag := NativeInt(TextLabel);
   end
   else
@@ -626,6 +632,10 @@ begin
   IconImage.Transparent := True;
   IconImage.Hint := IconName;
   IconImage.ShowHint := False;
+  IconImage.Cursor := Button.Cursor;
+  IconImage.OnClick := Button.OnClick;
+  if Assigned(TextLabel) then
+    TextLabel.OnClick := Button.OnClick;
   if IsDarkColor(Button.Color) then
     IconImage.Picture.Bitmap.Assign(LoadTintedIconBitmap(IconName, clWhite, IconSize))
   else
@@ -665,8 +675,8 @@ begin
   OnCreate := FormCreate;
   OnShow := FormShow;
   Caption := 'UniWamp';
-  Width := 1450;
-  Height := 1020;
+//  Width := 1450;
+//  Height := 1020;
   Constraints.MinWidth := 1200;
   Constraints.MinHeight := 800;
   Position := poScreenCenter;
@@ -713,19 +723,43 @@ begin
   HeaderPanel.Color := HeaderOfflineColor;
   Label18.Color := HeaderOfflineColor;
   Label19.Color := HeaderOfflineColor;
-  Label18.Visible := False;
-  Label19.Width := 460;
-  Label19.Left := 18;
-  Label19.Top := 28;
+  Label18.Visible := true;
   Label19.Alignment := taLeftJustify;
   Label19.Font.Color := HeaderSubTextColor;
   Label19.Caption := 'Portable WAMP dashboard for local development';
   MainPanel.Color := AppBackgroundColor;
   LeftPanel.Color := AppBackgroundColor;
   RightPanel.Color := AppBackgroundColor;
-  HeaderPanel.Height := 102;
-  CreateHeaderLogo;
+  HeaderPanel.Height := 86;
   CreateHeaderStatusCards;
+  FVHostEmptyLabel := TLabel.Create(Self);
+  FVHostEmptyLabel.Parent := VHostCard;
+  FVHostEmptyLabel.Align := alClient;
+  FVHostEmptyLabel.Alignment := taCenter;
+  FVHostEmptyLabel.Layout := tlCenter;
+  FVHostEmptyLabel.WordWrap := True;
+  FVHostEmptyLabel.Transparent := True;
+  FVHostEmptyLabel.Font.Name := 'Segoe UI';
+  FVHostEmptyLabel.Font.Size := 11;
+  FVHostEmptyLabel.Font.Color := clGrayText;
+  FVHostEmptyLabel.Caption := 'No projects or vHosts found.' + sLineBreak + 'Use Add to create your first project.';
+  FVHostEmptyLabel.Visible := False;
+  FActivityMemo := TMemo.Create(Self);
+  FActivityMemo.Parent := FActivityCard;
+  FActivityMemo.Align := alClient;
+  FActivityMemo.AlignWithMargins := True;
+  FActivityMemo.Margins.Left := 8;
+  FActivityMemo.Margins.Top := 24;
+  FActivityMemo.Margins.Right := 8;
+  FActivityMemo.Margins.Bottom := 8;
+  FActivityMemo.BorderStyle := bsNone;
+  FActivityMemo.Color := clWhite;
+  FActivityMemo.Font.Name := 'Segoe UI';
+  FActivityMemo.Font.Size := 10;
+  FActivityMemo.ReadOnly := True;
+  FActivityMemo.ScrollBars := ssVertical;
+  FActivityMemo.WordWrap := False;
+  FActivityLabel.BringToFront;
   ApacheStartButton.OnClick := ApacheStartClick;
   ApacheStopButton.OnClick := ApacheStopClick;
   ApacheRestartButton.OnClick := ApacheRestartClick;
@@ -738,18 +772,22 @@ begin
   GenerateSslButton.OnClick := GenerateSslClick;
   Panel8.OnClick := LaunchDashboardClick;
   Panel9.OnClick := LaunchAdminerClick;
+  OpenPhpExtensionsButton.OnClick := OpenPhpExtensionsClick;
+  OpenPhpSettingsButton.OnClick := OpenPhpSettingsClick;
+  OpenApacheModulesButton.OnClick := OpenApacheModulesClick;
   OpenApacheLogButton.OnClick := OpenApacheLogClick;
   OpenMariaLogButton.OnClick := OpenMariaDbLogClick;
   ClearApacheLogButton.OnClick := ClearApacheLogClick;
   ClearMariaLogButton.OnClick := ClearMariaDbLogClick;
   ClearActivityLogButton.OnClick := ClearActivityLogClick;
-  LaunchDashboardButton.OnClick := LaunchDashboardClick;
+  Label20.OnClick := OpenActivityClick;
   AddVHostButton.OnClick := AddVHostClick;
   DeleteVHostButton.OnClick := DeleteVHostClick;
   OpenVHostButton.OnClick := OpenVHostClick;
   OpenVHostFolderButton.OnClick := OpenVHostFolderClick;
   CopyVHostUrlButton.OnClick := CopyVHostUrlClick;
   exitbutton.OnClick := ExitButtonClick;
+  Panel11.OnClick := ExitButtonClick;
   EditPhpIniButton.OnClick := EditPhpIniClick;
   EditHttpdConfButton.OnClick := EditHttpdConfClick;
   EditMariaDbIniButton.OnClick := EditMariaDbIniClick;
@@ -758,7 +796,7 @@ begin
   StyleLinkButton(ClearMariaLogButton, True);
   StyleLinkButton(ClearActivityLogButton, True);
   StyleLinkButton(Label20, True);
-  Label20.Visible := False;
+  Label20.Visible := True;
   exitbutton.Color := $00FFD3D3;
   exitbutton.Font.Color := $00603030;
   ApplyPanelIcon(ApacheStartButton, 'play_arrow');
@@ -768,8 +806,10 @@ begin
   ApplyPanelIcon(MariaStopButton, 'stop');
   ApplyPanelIcon(MariaRestartButton, 'restart_alt');
   ApplyPanelIcon(GenerateSslButton, 'lock');
-  ApplyPanelIcon(LaunchDashboardButton, 'language');
   ApplyPanelIcon(LaunchTerminalButton, 'terminal');
+  ApplyPanelIcon(OpenPhpExtensionsButton, 'extension');
+  ApplyPanelIcon(OpenPhpSettingsButton, 'settings');
+  ApplyPanelIcon(OpenApacheModulesButton, 'dns');
   ApplyPanelIcon(SaveConfigButton, 'save');
   ApplyPanelIcon(exitbutton, 'logout');
   ApplyPanelIcon(AddVHostButton, 'add');
@@ -785,7 +825,6 @@ begin
   ApplyPanelIcon(EditPhpIniButton, 'code');
   ApplyPanelIcon(EditHttpdConfButton, 'web');
   ApplyPanelIcon(EditMariaDbIniButton, 'database');
-  SetButtonCaption(LaunchDashboardButton, 'Dashboard');
   SetButtonCaption(LaunchTerminalButton, 'Terminal');
   SetButtonCaption(SaveConfigButton, 'Save Config');
   SetButtonCaption(GenerateSslButton, 'Generate SSL');
@@ -794,6 +833,9 @@ begin
   SetButtonCaption(ClearApacheLogButton, 'Clear Apache');
   SetButtonCaption(ClearMariaLogButton, 'Clear MariaDB');
   SetButtonCaption(ClearActivityLogButton, 'Clear activity');
+  SetButtonCaption(OpenPhpExtensionsButton, 'PHP Extensions');
+  SetButtonCaption(OpenPhpSettingsButton, 'PHP Settings');
+  SetButtonCaption(OpenApacheModulesButton, 'Apache Modules');
   SetButtonCaption(AddVHostButton, 'Add');
   SetButtonCaption(OpenVHostButton, 'Open Selected');
   SetButtonCaption(OpenVHostFolderButton, 'Open Root');
@@ -831,38 +873,6 @@ begin
   OnCloseQuery := FormCloseQuery;
 end;
 
-procedure TMainForm.CreateHeaderLogo;
-var
-  LogoFile: string;
-  LogoPng: TPngImage;
-begin
-  FHeaderLogo := TImage.Create(Self);
-  FHeaderLogo.Parent := HeaderPanel;
-  FHeaderLogo.Left := 14;
-  FHeaderLogo.Top := 8;
-  FHeaderLogo.Width := HeaderLogoWidth;
-  FHeaderLogo.Height := HeaderLogoHeight;
-  FHeaderLogo.Stretch := True;
-  FHeaderLogo.Proportional := True;
-  FHeaderLogo.Center := False;
-  FHeaderLogo.Transparent := True;
-  FHeaderLogo.Anchors := [akLeft, akTop];
-
-  if TryLoadPngFromResource('HEADER_LOGO', LogoPng) then
-  begin
-    try
-      FHeaderLogo.Picture.Assign(LogoPng);
-    finally
-      LogoPng.Free;
-    end;
-    Exit;
-  end;
-
-  LogoFile := FindHeaderLogoFile(FPaths.AppRoot);
-  if LogoFile <> '' then
-    FHeaderLogo.Picture.LoadFromFile(LogoFile);
-end;
-
 procedure TMainForm.CreateHeaderStatusCards;
 const
   CardTitles: array[0..2] of string = ('Apache', 'PHP', 'MariaDB');
@@ -885,14 +895,14 @@ begin
     FHeaderCards[I].Dot.Pen.Style := psClear;
     FHeaderCards[I].Dot.Brush.Color := RGB(180, 225, 48);
     FHeaderCards[I].Dot.Left := 15;
-    FHeaderCards[I].Dot.Top := 16;
+    FHeaderCards[I].Dot.Top := 14;
     FHeaderCards[I].Dot.Width := 10;
     FHeaderCards[I].Dot.Height := 10;
 
     FHeaderCards[I].Title := TLabel.Create(Self);
     FHeaderCards[I].Title.Parent := FHeaderCards[I].Panel;
     FHeaderCards[I].Title.Left := 30;
-    FHeaderCards[I].Title.Top := 10;
+    FHeaderCards[I].Title.Top := 7;
     FHeaderCards[I].Title.Font.Name := 'Segoe UI';
     FHeaderCards[I].Title.Font.Size := 11;
     FHeaderCards[I].Title.Font.Style := [fsBold];
@@ -903,7 +913,7 @@ begin
     FHeaderCards[I].Detail1 := TLabel.Create(Self);
     FHeaderCards[I].Detail1.Parent := FHeaderCards[I].Panel;
     FHeaderCards[I].Detail1.Left := 30;
-    FHeaderCards[I].Detail1.Top := 31;
+    FHeaderCards[I].Detail1.Top := 26;
     FHeaderCards[I].Detail1.Font.Name := 'Segoe UI';
     FHeaderCards[I].Detail1.Font.Size := 10;
     FHeaderCards[I].Detail1.Font.Color := HeaderTextColor;
@@ -912,7 +922,7 @@ begin
     FHeaderCards[I].Detail2 := TLabel.Create(Self);
     FHeaderCards[I].Detail2.Parent := FHeaderCards[I].Panel;
     FHeaderCards[I].Detail2.Left := 30;
-    FHeaderCards[I].Detail2.Top := 49;
+    FHeaderCards[I].Detail2.Top := 42;
     FHeaderCards[I].Detail2.Font.Name := 'Segoe UI';
     FHeaderCards[I].Detail2.Font.Size := 10;
     FHeaderCards[I].Detail2.Font.Color := HeaderTextColor;
@@ -929,31 +939,7 @@ var
   GridWidth: Integer;
   AvailableGridColumns: Integer;
 begin
-  HeaderPanel.Height := 102;
-  if Assigned(FHeaderLogo) then
-  begin
-    FHeaderLogo.Left := 14;
-    FHeaderLogo.Top := 8;
-    FHeaderLogo.Width := HeaderLogoWidth;
-    FHeaderLogo.Height := HeaderLogoHeight;
-  end;
-  Label19.Left := 20;
-  Label19.Top := 50;
-
-  LeftPanel.Width := 355;
-  ActionsCard.Left := 10;
-  ActionsCard.Top := 11;
-  ActionsCard.Width := LeftPanel.Width - 20;
-  ActionsCard.Height := LeftPanel.Height - 22;
-
-  GroupBox1.Left := 12;
-  GroupBox1.Width := ActionsCard.Width - 24;
-  GroupBox2.Left := 12;
-  GroupBox2.Width := ActionsCard.Width - 24;
-  Panel1.Left := 12;
-  Panel1.Width := ActionsCard.Width - 24;
-  Panel3.Left := 12;
-  Panel3.Width := ActionsCard.Width - 24;
+  HeaderPanel.Height := 86;
 
   GridWidth := VHostGrid.ClientWidth;
   VHostGrid.ColWidths[0] := 110;
@@ -970,12 +956,12 @@ begin
 
   CardWidth := 170;
   CardGap := 18;
-  CardTop := 18;
+  CardTop := 8;
   RightEdge := HeaderPanel.Width - 20;
 
-  FHeaderCards[2].Panel.SetBounds(RightEdge - CardWidth, CardTop, CardWidth, 66);
-  FHeaderCards[1].Panel.SetBounds(FHeaderCards[2].Panel.Left - CardGap - CardWidth, CardTop, CardWidth, 66);
-  FHeaderCards[0].Panel.SetBounds(FHeaderCards[1].Panel.Left - CardGap - CardWidth, CardTop, CardWidth, 66);
+  FHeaderCards[2].Panel.SetBounds(RightEdge - CardWidth, CardTop, CardWidth, 60);
+  FHeaderCards[1].Panel.SetBounds(FHeaderCards[2].Panel.Left - CardGap - CardWidth, CardTop, CardWidth, 60);
+  FHeaderCards[0].Panel.SetBounds(FHeaderCards[1].Panel.Left - CardGap - CardWidth, CardTop, CardWidth, 60);
   FHeaderCards[0].Panel.Visible := True;
   FHeaderCards[1].Panel.Visible := True;
   FHeaderCards[2].Panel.Visible := True;
@@ -1269,6 +1255,7 @@ begin
     VHostGrid.Cells[1, RowIndex + 1] := Entry.DocumentRoot;
     VHostGrid.Cells[2, RowIndex + 1] := VHostUrl(Entry.ServerName);
   end;
+  UpdateVHostEmptyState;
 end;
 
 procedure TMainForm.SaveUiIntoState;
@@ -1631,6 +1618,19 @@ begin
   SetButtonCaption(exitbutton, 'Exit');
 end;
 
+function TMainForm.AreServicesHealthyForDashboard: Boolean;
+begin
+  Result := FConfig.ApacheRunning and FConfig.MariaDbRunning;
+end;
+
+procedure TMainForm.LaunchDashboardIfHealthy;
+begin
+  if AreServicesHealthyForDashboard then
+    FRuntime.LaunchUrl(Format('http://127.0.0.1:%d/dashboard/', [FConfig.HttpPort]))
+  else
+    AppendStatus('Dashboard not opened: Apache and MariaDB must both be running.');
+end;
+
 procedure TMainForm.UpdateVHostActionState;
 var
   HasSelection: Boolean;
@@ -1648,6 +1648,20 @@ begin
   StylePanelButton(CopyVHostUrlButton, CopyVHostUrlButton.Enabled, ButtonNeutralColor, ButtonNeutralColor);
   StylePanelButton(DeleteVHostButton, DeleteVHostButton.Enabled, ButtonDangerStrongColor, ButtonNeutralColor, clWhite);
   VHostGrid.Invalidate;
+end;
+
+procedure TMainForm.UpdateVHostEmptyState;
+var
+  HasVHosts: Boolean;
+begin
+  HasVHosts := Length(FConfig.VHosts) > 0;
+  VHostGrid.Visible := HasVHosts;
+  if Assigned(FVHostEmptyLabel) then
+  begin
+    FVHostEmptyLabel.Visible := not HasVHosts;
+    if FVHostEmptyLabel.Visible then
+      FVHostEmptyLabel.BringToFront;
+  end;
 end;
 
 procedure TMainForm.UpdateMenuState;
@@ -2072,7 +2086,7 @@ begin
   FConfig.Save(FPaths);
   RefreshStatus;
   if ResultInfo.Success then
-    FRuntime.LaunchUrl(Format('http://127.0.0.1:%d/dashboard/', [FConfig.HttpPort]));
+    LaunchDashboardIfHealthy;
 end;
 
 procedure TMainForm.ApacheStopClick(Sender: TObject);
@@ -2166,8 +2180,6 @@ begin
     ApacheResult := FRuntime.StartApache;
     AppendStatus('Start all - Apache: ' + ApacheResult.Message);
     StartedAnything := StartedAnything or ApacheResult.Success;
-    if ApacheResult.Success then
-      FRuntime.LaunchUrl(Format('http://127.0.0.1:%d/dashboard/', [FConfig.HttpPort]));
   end;
 
   if not AttemptedAnything then
@@ -2177,6 +2189,8 @@ begin
 
   FConfig.Save(FPaths);
   RefreshStatus;
+  if AttemptedAnything and StartedAnything then
+    LaunchDashboardIfHealthy;
 end;
 
 procedure TMainForm.StopButtonClick(Sender: TObject);
