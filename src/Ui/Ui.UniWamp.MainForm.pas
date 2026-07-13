@@ -793,6 +793,7 @@ begin
   CopyDiagnosticReportButton.ParentBackground := False;
   CopyDiagnosticReportButton.ParentFont := False;
   CopyDiagnosticReportButton.TabOrder := 8;
+  CopyDiagnosticReportButton.TabStop := True;
   CopyDiagnosticReportButton.OnClick := CopyDiagnosticReportClick;
   Panel8.OnClick := LaunchDashboardClick;
   Panel9.OnClick := LaunchAdminerClick;
