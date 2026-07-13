@@ -132,6 +132,8 @@ Completed:
 - Verified the copied diagnostic snapshot does not expose the configured MariaDB root password.
 - Added process harness coverage for MariaDB root password changes requiring a running service.
 - Verified the password workflow fails fast when MariaDB is stopped.
+- Added process harness coverage for diagnostic report port-owner reporting on occupied ports.
+- Verified the copied diagnostic snapshot includes a non-empty owner line when a port is bound.
 
 ## Phase 6: Dashboard and workflow quality
 

@@ -6,6 +6,7 @@ uses
   System.Classes,
   System.IOUtils,
   System.SysUtils,
+  System.StrUtils,
   Winapi.Windows,
   Winapi.Winsock2,
   Core.UniWamp.Config,
@@ -1034,6 +1035,60 @@ begin
   end;
 end;
 
+procedure TestDiagnosticReportIncludesPortOwnersForOccupiedPorts;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  ReportText: string;
+  PortSocket: TSocket;
+  Lines: TStringList;
+  I: Integer;
+  PortOwnerLine: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-report-ports-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    AssertTrue(ReserveTcpPort(3307, PortSocket), 'Database port should be reserved for diagnostics');
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      Config.DatabasePort := 3307;
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        ReportText := Runtime.BuildDiagnosticReport;
+        AssertContains(ReportText, 'MariaDB port owner:', 'Diagnostic report should include the port owner label');
+        Lines := TStringList.Create;
+        try
+          Lines.Text := ReportText;
+          PortOwnerLine := '';
+          for I := 0 to Lines.Count - 1 do
+            if StartsText('MariaDB port owner: ', Lines[I]) then
+            begin
+              PortOwnerLine := Lines[I];
+              Break;
+            end;
+          AssertTrue(PortOwnerLine <> '', 'Diagnostic report should include a MariaDB port owner line');
+          AssertTrue(Trim(Copy(PortOwnerLine, Length('MariaDB port owner: ') + 1, MaxInt)) <> '',
+            'MariaDB port owner should not be empty when the port is occupied');
+        finally
+          Lines.Free;
+        end;
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+    ReleaseTcpPort(PortSocket);
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestMariaDbRootPasswordRequiresRunningService;
 var
   RootDir: string;
@@ -1098,6 +1153,7 @@ begin
     TestLogRedactionLeavesNonSecretsIntact;
     TestDiagnosticReportIncludesState;
     TestDiagnosticReportOmitsSensitiveValues;
+    TestDiagnosticReportIncludesPortOwnersForOccupiedPorts;
     TestMariaDbRootPasswordRequiresRunningService;
     Writeln('Process harness passed.');
   except
