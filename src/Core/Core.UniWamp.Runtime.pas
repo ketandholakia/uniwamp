@@ -79,6 +79,7 @@ type
     function LaunchComposerInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function LaunchGitInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function LaunchNodeInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
+    function LaunchWpCliInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function PreferredTextEditorExecutable: string;
     function LaunchTextEditor(const FileName: string): TRuntimeActionResult;
     function ComputeFileSha256Hex(const FileName: string): string;
@@ -515,6 +516,31 @@ begin
     Result.Message := 'Node launched'
   else
     Result.Message := 'Failed to launch Node';
+end;
+
+function TUniWampRuntime.LaunchWpCliInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
+var
+  WpExe: string;
+  Buffer: array[0..MAX_PATH] of Char;
+  BufferSize: DWORD;
+  FilePart: PChar;
+begin
+  WpExe := '';
+  FilePart := nil;
+  BufferSize := SearchPath(nil, 'wp.exe', nil, Length(Buffer), Buffer, FilePart);
+  if BufferSize > 0 then
+    WpExe := Buffer;
+  if WpExe = '' then
+  begin
+    Result.Success := False;
+    Result.Message := 'WP-CLI was not found on PATH.';
+    Exit;
+  end;
+  Result.Success := ShellExecute(0, 'open', 'cmd.exe', PChar('/K "' + WpExe + '" --info'), PChar(WorkingDir), SW_SHOWNORMAL) > 32;
+  if Result.Success then
+    Result.Message := 'WP-CLI launched'
+  else
+    Result.Message := 'Failed to launch WP-CLI';
 end;
 
 function TUniWampRuntime.PrepareUpdateStagingArea(const PackageName: string; out StagingDir: string; out ErrorMessage: string): Boolean;

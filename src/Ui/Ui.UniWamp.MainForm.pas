@@ -111,6 +111,7 @@ type
     ComposerButton: TPanel;
     GitButton: TPanel;
     NodeButton: TPanel;
+    WpCliButton: TPanel;
 
   published
     HeaderPanel: TPanel;
@@ -244,6 +245,7 @@ type
     procedure LaunchComposerClick(Sender: TObject);
     procedure LaunchGitClick(Sender: TObject);
     procedure LaunchNodeClick(Sender: TObject);
+    procedure LaunchWpCliClick(Sender: TObject);
     procedure GenerateSslClick(Sender: TObject);
     procedure OpenApacheLogClick(Sender: TObject);
     procedure OpenMariaDbLogClick(Sender: TObject);
@@ -985,6 +987,25 @@ begin
   NodeButton.Hint := BuildToolPanelHint('Launch Node from the selected runtime version',
     'Opens node.exe from the currently selected Node.js runtime in the repository root.');
   NodeButton.ShowHint := True;
+  WpCliButton := TPanel.Create(Self);
+  WpCliButton.Parent := pnltools;
+  WpCliButton.SetBounds(644, 41, 84, 24);
+  WpCliButton.Cursor := crHandPoint;
+  WpCliButton.BevelOuter := bvNone;
+  WpCliButton.Caption := 'WP-CLI';
+  WpCliButton.Color := 16053492;
+  WpCliButton.Font.Charset := DEFAULT_CHARSET;
+  WpCliButton.Font.Color := clWindowText;
+  WpCliButton.Font.Height := -11;
+  WpCliButton.Font.Name := 'Segoe UI';
+  WpCliButton.Font.Style := [fsBold];
+  WpCliButton.ParentBackground := False;
+  WpCliButton.ParentFont := False;
+  WpCliButton.TabOrder := 9;
+  WpCliButton.OnClick := LaunchWpCliClick;
+  WpCliButton.Hint := BuildToolPanelHint('Launch WP-CLI from the selected document root',
+    'Opens wp.exe when available on PATH and targets the application root.');
+  WpCliButton.ShowHint := True;
   SaveConfigButton.OnClick := SaveConfigClick;
   SaveConfigButton.Hint := BuildToolPanelHint('Save configuration',
     'Persists the current dashboard settings to config/uniwamp.json.');
@@ -1169,6 +1190,7 @@ begin
   ApplyPanelIcon(ComposerButton, 'code');
   ApplyPanelIcon(GitButton, 'source');
   ApplyPanelIcon(NodeButton, 'dns');
+  ApplyPanelIcon(WpCliButton, 'wordpress');
   ApplyPanelIcon(CopyDiagnosticReportButton, 'description');
   ApplyPanelIcon(CopyActivityLogButton, 'content_copy');
   ApplyPanelIcon(OpenPhpExtensionsButton, 'extension');
@@ -1194,6 +1216,7 @@ begin
   SetButtonCaption(ComposerButton, 'Composer');
   SetButtonCaption(GitButton, 'Git');
   SetButtonCaption(NodeButton, 'Node');
+  SetButtonCaption(WpCliButton, 'WP-CLI');
   SetButtonCaption(SaveConfigButton, 'Save Config');
   SetButtonCaption(GenerateSslButton, 'Generate SSL');
   SetButtonCaption(CopyDiagnosticReportButton, 'Copy Report');
@@ -2807,6 +2830,14 @@ var
   ResultInfo: TRuntimeActionResult;
 begin
   ResultInfo := FRuntime.LaunchNodeInWorkingDir(FPaths.AppRoot);
+  AppendStatus(ResultInfo.Message);
+end;
+
+procedure TMainForm.LaunchWpCliClick(Sender: TObject);
+var
+  ResultInfo: TRuntimeActionResult;
+begin
+  ResultInfo := FRuntime.LaunchWpCliInWorkingDir(FPaths.AppRoot);
   AppendStatus(ResultInfo.Message);
 end;
 

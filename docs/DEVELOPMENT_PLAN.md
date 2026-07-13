@@ -190,6 +190,7 @@ Completed:
 - Added a Composer launcher in the tool panel for repository-root maintenance workflows.
 - Added a Git launcher in the tool panel for repository-root maintenance workflows.
 - Added a Node launcher in the tool panel for repository-root maintenance workflows.
+- Added a WP-CLI launcher in the tool panel for WordPress repository workflows.
 
 ## Priority model
 
