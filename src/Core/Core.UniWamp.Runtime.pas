@@ -87,6 +87,7 @@ type
     function LaunchTextEditor(const FileName: string): TRuntimeActionResult;
     function ComputeFileSha256Hex(const FileName: string): string;
     function ValidatePackageSha256(const PackageFileName, ExpectedSha256: string; out ErrorMessage: string): Boolean;
+    function ValidateUpdateManifest(const ManifestFileName: string; out PackageFileName, ExpectedSha256, PackageVersion: string; out ErrorMessage: string): Boolean;
     function ValidateRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
     function ImportRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
     function PrepareUpdateStagingArea(const PackageName: string; out StagingDir: string; out ErrorMessage: string): Boolean;
@@ -110,6 +111,7 @@ uses
   Winapi.Windows,
   Winapi.ShellAPI,
   System.Classes,
+  System.JSON,
   System.IOUtils,
   System.StrUtils,
   Core.UniWamp.PortUtils,
@@ -457,6 +459,53 @@ begin
     end;
   finally
     Zip.Free;
+  end;
+end;
+
+function TUniWampRuntime.ValidateUpdateManifest(const ManifestFileName: string; out PackageFileName, ExpectedSha256, PackageVersion: string; out ErrorMessage: string): Boolean;
+var
+  JsonValue: TJSONValue;
+  JsonObject: TJSONObject;
+begin
+  Result := False;
+  ErrorMessage := '';
+  PackageFileName := '';
+  ExpectedSha256 := '';
+  PackageVersion := '';
+  if not FileExists(ManifestFileName) then
+  begin
+    ErrorMessage := 'Update manifest not found: ' + ManifestFileName;
+    Exit;
+  end;
+  JsonValue := TJSONObject.ParseJSONValue(TFile.ReadAllText(ManifestFileName, TEncoding.UTF8));
+  try
+    if not (JsonValue is TJSONObject) then
+    begin
+      ErrorMessage := 'Update manifest must be a JSON object.';
+      Exit;
+    end;
+    JsonObject := TJSONObject(JsonValue);
+    PackageFileName := JsonObject.GetValue<string>('packageFileName', '');
+    ExpectedSha256 := JsonObject.GetValue<string>('expectedSha256', '');
+    PackageVersion := JsonObject.GetValue<string>('packageVersion', '');
+    if Trim(PackageFileName) = '' then
+    begin
+      ErrorMessage := 'Update manifest is missing packageFileName.';
+      Exit;
+    end;
+    if Trim(ExpectedSha256) = '' then
+    begin
+      ErrorMessage := 'Update manifest is missing expectedSha256.';
+      Exit;
+    end;
+    if Trim(PackageVersion) = '' then
+    begin
+      ErrorMessage := 'Update manifest is missing packageVersion.';
+      Exit;
+    end;
+    Result := True;
+  finally
+    JsonValue.Free;
   end;
 end;
 

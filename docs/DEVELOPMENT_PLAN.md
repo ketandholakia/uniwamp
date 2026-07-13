@@ -195,6 +195,7 @@ Completed:
 - Added a Redis launcher in the tool panel for local cache/service workflows.
 - Added a Memcached launcher in the tool panel for local cache/service workflows.
 - Added a SHA-256 package validation helper for staged update integrity checks.
+- Added an update manifest validator for staged update package metadata.
 
 ## Priority model
 

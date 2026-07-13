@@ -1381,6 +1381,46 @@ begin
   end;
 end;
 
+procedure TestValidateUpdateManifestReadsTheExpectedFields;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  ManifestPath: string;
+  PackageFileName: string;
+  ExpectedSha256: string;
+  PackageVersion: string;
+  ErrorMessage: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-manifest-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        ManifestPath := TPath.Combine(RootDir, 'update.json');
+        TFile.WriteAllText(ManifestPath,
+          '{"packageFileName":"runtime.zip","expectedSha256":"abc","packageVersion":"1.0.0"}',
+          TEncoding.UTF8);
+        AssertTrue(Runtime.ValidateUpdateManifest(ManifestPath, PackageFileName, ExpectedSha256, PackageVersion, ErrorMessage), ErrorMessage);
+        AssertTrue(PackageFileName = 'runtime.zip', 'Manifest should expose the package file name');
+        AssertTrue(ExpectedSha256 = 'abc', 'Manifest should expose the expected hash');
+        AssertTrue(PackageVersion = '1.0.0', 'Manifest should expose the package version');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestRuntimeZipValidationAcceptsNonEmptyZipArchives;
 var
   RootDir: string;
@@ -1751,6 +1791,7 @@ begin
   TestTerminalExecutablePathResolvesRelativeConfigValues;
   TestSha256HelperReturnsTheExpectedDigest;
   TestValidatePackageSha256ChecksTheExpectedDigest;
+  TestValidateUpdateManifestReadsTheExpectedFields;
   TestRuntimeZipValidationAcceptsNonEmptyZipArchives;
   TestRuntimeZipImportExtractsArchiveContents;
   TestUpdateStagingAreaCreatesPortableWorkspace;
