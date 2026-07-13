@@ -5,6 +5,7 @@ program ProcessHarness;
 uses
   System.Classes,
   System.IOUtils,
+  System.Zip,
   System.SysUtils,
   System.StrUtils,
   Winapi.Windows,
@@ -1345,6 +1346,49 @@ begin
   end;
 end;
 
+procedure TestRuntimeZipValidationAcceptsNonEmptyZipArchives;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  ZipPath: string;
+  PayloadPath: string;
+  ErrorMessage: string;
+  Zip: TZipFile;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-zip-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        PayloadPath := TPath.Combine(RootDir, 'payload.txt');
+        TFile.WriteAllText(PayloadPath, 'payload', TEncoding.ASCII);
+        ZipPath := TPath.Combine(RootDir, 'runtime.zip');
+        Zip := TZipFile.Create;
+        try
+          Zip.Open(ZipPath, zmWrite);
+          Zip.Add(PayloadPath, 'payload.txt');
+          Zip.Close;
+        finally
+          Zip.Free;
+        end;
+        AssertTrue(Runtime.ValidateRuntimeZipArchive(ZipPath, ErrorMessage), ErrorMessage);
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestVHostFilterHintMakesTheClearActionExplicit;
 begin
   AssertTrue(
@@ -1552,6 +1596,7 @@ begin
   TestGeneratedEnvBatDoesNotStartWithUtf8Bom;
   TestTerminalExecutablePathResolvesRelativeConfigValues;
   TestSha256HelperReturnsTheExpectedDigest;
+  TestRuntimeZipValidationAcceptsNonEmptyZipArchives;
   TestMariaDbRootPasswordRequiresRunningService;
   Writeln('Process harness passed.');
   except

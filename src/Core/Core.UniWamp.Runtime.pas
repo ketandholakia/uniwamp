@@ -5,6 +5,7 @@ interface
 uses
   System.Generics.Collections,
   System.Hash,
+  System.Zip,
   System.SysUtils,
   Core.UniWamp.Config,
   Core.UniWamp.Paths;
@@ -78,6 +79,7 @@ type
     function PreferredTextEditorExecutable: string;
     function LaunchTextEditor(const FileName: string): TRuntimeActionResult;
     function ComputeFileSha256Hex(const FileName: string): string;
+    function ValidateRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
     function LaunchAdminer: TRuntimeActionResult;
     function LaunchTerminal: TRuntimeActionResult;
     function LaunchTerminalInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
@@ -377,6 +379,42 @@ begin
     Result := THashSHA2.GetHashString(Stream);
   finally
     Stream.Free;
+  end;
+end;
+
+function TUniWampRuntime.ValidateRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
+var
+  Zip: TZipFile;
+begin
+  Result := False;
+  ErrorMessage := '';
+  if not FileExists(ZipFileName) then
+  begin
+    ErrorMessage := 'Runtime archive not found: ' + ZipFileName;
+    Exit;
+  end;
+  if not SameText(TPath.GetExtension(ZipFileName), '.zip') then
+  begin
+    ErrorMessage := 'Runtime archive must be a ZIP file.';
+    Exit;
+  end;
+
+  Zip := TZipFile.Create;
+  try
+    try
+      Zip.Open(ZipFileName, zmRead);
+      if Zip.FileCount = 0 then
+      begin
+        ErrorMessage := 'Runtime archive is empty.';
+        Exit;
+      end;
+      Result := True;
+    except
+      on E: Exception do
+        ErrorMessage := 'Runtime archive validation failed: ' + E.Message;
+    end;
+  finally
+    Zip.Free;
   end;
 end;
 
