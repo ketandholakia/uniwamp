@@ -225,6 +225,7 @@ type
     procedure OpenPhpSettingsClick(Sender: TObject);
     procedure OpenApacheModulesClick(Sender: TObject);
     procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+    procedure VHostEmptyLabelClick(Sender: TObject);
     procedure SetMariaDbRootPasswordClick(Sender: TObject);
     procedure LaunchTerminalClick(Sender: TObject);
     procedure GenerateSslClick(Sender: TObject);
@@ -751,6 +752,8 @@ begin
   FVHostEmptyLabel.Caption := 'No projects or vHosts found.' + sLineBreak + 'Use Add to create your first project.';
   FVHostEmptyLabel.Hint := 'Click Add to create a new project or vHost.';
   FVHostEmptyLabel.ShowHint := True;
+  FVHostEmptyLabel.Cursor := crHandPoint;
+  FVHostEmptyLabel.OnClick := VHostEmptyLabelClick;
   FVHostEmptyLabel.Visible := False;
   FActivityMemo := TMemo.Create(Self);
   FActivityMemo.Parent := FActivityCard;
@@ -2508,6 +2511,11 @@ begin
     Key := 0;
     ExitButtonClick(Sender);
   end;
+end;
+
+procedure TMainForm.VHostEmptyLabelClick(Sender: TObject);
+begin
+  AddVHostClick(Sender);
 end;
 
 procedure TMainForm.EditPhpIniClick(Sender: TObject);
