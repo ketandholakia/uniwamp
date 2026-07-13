@@ -765,13 +765,19 @@ end;
 procedure TMainForm.ClearPanelIcon(Button: TPanel);
 var
   I: Integer;
+  Child: TControl;
 begin
   if not Assigned(Button) then
     Exit;
 
   for I := Button.ControlCount - 1 downto 0 do
-    if Button.Controls[I] is TImage then
-      Button.Controls[I].Free;
+  begin
+    Child := Button.Controls[I];
+    if Child is TImage then
+      Child.Free
+    else if Child is TLabel then
+      Child.Free;
+  end;
   Button.Tag := 0;
 end;
 
