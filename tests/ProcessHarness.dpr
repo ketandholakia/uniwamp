@@ -1206,6 +1206,38 @@ begin
   end;
 end;
 
+procedure TestTerminalExecutablePathResolvesRelativeConfigValues;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  ExpectedPath: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-terminal-path-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Config.TerminalExePath := 'bin\cmder\custom\Cmder.exe';
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        ExpectedPath := TPath.Combine(Paths.AppRoot, 'bin\cmder\custom\Cmder.exe');
+        AssertTrue(SameText(Runtime.TerminalExecutablePath, ExpectedPath),
+          'Relative terminal executable paths should resolve against the app root');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestMariaDbRootPasswordRequiresRunningService;
 var
   RootDir: string;
@@ -1276,6 +1308,7 @@ begin
   TestProjectTypeDetectionPrefersKnownFrameworkMarkers;
   TestDiagnosticReportUsesConsistentServiceStateLabels;
   TestGeneratedEnvBatDoesNotStartWithUtf8Bom;
+  TestTerminalExecutablePathResolvesRelativeConfigValues;
   TestMariaDbRootPasswordRequiresRunningService;
   Writeln('Process harness passed.');
   except

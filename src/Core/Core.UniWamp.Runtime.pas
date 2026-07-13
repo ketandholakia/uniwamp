@@ -59,6 +59,7 @@ type
     function ApacheIsRunning: Boolean;
     function MariaDbIsRunning: Boolean;
     function ApacheProcessId: Cardinal;
+    function TerminalExecutablePath: string;
     procedure GenerateEnvBat;
     procedure GenerateAllConfigs;
     function StartApache: TRuntimeActionResult;
@@ -332,6 +333,11 @@ begin
     Exit;
   end;
   Result := TPath.Combine(FPaths.CmderDir, 'Cmder.exe');
+end;
+
+function TUniWampRuntime.TerminalExecutablePath: string;
+begin
+  Result := CmderExe;
 end;
 
 function TUniWampRuntime.ApacheModuleDir: string;
@@ -1675,7 +1681,7 @@ var
   TerminalExe: string;
 begin
   GenerateEnvBat;
-  TerminalExe := CmderExe;
+  TerminalExe := TerminalExecutablePath;
 
   if FileExists(TerminalExe) then
   begin

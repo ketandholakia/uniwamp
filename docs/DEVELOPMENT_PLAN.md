@@ -161,6 +161,7 @@ Completed:
 
 - Generated terminal environment scripts without a UTF-8 BOM so `cmd.exe` and Cmder can consume them reliably.
 - Added process harness coverage that verifies `env.bat` begins with plain ASCII `@echo off`.
+- Added process harness coverage that verifies relative terminal executable paths resolve against the app root.
 
 ## Priority model
 
