@@ -95,7 +95,9 @@ type
     function WriteUpdateStagingMetadata(const StagingDir, PackageFileName, ExpectedSha256, PackageVersion: string; out MetadataFileName, ErrorMessage: string): Boolean;
     function CleanupUpdateWorkspace(const WorkspaceDir: string; out ErrorMessage: string): Boolean;
     function StageValidatedUpdatePackage(const ManifestFileName: string; out StagingDir, MetadataFileName, ErrorMessage: string): Boolean;
-    function PromoteStagedUpdate(const StagingDir, TargetDir: string; out BackupDir, ErrorMessage: string): Boolean;
+    function PromoteStagedUpdate(const StagingDir, TargetDir: string; out BackupDir, ErrorMessage: string;
+      ForceFailureAfterBackup: Boolean = False): Boolean;
+    function StageUpdateManifest(const ManifestFileName: string; out StagingDir, MetadataFileName, ErrorMessage: string): Boolean;
     function ValidateRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
     function ImportRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
     function ImportRuntimeZipArchiveInto(const ZipFileName, TargetDir: string; out ErrorMessage: string): Boolean;
@@ -601,7 +603,13 @@ begin
   Result := True;
 end;
 
-function TUniWampRuntime.PromoteStagedUpdate(const StagingDir, TargetDir: string; out BackupDir, ErrorMessage: string): Boolean;
+function TUniWampRuntime.StageUpdateManifest(const ManifestFileName: string; out StagingDir, MetadataFileName, ErrorMessage: string): Boolean;
+begin
+  Result := StageValidatedUpdatePackage(ManifestFileName, StagingDir, MetadataFileName, ErrorMessage);
+end;
+
+function TUniWampRuntime.PromoteStagedUpdate(const StagingDir, TargetDir: string; out BackupDir, ErrorMessage: string;
+  ForceFailureAfterBackup: Boolean): Boolean;
 begin
   Result := False;
   ErrorMessage := '';
@@ -624,6 +632,8 @@ begin
       TDirectory.Copy(TargetDir, BackupDir);
       TDirectory.Delete(TargetDir, True);
     end;
+    if ForceFailureAfterBackup then
+      raise Exception.Create('Injected promotion failure for rollback testing');
     if TDirectory.Exists(TargetDir) then
       TDirectory.Delete(TargetDir, True);
     TDirectory.CreateDirectory(TPath.GetDirectoryName(TargetDir));

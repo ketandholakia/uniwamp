@@ -84,6 +84,8 @@ The main Tools menu and tool panel also expose:
 - `Terminal` to launch the configured terminal executable
 - `Repo Terminal` to open a terminal at the UniWamp root for Git and maintenance work
 - `Composer`, `Git`, `Node`, `WP-CLI`, `npm`, `yarn`, `pnpm`, `Mailpit`, `Redis`, `Memcached`, and `Editor` launchers when the corresponding executables are available on PATH
+- `Update` to stage a manifest-driven package into `tmp\updates`
+- The second tool row keeps the repository-oriented launchers and update action grouped together for faster maintenance work
 - `Copy Report` to copy a diagnostic snapshot with paths, versions, ports, service state, and recent errors
 - `Copy Activity` to copy the current activity log to the clipboard
 - `Esc` to close the main window through the normal shutdown flow
@@ -142,7 +144,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tests\run-all.ps1
 
 This builds the app, builds the config harness, runs the smoke test, and runs the config assertions.
 It also builds and runs the process harness for process-manager and lifecycle checks.
-The process harness now also covers terminal/editor fallback ordering, runtime archive integrity checks, staged update validation, rollback, promotion, and workspace cleanup helpers.
+The process harness now also covers terminal/editor fallback ordering, runtime archive integrity checks, staged update validation, rollback, promotion, promotion rollback recovery, and workspace cleanup helpers.
 
 ## Installer
 

@@ -1606,6 +1606,51 @@ begin
   end;
 end;
 
+procedure TestPromoteStagedUpdateRestoresTargetWhenReplacementFails;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  StagingDir: string;
+  TargetDir: string;
+  BackupDir: string;
+  ErrorMessage: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-promote-rollback-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        StagingDir := TPath.Combine(Paths.UpdatesDir, 'staging');
+        TDirectory.CreateDirectory(StagingDir);
+        TFile.WriteAllText(TPath.Combine(StagingDir, 'payload.txt'), 'payload', TEncoding.ASCII);
+        TargetDir := TPath.Combine(RootDir, 'promoted');
+        TDirectory.CreateDirectory(TargetDir);
+        TFile.WriteAllText(TPath.Combine(TargetDir, 'locked.txt'), 'locked', TEncoding.ASCII);
+        AssertTrue(not Runtime.PromoteStagedUpdate(StagingDir, TargetDir, BackupDir, ErrorMessage, True),
+          'Promotion should fail when failure is injected after backup');
+        AssertTrue(BackupDir <> '', 'Promotion should still create a backup before failing');
+        AssertTrue(TDirectory.Exists(TargetDir), 'Failed promotion should restore the target tree');
+        AssertTrue(TFile.Exists(TPath.Combine(TargetDir, 'locked.txt')),
+          'Failed promotion should restore the original target contents');
+        AssertTrue(not TFile.Exists(TPath.Combine(TargetDir, 'payload.txt')),
+          'Failed promotion should not leave the staged payload in the target tree');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestRuntimeZipValidationAcceptsNonEmptyZipArchives;
 var
   RootDir: string;
@@ -1981,6 +2026,7 @@ begin
   TestCleanupUpdateWorkspaceRemovesExistingDirectory;
   TestStageValidatedUpdatePackageBuildsTheWorkspace;
   TestPromoteStagedUpdateCopiesWorkspaceIntoTarget;
+  TestPromoteStagedUpdateRestoresTargetWhenReplacementFails;
   TestRuntimeZipValidationAcceptsNonEmptyZipArchives;
   TestRuntimeZipImportExtractsArchiveContents;
   TestUpdateStagingAreaCreatesPortableWorkspace;

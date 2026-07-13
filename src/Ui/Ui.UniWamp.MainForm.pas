@@ -19,6 +19,7 @@ uses
   Vcl.Menus,
   Vcl.StdCtrls,
   Vcl.ComCtrls,
+  Vcl.Dialogs,
   Vcl.Clipbrd,
   Core.UniWamp.Config,
   Core.UniWamp.Diagnostics,
@@ -119,6 +120,8 @@ type
     YarnButton: TPanel;
     PnpmButton: TPanel;
     EditorButton: TPanel;
+    UpdateButton: TPanel;
+    FUpdateManifestDialog: TOpenDialog;
 
   published
     HeaderPanel: TPanel;
@@ -260,6 +263,7 @@ type
     procedure LaunchYarnClick(Sender: TObject);
     procedure LaunchPnpmClick(Sender: TObject);
     procedure LaunchEditorClick(Sender: TObject);
+    procedure StageUpdateClick(Sender: TObject);
     procedure GenerateSslClick(Sender: TObject);
     procedure OpenApacheLogClick(Sender: TObject);
     procedure OpenMariaDbLogClick(Sender: TObject);
@@ -305,7 +309,6 @@ implementation
 uses
   Winapi.ShellAPI,
   System.IOUtils,
-  Vcl.Dialogs,
   System.Win.Registry,
   Core.UniWamp.ProcessManager,
   Ui.UniWamp.ApacheModulesForm,
@@ -793,6 +796,10 @@ begin
   FMenuIconIndices := TDictionary<string, Integer>.Create;
   FConfig := TUniWampConfig.Create;
   FRuntime := TUniWampRuntime.Create(FPaths, FConfig);
+  FUpdateManifestDialog := TOpenDialog.Create(Self);
+  FUpdateManifestDialog.Filter := 'Update manifest (*.json)|*.json|All files (*.*)|*.*';
+  FUpdateManifestDialog.Title := 'Select update manifest';
+  FUpdateManifestDialog.Options := [ofFileMustExist, ofPathMustExist, ofEnableSizing, ofHideReadOnly];
   PathsMigrated := FConfig.LoadOrCreate(FPaths);
   FMainPhpVersionItems := TList<TMenuItem>.Create;
   FMainPhpProfileItems := TList<TMenuItem>.Create;
@@ -1153,6 +1160,25 @@ begin
   EditorButton.Hint := BuildToolPanelHint('Launch the preferred text editor',
     'Opens the repository root in the editor selected by EDITOR or Notepad.');
   EditorButton.ShowHint := True;
+  UpdateButton := TPanel.Create(Self);
+  UpdateButton.Parent := pnltools;
+  UpdateButton.SetBounds(546, 73, 92, 24);
+  UpdateButton.Cursor := crHandPoint;
+  UpdateButton.BevelOuter := bvNone;
+  UpdateButton.Caption := 'Update';
+  UpdateButton.Color := 16053492;
+  UpdateButton.Font.Charset := DEFAULT_CHARSET;
+  UpdateButton.Font.Color := clWindowText;
+  UpdateButton.Font.Height := -11;
+  UpdateButton.Font.Name := 'Segoe UI';
+  UpdateButton.Font.Style := [fsBold];
+  UpdateButton.ParentBackground := False;
+  UpdateButton.ParentFont := False;
+  UpdateButton.TabOrder := 17;
+  UpdateButton.OnClick := StageUpdateClick;
+  UpdateButton.Hint := BuildToolPanelHint('Stage an update package from a manifest',
+    'Selects an update manifest, verifies the package hash, and stages the package into tmp\\updates.');
+  UpdateButton.ShowHint := True;
   SaveConfigButton.OnClick := SaveConfigClick;
   SaveConfigButton.Hint := BuildToolPanelHint('Save configuration',
     'Persists the current dashboard settings to config/uniwamp.json.');
@@ -1345,6 +1371,7 @@ begin
   ApplyPanelIcon(YarnButton, 'dns');
   ApplyPanelIcon(PnpmButton, 'dns');
   ApplyPanelIcon(EditorButton, 'edit');
+  ApplyPanelIcon(UpdateButton, 'system_update');
   ApplyPanelIcon(CopyDiagnosticReportButton, 'description');
   ApplyPanelIcon(CopyActivityLogButton, 'content_copy');
   ApplyPanelIcon(OpenPhpExtensionsButton, 'extension');
@@ -1378,6 +1405,7 @@ begin
   SetButtonCaption(YarnButton, 'yarn');
   SetButtonCaption(PnpmButton, 'pnpm');
   SetButtonCaption(EditorButton, 'Editor');
+  SetButtonCaption(UpdateButton, 'Update');
   SetButtonCaption(SaveConfigButton, 'Save Config');
   SetButtonCaption(GenerateSslButton, 'Generate SSL');
   SetButtonCaption(CopyDiagnosticReportButton, 'Copy Report');
@@ -1768,6 +1796,7 @@ begin
   FMainPhpVersionItems.Free;
   FMenuIconIndices.Free;
   FIconCache.Free;
+  FUpdateManifestDialog.Free;
   FRuntime.Free;
   FConfig.Free;
   inherited;
@@ -3056,6 +3085,23 @@ var
 begin
   ResultInfo := FRuntime.LaunchEditor;
   AppendStatus(ResultInfo.Message);
+end;
+
+procedure TMainForm.StageUpdateClick(Sender: TObject);
+var
+  StagingDir: string;
+  MetadataFileName: string;
+  ResultInfo: TRuntimeActionResult;
+begin
+  if not FUpdateManifestDialog.Execute then
+    Exit;
+  if FRuntime.StageUpdateManifest(FUpdateManifestDialog.FileName, StagingDir, MetadataFileName, ResultInfo.Message) then
+  begin
+    AppendStatus('Update staged to ' + StagingDir);
+    AppendStatus('Staging metadata written to ' + MetadataFileName);
+  end
+  else
+    AppendStatus(ResultInfo.Message);
 end;
 
 procedure TMainForm.CopyDiagnosticReportClick(Sender: TObject);
