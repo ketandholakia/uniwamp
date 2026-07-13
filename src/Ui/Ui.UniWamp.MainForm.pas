@@ -910,7 +910,7 @@ begin
   FVHostFilterLabel := TLabel.Create(Self);
   FVHostFilterLabel.Parent := Label11;
   FVHostFilterLabel.Left := 12;
-  FVHostFilterLabel.Top := 12;
+  FVHostFilterLabel.Top := 10;
   FVHostFilterLabel.Caption := 'Filter';
   FVHostFilterLabel.Font.Name := 'Segoe UI';
   FVHostFilterLabel.Font.Size := 9;
@@ -919,7 +919,7 @@ begin
   FVHostFilterEdit := TEdit.Create(Self);
   FVHostFilterEdit.Parent := Label11;
   FVHostFilterEdit.Left := 428;
-  FVHostFilterEdit.Top := 8;
+  FVHostFilterEdit.Top := 7;
   FVHostFilterEdit.Width := 220;
   FVHostFilterEdit.TextHint := 'Type a site name or document path';
   FVHostFilterEdit.Hint := BuildToolPanelHint('Filter vHosts',
@@ -930,7 +930,7 @@ begin
   FVHostFilterClearLabel := TLabel.Create(Self);
   FVHostFilterClearLabel.Parent := Label11;
   FVHostFilterClearLabel.Left := 658;
-  FVHostFilterClearLabel.Top := 12;
+  FVHostFilterClearLabel.Top := 10;
   FVHostFilterClearLabel.Caption := 'Clear';
   FVHostFilterClearLabel.Cursor := crHandPoint;
   FVHostFilterClearLabel.Font.Name := 'Segoe UI';

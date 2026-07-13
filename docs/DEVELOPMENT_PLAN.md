@@ -196,6 +196,7 @@ Completed:
 - Fixed terminal environment generation so vHost launches report the selected folder instead of the default root path.
 - Added a shared web-tool readiness guard so Dashboard and Adminer refuse to open unless Apache, MariaDB, and PHP are ready.
 - Set the desktop app to start maximized so the main dashboard opens in a full window by default.
+- Aligned the vHost header filter controls so the title, filter field, and clear action share a consistent baseline.
 - Added process harness coverage for the vHost filter clear hint wording.
 - Added process harness coverage for the vHost filter search hint wording.
 - Added process harness coverage for the always-on status-bar hint wording.
