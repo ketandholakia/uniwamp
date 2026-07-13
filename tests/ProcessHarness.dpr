@@ -1502,6 +1502,66 @@ begin
   end;
 end;
 
+procedure TestStageValidatedUpdatePackageBuildsTheWorkspace;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  ManifestPath: string;
+  PackagePath: string;
+  StagingDir: string;
+  MetadataFileName: string;
+  ErrorMessage: string;
+  Zip: TZipFile;
+  JsonValue: TJSONValue;
+  JsonObject: TJSONObject;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-stage-update-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        PackagePath := TPath.Combine(RootDir, 'runtime.zip');
+        Zip := TZipFile.Create;
+        try
+          Zip.Open(PackagePath, zmWrite);
+          Zip.Add(TPath.GetTempFileName, 'payload.txt');
+          Zip.Close;
+        finally
+          Zip.Free;
+        end;
+        ManifestPath := TPath.Combine(RootDir, 'update.json');
+        TFile.WriteAllText(ManifestPath,
+          '{"packageFileName":"runtime.zip","expectedSha256":"' + Runtime.ComputeFileSha256Hex(PackagePath) + '","packageVersion":"1.0.0"}',
+          TEncoding.UTF8);
+        AssertTrue(Runtime.StageValidatedUpdatePackage(ManifestPath, StagingDir, MetadataFileName, ErrorMessage), ErrorMessage);
+        AssertTrue(TDirectory.Exists(StagingDir), 'Staging directory should be created');
+        AssertTrue(TFile.Exists(TPath.Combine(StagingDir, 'payload.txt')), 'Payload should be extracted into the staging directory');
+        AssertTrue(TFile.Exists(MetadataFileName), 'Staging metadata should be written');
+        JsonValue := TJSONObject.ParseJSONValue(TFile.ReadAllText(MetadataFileName, TEncoding.UTF8));
+        try
+          AssertTrue(JsonValue is TJSONObject, 'Staging metadata should be valid JSON');
+          JsonObject := TJSONObject(JsonValue);
+          AssertTrue(JsonObject.GetValue<string>('packageVersion', '') = '1.0.0', 'Metadata should include the package version');
+        finally
+          JsonValue.Free;
+        end;
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestRuntimeZipValidationAcceptsNonEmptyZipArchives;
 var
   RootDir: string;
@@ -1875,6 +1935,7 @@ begin
   TestValidateUpdateManifestReadsTheExpectedFields;
   TestWriteUpdateStagingMetadataCreatesTheExpectedJson;
   TestCleanupUpdateWorkspaceRemovesExistingDirectory;
+  TestStageValidatedUpdatePackageBuildsTheWorkspace;
   TestRuntimeZipValidationAcceptsNonEmptyZipArchives;
   TestRuntimeZipImportExtractsArchiveContents;
   TestUpdateStagingAreaCreatesPortableWorkspace;

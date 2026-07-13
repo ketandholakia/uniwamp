@@ -94,8 +94,10 @@ type
     function ValidateUpdateManifest(const ManifestFileName: string; out PackageFileName, ExpectedSha256, PackageVersion: string; out ErrorMessage: string): Boolean;
     function WriteUpdateStagingMetadata(const StagingDir, PackageFileName, ExpectedSha256, PackageVersion: string; out MetadataFileName, ErrorMessage: string): Boolean;
     function CleanupUpdateWorkspace(const WorkspaceDir: string; out ErrorMessage: string): Boolean;
+    function StageValidatedUpdatePackage(const ManifestFileName: string; out StagingDir, MetadataFileName, ErrorMessage: string): Boolean;
     function ValidateRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
     function ImportRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
+    function ImportRuntimeZipArchiveInto(const ZipFileName, TargetDir: string; out ErrorMessage: string): Boolean;
     function PrepareUpdateStagingArea(const PackageName: string; out StagingDir: string; out ErrorMessage: string): Boolean;
     function CreateUpdateRollbackSnapshot(const StagingDir, SnapshotName: string; out SnapshotDir: string; out ErrorMessage: string): Boolean;
     function RollbackUpdateStagingArea(const SnapshotDir, RestoreDir: string; out ErrorMessage: string): Boolean;
@@ -569,7 +571,41 @@ begin
   end;
 end;
 
+function TUniWampRuntime.StageValidatedUpdatePackage(const ManifestFileName: string; out StagingDir, MetadataFileName, ErrorMessage: string): Boolean;
+var
+  PackageFileName: string;
+  ExpectedSha256: string;
+  PackageVersion: string;
+  PackagePath: string;
+begin
+  Result := False;
+  ErrorMessage := '';
+  StagingDir := '';
+  MetadataFileName := '';
+
+  if not ValidateUpdateManifest(ManifestFileName, PackageFileName, ExpectedSha256, PackageVersion, ErrorMessage) then
+    Exit;
+
+  PackagePath := TPath.Combine(ExtractFileDir(ManifestFileName), PackageFileName);
+  if not ValidatePackageSha256(PackagePath, ExpectedSha256, ErrorMessage) then
+    Exit;
+  if not ValidateRuntimeZipArchive(PackagePath, ErrorMessage) then
+    Exit;
+  if not PrepareUpdateStagingArea(PackageVersion, StagingDir, ErrorMessage) then
+    Exit;
+  if not ImportRuntimeZipArchiveInto(PackagePath, StagingDir, ErrorMessage) then
+    Exit;
+  if not WriteUpdateStagingMetadata(StagingDir, PackageFileName, ExpectedSha256, PackageVersion, MetadataFileName, ErrorMessage) then
+    Exit;
+  Result := True;
+end;
+
 function TUniWampRuntime.ImportRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
+begin
+  Result := ImportRuntimeZipArchiveInto(ZipFileName, FPaths.AppRoot, ErrorMessage);
+end;
+
+function TUniWampRuntime.ImportRuntimeZipArchiveInto(const ZipFileName, TargetDir: string; out ErrorMessage: string): Boolean;
 var
   Zip: TZipFile;
 begin
@@ -582,7 +618,7 @@ begin
   try
     try
       Zip.Open(ZipFileName, zmRead);
-      Zip.ExtractAll(FPaths.AppRoot);
+      Zip.ExtractAll(TargetDir);
       Result := True;
     except
       on E: Exception do
