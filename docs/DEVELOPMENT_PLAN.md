@@ -203,6 +203,7 @@ Completed:
 - Added a generic editor launcher in the tool panel for repository maintenance workflows.
 - Added update workspace cleanup support for staged updater maintenance.
 - Added end-to-end staged update orchestration that validates, hashes, extracts, and records package metadata.
+- Added staged update promotion support for copying verified workspaces into a target install directory.
 
 ## Priority model
 

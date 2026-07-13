@@ -1562,6 +1562,43 @@ begin
   end;
 end;
 
+procedure TestPromoteStagedUpdateCopiesWorkspaceIntoTarget;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  StagingDir: string;
+  TargetDir: string;
+  ErrorMessage: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-promote-update-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        StagingDir := TPath.Combine(Paths.UpdatesDir, 'staging');
+        TDirectory.CreateDirectory(StagingDir);
+        TFile.WriteAllText(TPath.Combine(StagingDir, 'payload.txt'), 'payload', TEncoding.ASCII);
+        TargetDir := TPath.Combine(RootDir, 'promoted');
+        AssertTrue(Runtime.PromoteStagedUpdate(StagingDir, TargetDir, ErrorMessage), ErrorMessage);
+        AssertTrue(TFile.Exists(TPath.Combine(TargetDir, 'payload.txt')),
+          'Promoted update should copy the staged payload into the target');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestRuntimeZipValidationAcceptsNonEmptyZipArchives;
 var
   RootDir: string;
@@ -1936,6 +1973,7 @@ begin
   TestWriteUpdateStagingMetadataCreatesTheExpectedJson;
   TestCleanupUpdateWorkspaceRemovesExistingDirectory;
   TestStageValidatedUpdatePackageBuildsTheWorkspace;
+  TestPromoteStagedUpdateCopiesWorkspaceIntoTarget;
   TestRuntimeZipValidationAcceptsNonEmptyZipArchives;
   TestRuntimeZipImportExtractsArchiveContents;
   TestUpdateStagingAreaCreatesPortableWorkspace;

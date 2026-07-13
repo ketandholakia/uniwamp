@@ -95,6 +95,7 @@ type
     function WriteUpdateStagingMetadata(const StagingDir, PackageFileName, ExpectedSha256, PackageVersion: string; out MetadataFileName, ErrorMessage: string): Boolean;
     function CleanupUpdateWorkspace(const WorkspaceDir: string; out ErrorMessage: string): Boolean;
     function StageValidatedUpdatePackage(const ManifestFileName: string; out StagingDir, MetadataFileName, ErrorMessage: string): Boolean;
+    function PromoteStagedUpdate(const StagingDir, TargetDir: string; out ErrorMessage: string): Boolean;
     function ValidateRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
     function ImportRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
     function ImportRuntimeZipArchiveInto(const ZipFileName, TargetDir: string; out ErrorMessage: string): Boolean;
@@ -598,6 +599,32 @@ begin
   if not WriteUpdateStagingMetadata(StagingDir, PackageFileName, ExpectedSha256, PackageVersion, MetadataFileName, ErrorMessage) then
     Exit;
   Result := True;
+end;
+
+function TUniWampRuntime.PromoteStagedUpdate(const StagingDir, TargetDir: string; out ErrorMessage: string): Boolean;
+begin
+  Result := False;
+  ErrorMessage := '';
+  if not TDirectory.Exists(StagingDir) then
+  begin
+    ErrorMessage := 'Staging directory not found: ' + StagingDir;
+    Exit;
+  end;
+  if Trim(TargetDir) = '' then
+  begin
+    ErrorMessage := 'Target directory is required.';
+    Exit;
+  end;
+  try
+    if TDirectory.Exists(TargetDir) then
+      TDirectory.Delete(TargetDir, True);
+    TDirectory.CreateDirectory(TPath.GetDirectoryName(TargetDir));
+    TDirectory.Copy(StagingDir, TargetDir);
+    Result := True;
+  except
+    on E: Exception do
+      ErrorMessage := 'Staged update promotion failed: ' + E.Message;
+  end;
 end;
 
 function TUniWampRuntime.ImportRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
