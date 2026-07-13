@@ -2547,14 +2547,17 @@ end;
 procedure TMainForm.CopyActivityLogClick(Sender: TObject);
 var
   LogFile: string;
+  LogText: string;
+  MemoText: string;
 begin
   LogFile := TPath.Combine(FPaths.LogsDir, 'activity.log');
+  LogText := '';
   if FileExists(LogFile) then
-    Clipboard.AsText := TFile.ReadAllText(LogFile, TEncoding.UTF8)
-  else if Assigned(FActivityMemo) then
-    Clipboard.AsText := FActivityMemo.Text
-  else
-    Clipboard.AsText := '';
+    LogText := TFile.ReadAllText(LogFile, TEncoding.UTF8);
+  MemoText := '';
+  if Assigned(FActivityMemo) then
+    MemoText := FActivityMemo.Text;
+  Clipboard.AsText := ChooseActivityLogClipboardText(LogText, MemoText);
   AppendStatus('Activity log copied to clipboard.');
 end;
 

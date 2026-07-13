@@ -7,6 +7,7 @@ uses
 
 procedure AppendRotatedLogLine(const FileName, Text: string; const MaxLines: Integer = 500);
 function RedactSensitiveText(const Text: string): string;
+function ChooseActivityLogClipboardText(const LogFileText, MemoText: string): string;
 
 implementation
 
@@ -39,6 +40,15 @@ begin
   Result := RedactValueAfterKey(Result, 'pass=');
   Result := RedactValueAfterKey(Result, 'token=');
   Result := RedactValueAfterKey(Result, 'secret=');
+end;
+
+function ChooseActivityLogClipboardText(const LogFileText, MemoText: string): string;
+begin
+  if Trim(LogFileText) <> '' then
+    Exit(LogFileText);
+  if Trim(MemoText) <> '' then
+    Exit(MemoText);
+  Result := '';
 end;
 
 procedure TrimLogFileToRecentLines(const FileName: string; const MaxLines: Integer);

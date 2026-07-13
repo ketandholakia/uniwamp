@@ -134,6 +134,8 @@ Completed:
 - Verified the password workflow fails fast when MariaDB is stopped.
 - Added process harness coverage for diagnostic report port-owner reporting on occupied ports.
 - Verified the copied diagnostic snapshot includes a non-empty owner line when a port is bound.
+- Added process harness coverage for activity-log clipboard selection fallback logic.
+- Verified the copy workflow prefers the log file content, then the live memo, then empty output.
 
 ## Phase 6: Dashboard and workflow quality
 

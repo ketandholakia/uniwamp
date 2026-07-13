@@ -1089,6 +1089,18 @@ begin
   end;
 end;
 
+procedure TestActivityLogClipboardSelectionPrefersLogFileThenMemo;
+begin
+  AssertTrue(ChooseActivityLogClipboardText('log line 1', 'memo line 1') = 'log line 1',
+    'Log file text should win when present');
+  AssertTrue(ChooseActivityLogClipboardText('', 'memo line 1') = 'memo line 1',
+    'Memo text should be used when the log file is empty');
+  AssertTrue(ChooseActivityLogClipboardText('   ', 'memo line 1') = 'memo line 1',
+    'Whitespace-only log file text should fall back to the memo');
+  AssertTrue(ChooseActivityLogClipboardText('', '') = '',
+    'Empty inputs should return an empty clipboard payload');
+end;
+
 procedure TestMariaDbRootPasswordRequiresRunningService;
 var
   RootDir: string;
@@ -1154,6 +1166,7 @@ begin
     TestDiagnosticReportIncludesState;
     TestDiagnosticReportOmitsSensitiveValues;
     TestDiagnosticReportIncludesPortOwnersForOccupiedPorts;
+    TestActivityLogClipboardSelectionPrefersLogFileThenMemo;
     TestMariaDbRootPasswordRequiresRunningService;
     Writeln('Process harness passed.');
   except
