@@ -135,13 +135,14 @@ To open or manage an existing host:
 
 After adding or deleting a host, UniWamp regenerates the vhost config and, if Apache is running, reloads Apache.
 
-## 8. Local Site, Adminer, And Terminal
+## 8. Local Site, Adminer, Terminal, And Diagnostics
 
 Use the action buttons near the bottom of the window:
 
 - `Generate SSL`
 - `Web Dashboard`
-- `Adminer`
+- `Open Adminer`
+- `Open Site`
 - `Terminal`
 - `Copy Report`
 - `Copy Activity`
@@ -161,6 +162,8 @@ The diagnostic report includes current paths, versions, service state, ports, vh
 - `Open Site` opens the local root site
 - `Open Adminer` opens Adminer if `home/adminer/index.php` exists
 - `Terminal` launches the configured terminal executable
+- `Copy Report` copies a redacted diagnostic snapshot to the clipboard
+- `Copy Activity` copies the current activity log to the clipboard
 
 Web dashboard navigation:
 
