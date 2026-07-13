@@ -113,6 +113,7 @@ type
     NodeButton: TPanel;
     WpCliButton: TPanel;
     MailpitButton: TPanel;
+    RedisButton: TPanel;
 
   published
     HeaderPanel: TPanel;
@@ -248,6 +249,7 @@ type
     procedure LaunchNodeClick(Sender: TObject);
     procedure LaunchWpCliClick(Sender: TObject);
     procedure LaunchMailpitClick(Sender: TObject);
+    procedure LaunchRedisClick(Sender: TObject);
     procedure GenerateSslClick(Sender: TObject);
     procedure OpenApacheLogClick(Sender: TObject);
     procedure OpenMariaDbLogClick(Sender: TObject);
@@ -1027,6 +1029,25 @@ begin
   MailpitButton.Hint := BuildToolPanelHint('Launch Mailpit from the UniWamp application root',
     'Opens Mailpit when mailpit.exe is available on PATH.');
   MailpitButton.ShowHint := True;
+  RedisButton := TPanel.Create(Self);
+  RedisButton.Parent := pnltools;
+  RedisButton.SetBounds(10, 73, 84, 24);
+  RedisButton.Cursor := crHandPoint;
+  RedisButton.BevelOuter := bvNone;
+  RedisButton.Caption := 'Redis';
+  RedisButton.Color := 16053492;
+  RedisButton.Font.Charset := DEFAULT_CHARSET;
+  RedisButton.Font.Color := clWindowText;
+  RedisButton.Font.Height := -11;
+  RedisButton.Font.Name := 'Segoe UI';
+  RedisButton.Font.Style := [fsBold];
+  RedisButton.ParentBackground := False;
+  RedisButton.ParentFont := False;
+  RedisButton.TabOrder := 11;
+  RedisButton.OnClick := LaunchRedisClick;
+  RedisButton.Hint := BuildToolPanelHint('Launch Redis from the UniWamp application root',
+    'Opens redis-server.exe when available on PATH.');
+  RedisButton.ShowHint := True;
   SaveConfigButton.OnClick := SaveConfigClick;
   SaveConfigButton.Hint := BuildToolPanelHint('Save configuration',
     'Persists the current dashboard settings to config/uniwamp.json.');
@@ -1213,6 +1234,7 @@ begin
   ApplyPanelIcon(NodeButton, 'dns');
   ApplyPanelIcon(WpCliButton, 'wordpress');
   ApplyPanelIcon(MailpitButton, 'mail');
+  ApplyPanelIcon(RedisButton, 'dns');
   ApplyPanelIcon(CopyDiagnosticReportButton, 'description');
   ApplyPanelIcon(CopyActivityLogButton, 'content_copy');
   ApplyPanelIcon(OpenPhpExtensionsButton, 'extension');
@@ -1240,6 +1262,7 @@ begin
   SetButtonCaption(NodeButton, 'Node');
   SetButtonCaption(WpCliButton, 'WP-CLI');
   SetButtonCaption(MailpitButton, 'Mailpit');
+  SetButtonCaption(RedisButton, 'Redis');
   SetButtonCaption(SaveConfigButton, 'Save Config');
   SetButtonCaption(GenerateSslButton, 'Generate SSL');
   SetButtonCaption(CopyDiagnosticReportButton, 'Copy Report');
@@ -2869,6 +2892,14 @@ var
   ResultInfo: TRuntimeActionResult;
 begin
   ResultInfo := FRuntime.LaunchMailpit;
+  AppendStatus(ResultInfo.Message);
+end;
+
+procedure TMainForm.LaunchRedisClick(Sender: TObject);
+var
+  ResultInfo: TRuntimeActionResult;
+begin
+  ResultInfo := FRuntime.LaunchRedis;
   AppendStatus(ResultInfo.Message);
 end;
 

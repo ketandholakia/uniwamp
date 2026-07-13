@@ -81,6 +81,7 @@ type
     function LaunchNodeInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function LaunchWpCliInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function LaunchMailpit: TRuntimeActionResult;
+    function LaunchRedis: TRuntimeActionResult;
     function PreferredTextEditorExecutable: string;
     function LaunchTextEditor(const FileName: string): TRuntimeActionResult;
     function ComputeFileSha256Hex(const FileName: string): string;
@@ -567,6 +568,31 @@ begin
     Result.Message := 'Mailpit launched'
   else
     Result.Message := 'Failed to launch Mailpit';
+end;
+
+function TUniWampRuntime.LaunchRedis: TRuntimeActionResult;
+var
+  RedisExe: string;
+  Buffer: array[0..MAX_PATH] of Char;
+  BufferSize: DWORD;
+  FilePart: PChar;
+begin
+  RedisExe := '';
+  FilePart := nil;
+  BufferSize := SearchPath(nil, 'redis-server.exe', nil, Length(Buffer), Buffer, FilePart);
+  if BufferSize > 0 then
+    RedisExe := Buffer;
+  if RedisExe = '' then
+  begin
+    Result.Success := False;
+    Result.Message := 'Redis was not found on PATH.';
+    Exit;
+  end;
+  Result.Success := ShellExecute(0, 'open', PChar(RedisExe), nil, PChar(FPaths.AppRoot), SW_SHOWNORMAL) > 32;
+  if Result.Success then
+    Result.Message := 'Redis launched'
+  else
+    Result.Message := 'Failed to launch Redis';
 end;
 
 function TUniWampRuntime.PrepareUpdateStagingArea(const PackageName: string; out StagingDir: string; out ErrorMessage: string): Boolean;

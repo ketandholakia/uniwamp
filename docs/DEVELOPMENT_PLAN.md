@@ -192,6 +192,7 @@ Completed:
 - Added a Node launcher in the tool panel for repository-root maintenance workflows.
 - Added a WP-CLI launcher in the tool panel for WordPress repository workflows.
 - Added a Mailpit launcher in the tool panel for local mail-preview workflows.
+- Added a Redis launcher in the tool panel for local cache/service workflows.
 
 ## Priority model
 
