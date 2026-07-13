@@ -101,6 +101,7 @@ type
     Panel11: TPanel;
     Panel13: TPanel;
     CopyDiagnosticReportButton: TPanel;
+    CopyActivityLogButton: TPanel;
     OpenPhpExtensionsButton: TPanel;
     OpenPhpSettingsButton: TPanel;
     OpenApacheModulesButton: TPanel;
@@ -221,6 +222,7 @@ type
   procedure LaunchDashboardClick(Sender: TObject);
   procedure LaunchAdminerClick(Sender: TObject);
     procedure CopyDiagnosticReportClick(Sender: TObject);
+    procedure CopyActivityLogClick(Sender: TObject);
     procedure OpenPhpExtensionsClick(Sender: TObject);
     procedure OpenPhpSettingsClick(Sender: TObject);
     procedure OpenApacheModulesClick(Sender: TObject);
@@ -797,6 +799,19 @@ begin
   CopyDiagnosticReportButton.TabOrder := 8;
   CopyDiagnosticReportButton.TabStop := True;
   CopyDiagnosticReportButton.OnClick := CopyDiagnosticReportClick;
+  CopyActivityLogButton := TPanel.Create(Self);
+  CopyActivityLogButton.Parent := pnltools;
+  CopyActivityLogButton.SetBounds(277, 41, 150, 24);
+  CopyActivityLogButton.Cursor := crHandPoint;
+  CopyActivityLogButton.BevelOuter := bvNone;
+  CopyActivityLogButton.Caption := 'Copy Activity';
+  CopyActivityLogButton.Color := 16053492;
+  CopyActivityLogButton.Font.Assign(GenerateSslButton.Font);
+  CopyActivityLogButton.ParentBackground := False;
+  CopyActivityLogButton.ParentFont := False;
+  CopyActivityLogButton.TabOrder := 9;
+  CopyActivityLogButton.TabStop := True;
+  CopyActivityLogButton.OnClick := CopyActivityLogClick;
   Panel8.OnClick := LaunchDashboardClick;
   Panel8.TabStop := True;
   Panel8.TabOrder := 1;
@@ -879,6 +894,7 @@ begin
   ApplyPanelIcon(GenerateSslButton, 'lock');
   ApplyPanelIcon(LaunchTerminalButton, 'terminal');
   ApplyPanelIcon(CopyDiagnosticReportButton, 'description');
+  ApplyPanelIcon(CopyActivityLogButton, 'content_copy');
   ApplyPanelIcon(OpenPhpExtensionsButton, 'extension');
   ApplyPanelIcon(OpenPhpSettingsButton, 'settings');
   ApplyPanelIcon(OpenApacheModulesButton, 'dns');
@@ -901,6 +917,7 @@ begin
   SetButtonCaption(SaveConfigButton, 'Save Config');
   SetButtonCaption(GenerateSslButton, 'Generate SSL');
   SetButtonCaption(CopyDiagnosticReportButton, 'Copy Report');
+  SetButtonCaption(CopyActivityLogButton, 'Copy Activity');
   SetButtonCaption(OpenApacheLogButton, 'Apache Log');
   SetButtonCaption(OpenMariaLogButton, 'MariaDB Log');
   SetButtonCaption(ClearApacheLogButton, 'Clear Apache');
@@ -1194,6 +1211,8 @@ begin
   Item.ShortCut := ShortCut(Ord('T'), [ssCtrl]);
   Item := AddItem(MenuItem, '&Copy Diagnostic Report', CopyDiagnosticReportClick);
   Item.ShortCut := ShortCut(Ord('R'), [ssCtrl, ssShift]);
+  Item := AddItem(MenuItem, 'Copy &Activity Log', CopyActivityLogClick);
+  Item.ShortCut := ShortCut(Ord('A'), [ssCtrl, ssShift]);
   Item := AddItem(MenuItem, 'Apache &Log', OpenApacheLogClick);
   Item.ShortCut := ShortCut(Ord('L'), [ssCtrl]);
   Item := AddItem(MenuItem, 'MariaDB &Log', OpenMariaDbLogClick);
@@ -2418,6 +2437,20 @@ procedure TMainForm.CopyDiagnosticReportClick(Sender: TObject);
 begin
   Clipboard.AsText := FRuntime.BuildDiagnosticReport;
   AppendStatus('Diagnostic report copied to clipboard.');
+end;
+
+procedure TMainForm.CopyActivityLogClick(Sender: TObject);
+var
+  LogFile: string;
+begin
+  LogFile := TPath.Combine(FPaths.LogsDir, 'activity.log');
+  if FileExists(LogFile) then
+    Clipboard.AsText := TFile.ReadAllText(LogFile, TEncoding.UTF8)
+  else if Assigned(FActivityMemo) then
+    Clipboard.AsText := FActivityMemo.Text
+  else
+    Clipboard.AsText := '';
+  AppendStatus('Activity log copied to clipboard.');
 end;
 
 procedure TMainForm.GenerateSslClick(Sender: TObject);
