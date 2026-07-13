@@ -2719,12 +2719,12 @@ end;
 
 procedure TMainForm.OpenApacheLogClick(Sender: TObject);
 begin
-  ShellExecute(0, 'open', 'notepad.exe', PChar(TPath.Combine(FPaths.LogsDir, 'apache-error.log')), nil, SW_SHOWNORMAL);
+  AppendStatus(FRuntime.LaunchTextEditor(TPath.Combine(FPaths.LogsDir, 'apache-error.log')).Message);
 end;
 
 procedure TMainForm.OpenMariaDbLogClick(Sender: TObject);
 begin
-  ShellExecute(0, 'open', 'notepad.exe', PChar(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log')), nil, SW_SHOWNORMAL);
+  AppendStatus(FRuntime.LaunchTextEditor(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log')).Message);
 end;
 
 procedure TMainForm.ClearLogFile(const FileName, DisplayName: string);
@@ -2758,7 +2758,7 @@ begin
     AppendStatus('Activity log is not available yet.');
     Exit;
   end;
-  ShellExecute(0, 'open', 'notepad.exe', PChar(LogFile), nil, SW_SHOWNORMAL);
+  AppendStatus(FRuntime.LaunchTextEditor(LogFile).Message);
 end;
 
 procedure TMainForm.AddVHostClick(Sender: TObject);

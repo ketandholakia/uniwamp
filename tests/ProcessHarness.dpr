@@ -1292,6 +1292,19 @@ begin
     finally
       Config.Free;
     end;
+    SetEnvironmentVariable('EDITOR', '');
+    Config := TUniWampConfig.Create;
+    try
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        AssertTrue(SameText(Runtime.PreferredTextEditorExecutable, 'notepad.exe'),
+          'Missing EDITOR should fall back to Notepad');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
   finally
     SetEnvironmentVariable('EDITOR', PChar(OldEditor));
     TDirectory.Delete(RootDir, True);

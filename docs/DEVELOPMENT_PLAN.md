@@ -178,6 +178,7 @@ Completed:
 - Added process harness coverage for the header overview hint wording.
 - Added process harness coverage for the header overview region hint wording.
 - Added process harness coverage for preferred text-editor selection via `EDITOR`.
+- Added process harness coverage for the text-editor fallback defaulting to Notepad.
 
 ## Priority model
 
