@@ -1208,6 +1208,17 @@ begin
     'Activity copy hint should describe the clipboard text');
 end;
 
+procedure TestStatusBarHintExplainsMariaDbAttention;
+begin
+  AssertTrue(
+    BuildStatusBarHint('MariaDB stopped unexpectedly') =
+      'Status summary' + sLineBreak + 'MariaDB requires attention: MariaDB stopped unexpectedly',
+    'Status bar hint should explain when MariaDB needs attention');
+  AssertTrue(
+    BuildStatusBarHint('') = 'Status summary',
+    'Status bar hint should stay short when there is no error');
+end;
+
 procedure TestDiagnosticReportUsesConsistentServiceStateLabels;
 var
   RootDir: string;
@@ -1387,6 +1398,7 @@ begin
   TestPrimaryActionHintsCoverSaveAndSslActions;
   TestConfigEditorHintsDescribeGeneratedConfigTargets;
   TestCopyActionHintsUseConsistentClipboardLanguage;
+  TestStatusBarHintExplainsMariaDbAttention;
   TestDiagnosticReportUsesConsistentServiceStateLabels;
   TestGeneratedEnvBatDoesNotStartWithUtf8Bom;
   TestTerminalExecutablePathResolvesRelativeConfigValues;

@@ -267,6 +267,7 @@ type
 function BuildVHostEmptyStateCaption(const FilterText: string): string;
 function DetectProjectTypeLabel(const DocumentRoot: string): string;
 function BuildToolPanelHint(const ActionName, DetailText: string): string;
+function BuildStatusBarHint(const ErrorMessage: string): string;
 
 var
   MainForm: TMainForm;
@@ -405,6 +406,13 @@ begin
   Result := ActionName;
   if Trim(DetailText) <> '' then
     Result := Result + sLineBreak + DetailText;
+end;
+
+function BuildStatusBarHint(const ErrorMessage: string): string;
+begin
+  Result := 'Status summary';
+  if Trim(ErrorMessage) <> '' then
+    Result := Result + sLineBreak + 'MariaDB requires attention: ' + Trim(ErrorMessage);
 end;
 
 function IsDarkColor(const AColor: TColor): Boolean;
@@ -1841,7 +1849,7 @@ begin
       MariaDbSummary,
       []);
     StatusBar.ShowHint := True;
-    StatusBar.Hint := FConfig.LastMariaDbError;
+    StatusBar.Hint := BuildStatusBarHint(FConfig.LastMariaDbError);
   end
   else
   begin
