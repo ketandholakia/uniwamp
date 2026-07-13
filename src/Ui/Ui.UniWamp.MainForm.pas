@@ -749,6 +749,8 @@ begin
   FVHostEmptyLabel.Font.Size := 11;
   FVHostEmptyLabel.Font.Color := clGrayText;
   FVHostEmptyLabel.Caption := 'No projects or vHosts found.' + sLineBreak + 'Use Add to create your first project.';
+  FVHostEmptyLabel.Hint := 'Click Add to create a new project or vHost.';
+  FVHostEmptyLabel.ShowHint := True;
   FVHostEmptyLabel.Visible := False;
   FActivityMemo := TMemo.Create(Self);
   FActivityMemo.Parent := FActivityCard;
@@ -1687,6 +1689,7 @@ begin
   if Assigned(FVHostEmptyLabel) then
   begin
     FVHostEmptyLabel.Visible := not HasVHosts;
+    FVHostEmptyLabel.ShowHint := not HasVHosts;
     if FVHostEmptyLabel.Visible then
       FVHostEmptyLabel.BringToFront;
   end;
