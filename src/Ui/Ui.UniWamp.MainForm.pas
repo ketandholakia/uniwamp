@@ -996,12 +996,21 @@ begin
   Panel11.TabStop := True;
   Panel11.TabOrder := 18;
   EditPhpIniButton.OnClick := EditPhpIniClick;
+  EditPhpIniButton.Hint := BuildToolPanelHint('Edit php.ini',
+    'Opens the generated PHP configuration for the active runtime.');
+  EditPhpIniButton.ShowHint := True;
   EditPhpIniButton.TabStop := True;
   EditPhpIniButton.TabOrder := 19;
   EditHttpdConfButton.OnClick := EditHttpdConfClick;
+  EditHttpdConfButton.Hint := BuildToolPanelHint('Edit httpd.conf',
+    'Opens the generated Apache configuration.');
+  EditHttpdConfButton.ShowHint := True;
   EditHttpdConfButton.TabStop := True;
   EditHttpdConfButton.TabOrder := 20;
   EditMariaDbIniButton.OnClick := EditMariaDbIniClick;
+  EditMariaDbIniButton.Hint := BuildToolPanelHint('Edit mariadb.ini',
+    'Opens the generated MariaDB configuration.');
+  EditMariaDbIniButton.ShowHint := True;
   EditMariaDbIniButton.TabStop := True;
   EditMariaDbIniButton.TabOrder := 21;
   StopAllButton.OnClick := StopButtonClick;

@@ -1180,6 +1180,22 @@ begin
     'SSL hint should explain the generated certificate pair');
 end;
 
+procedure TestConfigEditorHintsDescribeGeneratedConfigTargets;
+begin
+  AssertTrue(
+    BuildToolPanelHint('Edit php.ini', 'Opens the generated PHP configuration for the active runtime.') =
+      'Edit php.ini' + sLineBreak + 'Opens the generated PHP configuration for the active runtime.',
+    'PHP config hint should describe the generated target');
+  AssertTrue(
+    BuildToolPanelHint('Edit httpd.conf', 'Opens the generated Apache configuration.') =
+      'Edit httpd.conf' + sLineBreak + 'Opens the generated Apache configuration.',
+    'Apache config hint should describe the generated target');
+  AssertTrue(
+    BuildToolPanelHint('Edit mariadb.ini', 'Opens the generated MariaDB configuration.') =
+      'Edit mariadb.ini' + sLineBreak + 'Opens the generated MariaDB configuration.',
+    'MariaDB config hint should describe the generated target');
+end;
+
 procedure TestDiagnosticReportUsesConsistentServiceStateLabels;
 var
   RootDir: string;
@@ -1357,6 +1373,7 @@ begin
   TestVHostToolPanelHintTextStaysActionFocused;
   TestLogToolPanelHintsDescribeTheUnderlyingAction;
   TestPrimaryActionHintsCoverSaveAndSslActions;
+  TestConfigEditorHintsDescribeGeneratedConfigTargets;
   TestDiagnosticReportUsesConsistentServiceStateLabels;
   TestGeneratedEnvBatDoesNotStartWithUtf8Bom;
   TestTerminalExecutablePathResolvesRelativeConfigValues;

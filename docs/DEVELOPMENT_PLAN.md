@@ -166,6 +166,7 @@ Completed:
 - Added process harness coverage for vHost action hints on add, delete, open, folder, and copy actions.
 - Added process harness coverage for log action hints on open and clear operations.
 - Added process harness coverage for primary action hints on save configuration and SSL generation.
+- Added process harness coverage for config editor hints on php.ini, httpd.conf, and mariadb.ini actions.
 
 ## Priority model
 
