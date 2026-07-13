@@ -414,6 +414,28 @@ begin
   end;
 end;
 
+procedure TestLogRedactionMasksSecrets;
+var
+  RootDir: string;
+  LogFile: string;
+  LogText: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-redact-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    LogFile := TPath.Combine(RootDir, 'activity.log');
+    AppendRotatedLogLine(LogFile, 'auth password=supersecret token=abc123 secret=top pass=letmein', 500);
+    LogText := TFile.ReadAllText(LogFile, TEncoding.UTF8);
+    AssertContains(LogText, 'password=[redacted]', 'Password should be redacted');
+    AssertContains(LogText, 'token=[redacted]', 'Token should be redacted');
+    AssertContains(LogText, 'secret=[redacted]', 'Secret should be redacted');
+    AssertContains(LogText, 'pass=[redacted]', 'Pass should be redacted');
+    AssertTrue(Pos('supersecret', LogText) = 0, 'Secret value should not remain in log text');
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 begin
   try
     TestMissingExecutable;
@@ -429,6 +451,7 @@ begin
     TestMissingRuntimeDependencies;
     TestManagedHostsSyncUsesOverride;
     TestRotatedLogAppendsAndTrims;
+    TestLogRedactionMasksSecrets;
     Writeln('Process harness passed.');
   except
     on E: Exception do

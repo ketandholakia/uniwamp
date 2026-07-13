@@ -6,12 +6,40 @@ uses
   System.SysUtils;
 
 procedure AppendRotatedLogLine(const FileName, Text: string; const MaxLines: Integer = 500);
+function RedactSensitiveText(const Text: string): string;
 
 implementation
 
 uses
   System.Classes,
   System.IOUtils;
+
+function RedactValueAfterKey(const Text, Key: string): string;
+var
+  StartPos: Integer;
+  EndPos: Integer;
+begin
+  Result := Text;
+  StartPos := Pos(LowerCase(Key), LowerCase(Result));
+  if StartPos = 0 then
+    Exit;
+
+  StartPos := StartPos + Length(Key);
+  EndPos := StartPos;
+  while (EndPos <= Length(Result)) and not CharInSet(Result[EndPos], [' ', #9, #13, #10, ';', '&']) do
+    Inc(EndPos);
+  Delete(Result, StartPos, EndPos - StartPos);
+  Insert('[redacted]', Result, StartPos);
+end;
+
+function RedactSensitiveText(const Text: string): string;
+begin
+  Result := Text;
+  Result := RedactValueAfterKey(Result, 'password=');
+  Result := RedactValueAfterKey(Result, 'pass=');
+  Result := RedactValueAfterKey(Result, 'token=');
+  Result := RedactValueAfterKey(Result, 'secret=');
+end;
 
 procedure TrimLogFileToRecentLines(const FileName: string; const MaxLines: Integer);
 var
@@ -44,7 +72,7 @@ var
   Lines: TStringList;
   LineCount: Integer;
 begin
-  TFile.AppendAllText(FileName, Text + sLineBreak, TEncoding.UTF8);
+  TFile.AppendAllText(FileName, RedactSensitiveText(Text) + sLineBreak, TEncoding.UTF8);
 
   if MaxLines <= 0 then
     Exit;
