@@ -942,7 +942,7 @@ begin
   FVHostFilterClearLabel.ShowHint := True;
   FVHostFilterClearLabel.OnClick := VHostFilterClearClick;
   Label11.Caption := 'Virtual hosts';
-  Label11.Height := 56;
+  Label11.Height := 68;
   Label11.Alignment := taLeftJustify;
   ToolGroupWebLabel := TPanel.Create(Self);
   ToolGroupWebLabel.Parent := pnltools;
@@ -1692,7 +1692,7 @@ const
   SideMargin = 8;
   RowGap = 4;
   GroupGap = 8;
-  ButtonHeight = 24;
+  ButtonHeight = 22;
   LabelHeight = 13;
 var
   ButtonWidth: Integer;
