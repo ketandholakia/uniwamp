@@ -117,6 +117,7 @@ type
     MemcachedButton: TPanel;
     NpmButton: TPanel;
     YarnButton: TPanel;
+    PnpmButton: TPanel;
 
   published
     HeaderPanel: TPanel;
@@ -256,6 +257,7 @@ type
     procedure LaunchMemcachedClick(Sender: TObject);
     procedure LaunchNpmClick(Sender: TObject);
     procedure LaunchYarnClick(Sender: TObject);
+    procedure LaunchPnpmClick(Sender: TObject);
     procedure GenerateSslClick(Sender: TObject);
     procedure OpenApacheLogClick(Sender: TObject);
     procedure OpenMariaDbLogClick(Sender: TObject);
@@ -1111,6 +1113,25 @@ begin
   YarnButton.Hint := BuildToolPanelHint('Launch yarn from the selected Node.js runtime',
     'Opens yarn.cmd from PATH in the UniWamp application root.');
   YarnButton.ShowHint := True;
+  PnpmButton := TPanel.Create(Self);
+  PnpmButton.Parent := pnltools;
+  PnpmButton.SetBounds(368, 73, 82, 24);
+  PnpmButton.Cursor := crHandPoint;
+  PnpmButton.BevelOuter := bvNone;
+  PnpmButton.Caption := 'pnpm';
+  PnpmButton.Color := 16053492;
+  PnpmButton.Font.Charset := DEFAULT_CHARSET;
+  PnpmButton.Font.Color := clWindowText;
+  PnpmButton.Font.Height := -11;
+  PnpmButton.Font.Name := 'Segoe UI';
+  PnpmButton.Font.Style := [fsBold];
+  PnpmButton.ParentBackground := False;
+  PnpmButton.ParentFont := False;
+  PnpmButton.TabOrder := 15;
+  PnpmButton.OnClick := LaunchPnpmClick;
+  PnpmButton.Hint := BuildToolPanelHint('Launch pnpm from the selected Node.js runtime',
+    'Opens pnpm.cmd from PATH in the UniWamp application root.');
+  PnpmButton.ShowHint := True;
   SaveConfigButton.OnClick := SaveConfigClick;
   SaveConfigButton.Hint := BuildToolPanelHint('Save configuration',
     'Persists the current dashboard settings to config/uniwamp.json.');
@@ -1301,6 +1322,7 @@ begin
   ApplyPanelIcon(MemcachedButton, 'dns');
   ApplyPanelIcon(NpmButton, 'dns');
   ApplyPanelIcon(YarnButton, 'dns');
+  ApplyPanelIcon(PnpmButton, 'dns');
   ApplyPanelIcon(CopyDiagnosticReportButton, 'description');
   ApplyPanelIcon(CopyActivityLogButton, 'content_copy');
   ApplyPanelIcon(OpenPhpExtensionsButton, 'extension');
@@ -1332,6 +1354,7 @@ begin
   SetButtonCaption(MemcachedButton, 'Memcached');
   SetButtonCaption(NpmButton, 'npm');
   SetButtonCaption(YarnButton, 'yarn');
+  SetButtonCaption(PnpmButton, 'pnpm');
   SetButtonCaption(SaveConfigButton, 'Save Config');
   SetButtonCaption(GenerateSslButton, 'Generate SSL');
   SetButtonCaption(CopyDiagnosticReportButton, 'Copy Report');
@@ -2993,6 +3016,14 @@ var
   ResultInfo: TRuntimeActionResult;
 begin
   ResultInfo := FRuntime.LaunchYarnInWorkingDir(FPaths.AppRoot);
+  AppendStatus(ResultInfo.Message);
+end;
+
+procedure TMainForm.LaunchPnpmClick(Sender: TObject);
+var
+  ResultInfo: TRuntimeActionResult;
+begin
+  ResultInfo := FRuntime.LaunchPnpmInWorkingDir(FPaths.AppRoot);
   AppendStatus(ResultInfo.Message);
 end;
 

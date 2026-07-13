@@ -82,6 +82,7 @@ type
     function LaunchWpCliInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function LaunchNpmInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function LaunchYarnInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
+    function LaunchPnpmInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function LaunchMailpit: TRuntimeActionResult;
     function LaunchRedis: TRuntimeActionResult;
     function LaunchMemcached: TRuntimeActionResult;
@@ -708,6 +709,31 @@ begin
     Result.Message := 'yarn launched'
   else
     Result.Message := 'Failed to launch yarn';
+end;
+
+function TUniWampRuntime.LaunchPnpmInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
+var
+  PnpmExe: string;
+  Buffer: array[0..MAX_PATH] of Char;
+  BufferSize: DWORD;
+  FilePart: PChar;
+begin
+  PnpmExe := '';
+  FilePart := nil;
+  BufferSize := SearchPath(nil, 'pnpm.cmd', nil, Length(Buffer), Buffer, FilePart);
+  if BufferSize > 0 then
+    PnpmExe := Buffer;
+  if PnpmExe = '' then
+  begin
+    Result.Success := False;
+    Result.Message := 'pnpm was not found on PATH.';
+    Exit;
+  end;
+  Result.Success := ShellExecute(0, 'open', 'cmd.exe', PChar('/K "' + PnpmExe + '"'), PChar(WorkingDir), SW_SHOWNORMAL) > 32;
+  if Result.Success then
+    Result.Message := 'pnpm launched'
+  else
+    Result.Message := 'Failed to launch pnpm';
 end;
 
 function TUniWampRuntime.LaunchMailpit: TRuntimeActionResult;

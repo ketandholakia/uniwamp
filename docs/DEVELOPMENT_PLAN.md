@@ -199,6 +199,7 @@ Completed:
 - Added staged update metadata output for package, hash, version, and workspace tracking.
 - Added an npm launcher in the tool panel for Node.js repository workflows.
 - Added a yarn launcher in the tool panel for Node.js repository workflows.
+- Added a pnpm launcher in the tool panel for Node.js repository workflows.
 
 ## Priority model
 
