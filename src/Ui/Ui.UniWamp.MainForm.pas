@@ -264,6 +264,8 @@ type
     destructor Destroy; override;
   end;
 
+function BuildVHostEmptyStateCaption(const FilterText: string): string;
+
 var
   MainForm: TMainForm;
 
@@ -373,6 +375,14 @@ begin
     if Assigned(TextLabel) then
       TextLabel.Font.Color := ButtonMutedTextColor;
   end;
+end;
+
+function BuildVHostEmptyStateCaption(const FilterText: string): string;
+begin
+  if Trim(FilterText) <> '' then
+    Result := 'No vHosts match the current filter.' + sLineBreak + 'Clear the filter or create a new project.'
+  else
+    Result := 'No projects or vHosts found.' + sLineBreak + 'Use Add to create your first project.';
 end;
 
 function IsDarkColor(const AColor: TColor): Boolean;
@@ -1833,10 +1843,7 @@ begin
     if Assigned(FVHostFilterEdit) then
       FilterText := Trim(FVHostFilterEdit.Text);
     FVHostEmptyLabel.Visible := not HasVisibleVHosts;
-    if FilterText <> '' then
-      FVHostEmptyLabel.Caption := 'No vHosts match the current filter.' + sLineBreak + 'Clear the filter or create a new project.'
-    else
-      FVHostEmptyLabel.Caption := 'No projects or vHosts found.' + sLineBreak + 'Use Add to create your first project.';
+    FVHostEmptyLabel.Caption := BuildVHostEmptyStateCaption(FilterText);
     FVHostEmptyLabel.ShowHint := not HasVisibleVHosts;
     if HasVisibleVHosts then
       FVHostEmptyLabel.Font.Color := clGrayText

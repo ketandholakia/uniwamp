@@ -15,7 +15,8 @@ uses
   Core.UniWamp.PortUtils,
   Core.UniWamp.TemplateRenderer,
   Core.UniWamp.Runtime,
-  Core.UniWamp.ProcessManager;
+  Core.UniWamp.ProcessManager,
+  Ui.UniWamp.MainForm;
 
 procedure Fail(const MessageText: string);
 begin
@@ -1101,6 +1102,16 @@ begin
     'Empty inputs should return an empty clipboard payload');
 end;
 
+procedure TestVHostEmptyStateCaptionReflectsFilter;
+begin
+  AssertContains(BuildVHostEmptyStateCaption(''), 'No projects or vHosts found.',
+    'Empty state should show the default message');
+  AssertContains(BuildVHostEmptyStateCaption('api'), 'No vHosts match the current filter.',
+    'Filtered empty state should mention the active filter');
+  AssertContains(BuildVHostEmptyStateCaption('api'), 'Clear the filter or create a new project.',
+    'Filtered empty state should instruct the user to clear the filter');
+end;
+
 procedure TestMariaDbRootPasswordRequiresRunningService;
 var
   RootDir: string;
@@ -1167,6 +1178,7 @@ begin
     TestDiagnosticReportOmitsSensitiveValues;
     TestDiagnosticReportIncludesPortOwnersForOccupiedPorts;
     TestActivityLogClipboardSelectionPrefersLogFileThenMemo;
+    TestVHostEmptyStateCaptionReflectsFilter;
     TestMariaDbRootPasswordRequiresRunningService;
     Writeln('Process harness passed.');
   except

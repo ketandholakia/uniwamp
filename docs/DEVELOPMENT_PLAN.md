@@ -144,6 +144,11 @@ Completed:
 - Keep action shortcuts, tool-panel hints, and empty states aligned with the implemented UI.
 - Add project search, filtering, open-folder/open-terminal actions, and project type detection.
 
+Completed:
+
+- Added process harness coverage for the vHost empty-state caption helper.
+- Verified the empty state switches between the default and filtered messages.
+
 ## Phase 7: Optional integrations and update model
 
 Prioritize modular integrations for Composer, WP-CLI, Git, Node package managers, editor, Windows Terminal, Mailpit, Redis, and Memcached. Add local ZIP runtime import and integrity checks before considering remote downloads. A safe updater requires a separate staged updater process and rollback path.
