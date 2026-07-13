@@ -266,6 +266,7 @@ type
 
 function BuildVHostEmptyStateCaption(const FilterText: string): string;
 function DetectProjectTypeLabel(const DocumentRoot: string): string;
+function BuildToolPanelHint(const ActionName, DetailText: string): string;
 
 var
   MainForm: TMainForm;
@@ -397,6 +398,13 @@ begin
   if FileExists(TPath.Combine(DocumentRoot, 'composer.json')) then
     Exit('PHP');
   Result := 'Static';
+end;
+
+function BuildToolPanelHint(const ActionName, DetailText: string): string;
+begin
+  Result := ActionName;
+  if Trim(DetailText) <> '' then
+    Result := Result + sLineBreak + DetailText;
 end;
 
 function IsDarkColor(const AColor: TColor): Boolean;
@@ -842,6 +850,9 @@ begin
   MariaRestartButton.OnClick := MariaDbRestartClick;
   StartAllButton.OnClick := StartButtonClick;
   LaunchTerminalButton.OnClick := LaunchTerminalClick;
+  LaunchTerminalButton.Hint := BuildToolPanelHint('Open the terminal in the UniWamp document root',
+    'Uses Cmder when available, otherwise falls back to cmd.exe.');
+  LaunchTerminalButton.ShowHint := True;
   SaveConfigButton.OnClick := SaveConfigClick;
   GenerateSslButton.OnClick := GenerateSslClick;
   GenerateSslButton.TabStop := True;
@@ -876,19 +887,34 @@ begin
   CopyActivityLogButton.Hint := 'Copy the current activity log to the clipboard';
   CopyActivityLogButton.ShowHint := True;
   CopyActivityLogButton.OnClick := CopyActivityLogClick;
+  Panel8.Hint := BuildToolPanelHint('Open the local dashboard',
+    'Only opens when Apache and MariaDB are both healthy.');
+  Panel8.ShowHint := True;
   Panel8.OnClick := LaunchDashboardClick;
   Panel8.TabStop := True;
   Panel8.TabOrder := 1;
+  Panel9.Hint := BuildToolPanelHint('Open Adminer',
+    'Launches the database web UI when the Adminer entrypoint exists.');
+  Panel9.ShowHint := True;
   Panel9.OnClick := LaunchAdminerClick;
   Panel9.TabStop := True;
   Panel9.TabOrder := 2;
   OpenPhpExtensionsButton.OnClick := OpenPhpExtensionsClick;
+  OpenPhpExtensionsButton.Hint := BuildToolPanelHint('Open PHP Extensions',
+    'Edit the active PHP extension list for the selected runtime.');
+  OpenPhpExtensionsButton.ShowHint := True;
   OpenPhpExtensionsButton.TabStop := True;
   OpenPhpExtensionsButton.TabOrder := 3;
   OpenPhpSettingsButton.OnClick := OpenPhpSettingsClick;
+  OpenPhpSettingsButton.Hint := BuildToolPanelHint('Open PHP Settings',
+    'Edit the selected PHP profile values.');
+  OpenPhpSettingsButton.ShowHint := True;
   OpenPhpSettingsButton.TabStop := True;
   OpenPhpSettingsButton.TabOrder := 4;
   OpenApacheModulesButton.OnClick := OpenApacheModulesClick;
+  OpenApacheModulesButton.Hint := BuildToolPanelHint('Open Apache Modules',
+    'Edit the Apache module list used by the generated config.');
+  OpenApacheModulesButton.ShowHint := True;
   OpenApacheModulesButton.TabStop := True;
   OpenApacheModulesButton.TabOrder := 5;
   OpenApacheLogButton.OnClick := OpenApacheLogClick;

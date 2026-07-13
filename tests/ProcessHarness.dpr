@@ -1133,6 +1133,17 @@ begin
   end;
 end;
 
+procedure TestToolPanelHintHelperBuildsMultilineHints;
+begin
+  AssertTrue(
+    BuildToolPanelHint('Open Adminer', 'Launches the database web UI when the Adminer entrypoint exists.') =
+      'Open Adminer' + sLineBreak + 'Launches the database web UI when the Adminer entrypoint exists.',
+    'Tool panel hints should combine a short title and detail text');
+  AssertTrue(
+    BuildToolPanelHint('Copy Report', '') = 'Copy Report',
+    'Empty detail text should not add an extra line');
+end;
+
 procedure TestDiagnosticReportUsesConsistentServiceStateLabels;
 var
   RootDir: string;
@@ -1306,6 +1317,7 @@ begin
   TestActivityLogClipboardSelectionPrefersLogFileThenMemo;
   TestVHostEmptyStateCaptionReflectsFilter;
   TestProjectTypeDetectionPrefersKnownFrameworkMarkers;
+  TestToolPanelHintHelperBuildsMultilineHints;
   TestDiagnosticReportUsesConsistentServiceStateLabels;
   TestGeneratedEnvBatDoesNotStartWithUtf8Bom;
   TestTerminalExecutablePathResolvesRelativeConfigValues;
