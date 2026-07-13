@@ -1166,6 +1166,46 @@ begin
   end;
 end;
 
+procedure TestGeneratedEnvBatDoesNotStartWithUtf8Bom;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  Content: TBytes;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-env-bat-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        Runtime.GenerateEnvBat;
+        Content := TFile.ReadAllBytes(Paths.EnvBatFile);
+        AssertTrue((Length(Content) >= 8) and
+          (Content[0] = Ord('@')) and
+          (Content[1] = Ord('e')) and
+          (Content[2] = Ord('c')) and
+          (Content[3] = Ord('h')) and
+          (Content[4] = Ord('o')) and
+          (Content[5] = Ord(' ')) and
+          (Content[6] = Ord('o')) and
+          (Content[7] = Ord('f')),
+          'Generated env.bat should begin with plain ASCII text, not a BOM');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestMariaDbRootPasswordRequiresRunningService;
 var
   RootDir: string;
@@ -1235,8 +1275,9 @@ begin
   TestVHostEmptyStateCaptionReflectsFilter;
   TestProjectTypeDetectionPrefersKnownFrameworkMarkers;
   TestDiagnosticReportUsesConsistentServiceStateLabels;
+  TestGeneratedEnvBatDoesNotStartWithUtf8Bom;
   TestMariaDbRootPasswordRequiresRunningService;
-    Writeln('Process harness passed.');
+  Writeln('Process harness passed.');
   except
     on E: Exception do
     begin

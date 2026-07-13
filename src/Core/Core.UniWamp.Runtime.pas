@@ -1179,13 +1179,11 @@ var
   Lines: TStringList;
   PhpDir: string;
   NodeDir: string;
-  Encoding: TEncoding;
 begin
   EnsureDirectory(FPaths.GeneratedConfigDir);
   PhpDir := SelectedPhpDir;
   NodeDir := SelectedNodeDir;
   Lines := TStringList.Create;
-  Encoding := TUTF8Encoding.Create(False);
   try
     Lines.Add('@echo off');
     Lines.Add('title UniWamp Cmder');
@@ -1218,10 +1216,9 @@ begin
     Lines.Add('echo  MariaDB bin: %UNIWAMP_MARIADB_BIN%');
     Lines.Add('echo.');
     Lines.Add('cd /d "' + FConfig.DocumentRoot + '"');
-    Lines.SaveToFile(FPaths.EnvBatFile, Encoding);
+    Lines.SaveToFile(FPaths.EnvBatFile, TEncoding.ASCII);
   finally
     Lines.Free;
-    Encoding.Free;
   end;
 end;
 
@@ -1674,7 +1671,6 @@ function TUniWampRuntime.LaunchTerminalInWorkingDir(const WorkingDir: string): T
 var
   ProfileText: string;
   ProfileDir: string;
-  ProfileEncoding: TEncoding;
   TargetCmd: string;
   TerminalExe: string;
 begin
@@ -1687,12 +1683,7 @@ begin
     EnsureDirectory(ProfileDir);
     TargetCmd := TPath.Combine(ProfileDir, 'uniwamp_env.cmd');
     ProfileText := TFile.ReadAllText(FPaths.EnvBatFile, TEncoding.UTF8);
-    ProfileEncoding := TUTF8Encoding.Create(False);
-    try
-      TFile.WriteAllText(TargetCmd, ProfileText, ProfileEncoding);
-    finally
-      ProfileEncoding.Free;
-    end;
+    TFile.WriteAllText(TargetCmd, ProfileText, TEncoding.ASCII);
 
     Result.Success := ShellExecute(0, 'open', PChar(TerminalExe), PChar('/START "' + WorkingDir + '"'), nil, SW_SHOWNORMAL) > 32;
     if Result.Success then

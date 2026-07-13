@@ -157,6 +157,11 @@ Completed:
 
 Prioritize modular integrations for Composer, WP-CLI, Git, Node package managers, editor, Windows Terminal, Mailpit, Redis, and Memcached. Add local ZIP runtime import and integrity checks before considering remote downloads. A safe updater requires a separate staged updater process and rollback path.
 
+Completed:
+
+- Generated terminal environment scripts without a UTF-8 BOM so `cmd.exe` and Cmder can consume them reliably.
+- Added process harness coverage that verifies `env.bat` begins with plain ASCII `@echo off`.
+
 ## Priority model
 
 | Priority | Meaning | Examples |
