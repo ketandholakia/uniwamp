@@ -114,6 +114,8 @@ Completed:
 - Normalized vHost aliases so comma-separated input is stored and rendered as a single canonical space-separated list.
 - Added process harness coverage for hosts-file sync failure reporting when the override path is invalid.
 - Verified vHost creation keeps the saved project state even when hosts sync cannot complete.
+- Added process harness coverage for SSL certificate generation failure when OpenSSL is unavailable.
+- Verified the certificate workflow reports the missing executable and remains separate from hosts trust handling.
 
 ## Phase 5: Diagnostics, logging, and recovery
 

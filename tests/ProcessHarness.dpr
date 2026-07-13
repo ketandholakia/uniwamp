@@ -710,6 +710,38 @@ begin
   end;
 end;
 
+procedure TestGenerateSslCertificateReportsMissingOpenSsl;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  ResultInfo: TRuntimeActionResult;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-ssl-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        ResultInfo := Runtime.GenerateSslCertificate;
+        AssertTrue(not ResultInfo.Success, 'SSL generation should fail when OpenSSL is unavailable');
+        AssertContains(ResultInfo.Message, 'OpenSSL executable not found', 'SSL failure should report the missing executable');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestApacheStartSyncsPhpVersionSelection;
 var
   RootDir: string;
@@ -974,6 +1006,7 @@ begin
     TestMariaDbInitializationBacksUpDirtyDataDirectory;
     TestAddVHostNormalizesAliasesAndGeneratesConfig;
     TestManagedHostsSyncReportsReadOnlyFailure;
+    TestGenerateSslCertificateReportsMissingOpenSsl;
     TestApacheStartSyncsPhpVersionSelection;
     TestStopPathsAreIdempotentWhenAlreadyStopped;
     TestApacheStartStopsOnConfigValidationFailure;
