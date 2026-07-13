@@ -1272,6 +1272,8 @@ begin
   AddItem(FTrayMenu.Items, '-');
   Item := AddItem(FTrayMenu.Items, 'Set &Root Password', SetMariaDbRootPasswordClick);
   Item.ShortCut := ShortCut(Ord('R'), [ssCtrl, ssShift]);
+  Item := AddItem(FTrayMenu.Items, 'Copy &Activity Log', CopyActivityLogClick);
+  Item.ShortCut := ShortCut(Ord('V'), [ssCtrl, ssShift]);
   AddItem(FTrayMenu.Items, '-');
   FTrayExitItem := AddItem(FTrayMenu.Items, 'E&xit', ExitButtonClick);
   Menu := FMainMenu;
