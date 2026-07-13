@@ -176,6 +176,7 @@ Completed:
 - Reparented the tool rail into a dedicated right column so the app reads as left controls, center workspace, and sidebar.
 - Removed stacked icon text overlays from the sidebar buttons so captions render as a single centered line.
 - Rebalanced the three-column layout by narrowing the sidebar dock so the center workspace has more room.
+- Tightened sidebar group spacing and label sizing so the third column reads cleanly in the narrower rail.
 - Added process harness coverage for the vHost filter clear hint wording.
 - Added process harness coverage for the vHost filter search hint wording.
 - Added process harness coverage for the always-on status-bar hint wording.

@@ -952,6 +952,7 @@ begin
   ToolGroupWebLabel.ParentBackground := False;
   ToolGroupWebLabel.ParentFont := False;
   ToolGroupWebLabel.Alignment := taLeftJustify;
+  ToolGroupWebLabel.Font.Size := 8;
   ToolGroupRuntimeLabel := TPanel.Create(Self);
   ToolGroupRuntimeLabel.Parent := pnltools;
   ToolGroupRuntimeLabel.BevelOuter := bvNone;
@@ -964,6 +965,7 @@ begin
   ToolGroupRuntimeLabel.ParentBackground := False;
   ToolGroupRuntimeLabel.ParentFont := False;
   ToolGroupRuntimeLabel.Alignment := taLeftJustify;
+  ToolGroupRuntimeLabel.Font.Size := 8;
   ToolGroupLogsLabel := TPanel.Create(Self);
   ToolGroupLogsLabel.Parent := pnltools;
   ToolGroupLogsLabel.BevelOuter := bvNone;
@@ -976,6 +978,7 @@ begin
   ToolGroupLogsLabel.ParentBackground := False;
   ToolGroupLogsLabel.ParentFont := False;
   ToolGroupLogsLabel.Alignment := taLeftJustify;
+  ToolGroupLogsLabel.Font.Size := 8;
   ToolGroupMaintenanceLabel := TPanel.Create(Self);
   ToolGroupMaintenanceLabel.Parent := pnltools;
   ToolGroupMaintenanceLabel.BevelOuter := bvNone;
@@ -988,6 +991,7 @@ begin
   ToolGroupMaintenanceLabel.ParentBackground := False;
   ToolGroupMaintenanceLabel.ParentFont := False;
   ToolGroupMaintenanceLabel.Alignment := taLeftJustify;
+  ToolGroupMaintenanceLabel.Font.Size := 8;
   OpenApacheLogButton.Parent := pnltools;
   OpenMariaLogButton.Parent := pnltools;
   ClearApacheLogButton.Parent := pnltools;
@@ -1700,10 +1704,10 @@ end;
 procedure TMainForm.LayoutToolSidebar;
 const
   SideMargin = 8;
-  RowGap = 4;
-  GroupGap = 8;
-  ButtonHeight = 22;
-  LabelHeight = 14;
+  RowGap = 3;
+  GroupGap = 6;
+  ButtonHeight = 21;
+  LabelHeight = 13;
 var
   ButtonWidth: Integer;
   Y: Integer;
@@ -1712,7 +1716,7 @@ var
     if not Assigned(Panel) then
       Exit;
     Panel.SetBounds(SideMargin, Y, ButtonWidth, LabelHeight);
-    Inc(Y, LabelHeight + 2);
+    Inc(Y, LabelHeight + 1);
   end;
   procedure PlaceButton(Button: TPanel);
   begin
@@ -1729,7 +1733,7 @@ begin
   if ButtonWidth < 122 then
     ButtonWidth := 122;
 
-  Y := 10;
+  Y := 8;
   PlaceLabel(ToolGroupWebLabel);
   PlaceButton(GenerateSslButton);
   PlaceButton(Panel8);
