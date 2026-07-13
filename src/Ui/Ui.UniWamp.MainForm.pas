@@ -220,10 +220,11 @@ type
   procedure LaunchSiteClick(Sender: TObject);
   procedure LaunchDashboardClick(Sender: TObject);
   procedure LaunchAdminerClick(Sender: TObject);
-  procedure CopyDiagnosticReportClick(Sender: TObject);
-  procedure OpenPhpExtensionsClick(Sender: TObject);
+    procedure CopyDiagnosticReportClick(Sender: TObject);
+    procedure OpenPhpExtensionsClick(Sender: TObject);
     procedure OpenPhpSettingsClick(Sender: TObject);
     procedure OpenApacheModulesClick(Sender: TObject);
+    procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure SetMariaDbRootPasswordClick(Sender: TObject);
     procedure LaunchTerminalClick(Sender: TObject);
     procedure GenerateSslClick(Sender: TObject);
@@ -715,8 +716,10 @@ end;
 procedure TMainForm.FormCreate(Sender: TObject);
 begin
   DoubleBuffered := True;
+  KeyPreview := True;
   Color := AppBackgroundColor;
   OnResize := FormResize;
+  OnKeyDown := FormKeyDown;
   HeaderPanel.DoubleBuffered := True;
   MainPanel.DoubleBuffered := True;
   LeftPanel.DoubleBuffered := True;
@@ -2493,6 +2496,15 @@ end;
 procedure TMainForm.ExitButtonClick(Sender: TObject);
 begin
   Close;
+end;
+
+procedure TMainForm.FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+begin
+  if Key = VK_ESCAPE then
+  begin
+    Key := 0;
+    ExitButtonClick(Sender);
+  end;
 end;
 
 procedure TMainForm.EditPhpIniClick(Sender: TObject);
