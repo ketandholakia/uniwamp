@@ -1570,6 +1570,7 @@ var
   Runtime: TUniWampRuntime;
   StagingDir: string;
   TargetDir: string;
+  BackupDir: string;
   ErrorMessage: string;
 begin
   RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-promote-update-' + TGuid.NewGuid.ToString);
@@ -1585,9 +1586,15 @@ begin
         TDirectory.CreateDirectory(StagingDir);
         TFile.WriteAllText(TPath.Combine(StagingDir, 'payload.txt'), 'payload', TEncoding.ASCII);
         TargetDir := TPath.Combine(RootDir, 'promoted');
-        AssertTrue(Runtime.PromoteStagedUpdate(StagingDir, TargetDir, ErrorMessage), ErrorMessage);
+        TDirectory.CreateDirectory(TargetDir);
+        TFile.WriteAllText(TPath.Combine(TargetDir, 'old.txt'), 'old', TEncoding.ASCII);
+        AssertTrue(Runtime.PromoteStagedUpdate(StagingDir, TargetDir, BackupDir, ErrorMessage), ErrorMessage);
+        AssertTrue(BackupDir <> '', 'Promotion should report a backup directory when replacing an existing target');
+        AssertTrue(TDirectory.Exists(BackupDir), 'Promotion should preserve the previous target tree as a backup');
         AssertTrue(TFile.Exists(TPath.Combine(TargetDir, 'payload.txt')),
           'Promoted update should copy the staged payload into the target');
+        AssertTrue(not TFile.Exists(TPath.Combine(TargetDir, 'old.txt')),
+          'Promoted update should replace the previous target tree');
       finally
         Runtime.Free;
       end;
