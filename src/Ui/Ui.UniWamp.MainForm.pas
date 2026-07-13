@@ -2124,6 +2124,7 @@ const
   ActionGap = 4;
   OpenWidth = 36;
   FolderWidth = 36;
+  TerminalWidth = 36;
   DeleteWidth = 36;
   SslWidth = 36;
 var
@@ -2193,6 +2194,12 @@ begin
   DrawIconInRect(Grid.Canvas, 'folder_open', ButtonRect, 16);
 
   Inc(ActionLeft, FolderWidth + ActionGap);
+  ButtonRect := System.Types.Rect(ActionLeft, CellRect.Top + 4, ActionLeft + TerminalWidth, CellRect.Bottom - 4);
+  Grid.Canvas.Brush.Color := ButtonAccentColor;
+  Grid.Canvas.RoundRect(ButtonRect.Left, ButtonRect.Top, ButtonRect.Right, ButtonRect.Bottom, 8, 8);
+  DrawIconInRect(Grid.Canvas, 'terminal', ButtonRect, 16);
+
+  Inc(ActionLeft, TerminalWidth + ActionGap);
   ButtonRect := System.Types.Rect(ActionLeft, CellRect.Top + 4, ActionLeft + DeleteWidth, CellRect.Bottom - 4);
   Grid.Canvas.Brush.Color := ButtonNegativeColor;
   Grid.Canvas.RoundRect(ButtonRect.Left, ButtonRect.Top, ButtonRect.Right, ButtonRect.Bottom, 8, 8);
@@ -2216,6 +2223,7 @@ const
   ActionGap = 4;
   OpenWidth = 36;
   FolderWidth = 36;
+  TerminalWidth = 36;
   DeleteWidth = 36;
   SslWidth = 36;
 var
@@ -2226,6 +2234,7 @@ var
   ServerName: string;
   OpenLeft: Integer;
   FolderLeft: Integer;
+  TerminalLeft: Integer;
   DeleteLeft: Integer;
   SslLeft: Integer;
   VHostEntry: TVHostEntry;
@@ -2245,7 +2254,8 @@ begin
   RelativeX := X - CellRect.Left;
   OpenLeft := 6;
   FolderLeft := OpenLeft + OpenWidth + ActionGap;
-  DeleteLeft := FolderLeft + FolderWidth + ActionGap;
+  TerminalLeft := FolderLeft + FolderWidth + ActionGap;
+  DeleteLeft := TerminalLeft + TerminalWidth + ActionGap;
   SslLeft := DeleteLeft + DeleteWidth + ActionGap;
   if not TryGetVHostEntry(ServerName, VHostEntry) then
     Exit;
@@ -2257,6 +2267,8 @@ begin
     OpenVHostUrl(ServerName)
   else if (RelativeX >= FolderLeft) and (RelativeX < (FolderLeft + FolderWidth)) then
     OpenVHostFolder(ServerName)
+  else if (RelativeX >= TerminalLeft) and (RelativeX < (TerminalLeft + TerminalWidth)) then
+    OpenVHostTerminalClick(Sender)
   else if (RelativeX >= DeleteLeft) and (RelativeX < (DeleteLeft + DeleteWidth)) then
     DeleteVHostByName(ServerName)
   else if VHostEntry.EnableSsl and (RelativeX >= SslLeft) and (RelativeX < (SslLeft + SslWidth)) then
