@@ -1879,7 +1879,7 @@ begin
     try
       Runtime := TUniWampRuntime.Create(Paths, Config);
       try
-        Runtime.GenerateEnvBat;
+        Runtime.GenerateEnvBat(Paths.AppRoot);
         Content := TFile.ReadAllBytes(Paths.EnvBatFile);
         AssertTrue((Length(Content) >= 8) and
           (Content[0] = Ord('@')) and

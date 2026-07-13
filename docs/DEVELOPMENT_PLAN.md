@@ -193,6 +193,7 @@ Completed:
 - Widened the vHost action buttons so captions like `Open Selected` and `Delete Selected` render without clipping.
 - Reduced the right-sidebar button height slightly to keep the rail compact.
 - Added a vHost terminal action so the selected project folder can open directly in the configured terminal.
+- Fixed terminal environment generation so vHost launches report the selected folder instead of the default root path.
 - Added process harness coverage for the vHost filter clear hint wording.
 - Added process harness coverage for the vHost filter search hint wording.
 - Added process harness coverage for the always-on status-bar hint wording.

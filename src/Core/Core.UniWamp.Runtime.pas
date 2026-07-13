@@ -66,7 +66,7 @@ type
     function ApacheProcessId: Cardinal;
     function TerminalExecutablePath: string;
     function PreferredTerminalExecutable: string;
-    procedure GenerateEnvBat;
+    procedure GenerateEnvBat(const WorkingDir: string);
     procedure GenerateAllConfigs;
     function StartApache: TRuntimeActionResult;
     function StopApache: TRuntimeActionResult;
@@ -1865,22 +1865,26 @@ begin
   end;
 end;
 
-procedure TUniWampRuntime.GenerateEnvBat;
+procedure TUniWampRuntime.GenerateEnvBat(const WorkingDir: string);
 var
   Lines: TStringList;
   PhpDir: string;
   NodeDir: string;
+  ResolvedWorkingDir: string;
 begin
   EnsureDirectory(FPaths.GeneratedConfigDir);
   PhpDir := SelectedPhpDir;
   NodeDir := SelectedNodeDir;
+  ResolvedWorkingDir := Trim(WorkingDir);
+  if ResolvedWorkingDir = '' then
+    ResolvedWorkingDir := FConfig.DocumentRoot;
   Lines := TStringList.Create;
   try
     Lines.Add('@echo off');
     Lines.Add('title UniWamp Cmder');
     Lines.Add('color 0A');
     Lines.Add('set "UNIWAMP_ROOT=' + FPaths.AppRoot + '"');
-    Lines.Add('set "UNIWAMP_DOCROOT=' + FConfig.DocumentRoot + '"');
+    Lines.Add('set "UNIWAMP_DOCROOT=' + ResolvedWorkingDir + '"');
     Lines.Add('set "UNIWAMP_MARIADB_BIN=' + FPaths.MariaDbBinDir + '"');
     Lines.Add('set "UNIWAMP_PHP_VERSION=' + FConfig.SelectedPhpVersion + '"');
     Lines.Add('set "UNIWAMP_NODE_VERSION=' + FConfig.SelectedNodeVersion + '"');
@@ -1906,7 +1910,7 @@ begin
     Lines.Add('echo  Working path: %UNIWAMP_DOCROOT%');
     Lines.Add('echo  MariaDB bin: %UNIWAMP_MARIADB_BIN%');
     Lines.Add('echo.');
-    Lines.Add('cd /d "' + FConfig.DocumentRoot + '"');
+    Lines.Add('cd /d "' + ResolvedWorkingDir + '"');
     Lines.SaveToFile(FPaths.EnvBatFile, TEncoding.ASCII);
   finally
     Lines.Free;
@@ -2384,7 +2388,7 @@ var
   TargetCmd: string;
   TerminalExe: string;
 begin
-  GenerateEnvBat;
+  GenerateEnvBat(WorkingDir);
   TerminalExe := PreferredTerminalExecutable;
 
   if FileExists(TerminalExe) then
