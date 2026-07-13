@@ -623,6 +623,54 @@ begin
   end;
 end;
 
+procedure TestAddVHostNormalizesAliasesAndGeneratesConfig;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  ResultInfo: TRuntimeActionResult;
+  VHostConfigText: string;
+  StarterPageText: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-vhost-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    TTemplateRenderer.EnsureDefaultTemplates(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        ResultInfo := Runtime.AddVHost(
+          'example.test',
+          TPath.Combine(RootDir, 'site'),
+          'alias1.test, alias2.test',
+          False);
+        AssertTrue(ResultInfo.Success, 'VHost add should succeed');
+        AssertContains(ResultInfo.Message, 'VHost saved', 'VHost add should report success');
+        VHostConfigText := TFile.ReadAllText(Paths.ApacheVHostsConfFile, TEncoding.UTF8);
+        AssertContains(VHostConfigText, 'ServerName example.test', 'VHost config should include the server name');
+        AssertContains(VHostConfigText, 'ServerAlias alias1.test alias2.test', 'VHost aliases should be normalized');
+        StarterPageText := TFile.ReadAllText(TPath.Combine(RootDir, 'site\index.html'), TEncoding.UTF8);
+        AssertContains(StarterPageText, 'example.test is ready', 'Starter page should mention the vHost name');
+        AssertContains(StarterPageText, 'Document Root', 'Starter page should include document root label');
+        AssertTrue(Length(Config.VHosts) = 1, 'VHost should be stored in the config');
+        AssertTrue(SameText(Config.VHosts[0].ServerAliases, 'alias1.test alias2.test'),
+          'Stored aliases should be normalized');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestApacheStartSyncsPhpVersionSelection;
 var
   RootDir: string;
@@ -885,6 +933,7 @@ begin
     TestMissingRuntimeDependencies;
     TestMariaDbStartReportsPortConflict;
     TestMariaDbInitializationBacksUpDirtyDataDirectory;
+    TestAddVHostNormalizesAliasesAndGeneratesConfig;
     TestApacheStartSyncsPhpVersionSelection;
     TestStopPathsAreIdempotentWhenAlreadyStopped;
     TestApacheStartStopsOnConfigValidationFailure;

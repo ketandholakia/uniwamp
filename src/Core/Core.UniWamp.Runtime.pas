@@ -1141,6 +1141,32 @@ begin
   end;
 end;
 
+function NormalizeServerAliases(const Aliases: string): string;
+var
+  Parts: TStringList;
+  Item: string;
+  NormalizedItem: string;
+begin
+  Parts := TStringList.Create;
+  try
+    Parts.StrictDelimiter := True;
+    Parts.Delimiter := ' ';
+    Parts.DelimitedText := StringReplace(StringReplace(Trim(Aliases), ',', ' ', [rfReplaceAll]), #9, ' ', [rfReplaceAll]);
+    Result := '';
+    for Item in Parts do
+    begin
+      NormalizedItem := Trim(Item);
+      if NormalizedItem = '' then
+        Continue;
+      if Result <> '' then
+        Result := Result + ' ';
+      Result := Result + NormalizedItem;
+    end;
+  finally
+    Parts.Free;
+  end;
+end;
+
 procedure TUniWampRuntime.GenerateVHostConfig;
 var
   Values: TDictionary<string, string>;
@@ -1707,7 +1733,7 @@ begin
   EnsureDirectory(DocumentRoot);
   EnsureVHostStarterPage(ServerName, DocumentRoot);
   Entry.ServerName := ServerName;
-  Entry.ServerAliases := Trim(StringReplace(ServerAliases, ',', ' ', [rfReplaceAll]));
+  Entry.ServerAliases := NormalizeServerAliases(ServerAliases);
   Entry.DocumentRoot := DocumentRoot;
   Entry.EnableSsl := EnableSsl;
   Entry.SslCertFile := '';

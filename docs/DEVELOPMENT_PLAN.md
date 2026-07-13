@@ -108,6 +108,11 @@ Completed:
 - Back up the hosts file before changes and report administrator permission errors without losing vhost state.
 - Separate certificate generation from trust installation.
 
+Completed:
+
+- Added process harness coverage for vHost creation generating Apache config and starter content.
+- Normalized vHost aliases so comma-separated input is stored and rendered as a single canonical space-separated list.
+
 ## Phase 5: Diagnostics, logging, and recovery
 
 - Add structured activity records with timestamp, component, operation, service, PID, exit code, duration, category, and message.
