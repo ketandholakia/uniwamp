@@ -1168,6 +1168,18 @@ begin
     'Activity log hint should describe the clear action');
 end;
 
+procedure TestPrimaryActionHintsCoverSaveAndSslActions;
+begin
+  AssertTrue(
+    BuildToolPanelHint('Save configuration', 'Persists the current dashboard settings to config/uniwamp.json.') =
+      'Save configuration' + sLineBreak + 'Persists the current dashboard settings to config/uniwamp.json.',
+    'Save hint should explain the persistence target');
+  AssertTrue(
+    BuildToolPanelHint('Generate SSL', 'Creates the default local TLS certificate and key pair.') =
+      'Generate SSL' + sLineBreak + 'Creates the default local TLS certificate and key pair.',
+    'SSL hint should explain the generated certificate pair');
+end;
+
 procedure TestDiagnosticReportUsesConsistentServiceStateLabels;
 var
   RootDir: string;
@@ -1344,6 +1356,7 @@ begin
   TestToolPanelHintHelperBuildsMultilineHints;
   TestVHostToolPanelHintTextStaysActionFocused;
   TestLogToolPanelHintsDescribeTheUnderlyingAction;
+  TestPrimaryActionHintsCoverSaveAndSslActions;
   TestDiagnosticReportUsesConsistentServiceStateLabels;
   TestGeneratedEnvBatDoesNotStartWithUtf8Bom;
   TestTerminalExecutablePathResolvesRelativeConfigValues;

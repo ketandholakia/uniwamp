@@ -854,7 +854,13 @@ begin
     'Uses Cmder when available, otherwise falls back to cmd.exe.');
   LaunchTerminalButton.ShowHint := True;
   SaveConfigButton.OnClick := SaveConfigClick;
+  SaveConfigButton.Hint := BuildToolPanelHint('Save configuration',
+    'Persists the current dashboard settings to config/uniwamp.json.');
+  SaveConfigButton.ShowHint := True;
   GenerateSslButton.OnClick := GenerateSslClick;
+  GenerateSslButton.Hint := BuildToolPanelHint('Generate SSL',
+    'Creates the default local TLS certificate and key pair.');
+  GenerateSslButton.ShowHint := True;
   GenerateSslButton.TabStop := True;
   GenerateSslButton.TabOrder := 0;
   CopyDiagnosticReportButton := TPanel.Create(Self);
