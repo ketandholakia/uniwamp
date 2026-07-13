@@ -107,6 +107,7 @@ type
     function LaunchAdminer: TRuntimeActionResult;
     function LaunchTerminal: TRuntimeActionResult;
     function LaunchTerminalInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
+    function AreWebToolsReady(out ErrorMessage: string): Boolean;
     function GenerateSslCertificateFor(const CommonName, CertFile, KeyFile: string): TRuntimeActionResult;
     function AddVHost(const ServerName, DocumentRoot, ServerAliases: string; EnableSsl: Boolean): TRuntimeActionResult;
     function RefreshVHostSslCertificate(const ServerName: string): TRuntimeActionResult;
@@ -2367,6 +2368,11 @@ end;
 
 function TUniWampRuntime.LaunchAdminer: TRuntimeActionResult;
 begin
+  if not AreWebToolsReady(Result.Message) then
+  begin
+    Result.Success := False;
+    Exit;
+  end;
   if FileExists(TPath.Combine(FPaths.AdminerDir, 'index.php')) then
     Result := LaunchUrl(Format('http://%s:%d/adminer/index.php', [FConfig.HostName, FConfig.HttpPort]))
   else
@@ -2374,6 +2380,38 @@ begin
     Result.Success := False;
     Result.Message := 'Adminer entrypoint not found in home\adminer\index.php';
   end;
+end;
+
+function TUniWampRuntime.AreWebToolsReady(out ErrorMessage: string): Boolean;
+begin
+  Result := False;
+  ErrorMessage := '';
+  if not FConfig.ApacheRunning then
+  begin
+    ErrorMessage := 'Web tools require Apache to be running.';
+    Exit;
+  end;
+  if not FConfig.MariaDbRunning then
+  begin
+    ErrorMessage := 'Web tools require MariaDB to be running.';
+    Exit;
+  end;
+  if Trim(FConfig.SelectedPhpVersion) = '' then
+  begin
+    ErrorMessage := 'Web tools require a selected PHP runtime.';
+    Exit;
+  end;
+  if not FileExists(SelectedPhpExe) then
+  begin
+    ErrorMessage := 'Web tools require the selected PHP runtime to exist: ' + SelectedPhpExe;
+    Exit;
+  end;
+  if not FileExists(ApacheModuleForSelectedPhp) then
+  begin
+    ErrorMessage := 'Web tools require the Apache PHP module for ' + FConfig.SelectedPhpVersion;
+    Exit;
+  end;
+  Result := True;
 end;
 
 function TUniWampRuntime.LaunchTerminal: TRuntimeActionResult;

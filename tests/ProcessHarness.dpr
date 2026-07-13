@@ -1934,6 +1934,44 @@ begin
   end;
 end;
 
+procedure TestWebToolsRequireHealthyApacheMariaDbAndPhp;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  ErrorMessage: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-web-tools-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    TDirectory.CreateDirectory(TPath.Combine(Paths.PhpDir, 'php85'));
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      Config.SelectedPhpVersion := 'php85';
+      Config.ApacheRunning := True;
+      Config.MariaDbRunning := True;
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        AssertTrue(not Runtime.AreWebToolsReady(ErrorMessage), 'Missing PHP runtime should block web tools');
+        AssertContains(ErrorMessage, 'PHP', 'Missing PHP runtime should be reported');
+        Config.ApacheRunning := False;
+        AssertTrue(not Runtime.AreWebToolsReady(ErrorMessage), 'Apache must be running for web tools');
+        AssertContains(ErrorMessage, 'Apache', 'Missing Apache should be reported');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestMariaDbRootPasswordRequiresRunningService;
 var
   RootDir: string;
@@ -2019,6 +2057,7 @@ begin
   TestDiagnosticReportUsesConsistentServiceStateLabels;
   TestGeneratedEnvBatDoesNotStartWithUtf8Bom;
   TestTerminalExecutablePathResolvesRelativeConfigValues;
+  TestWebToolsRequireHealthyApacheMariaDbAndPhp;
   TestSha256HelperReturnsTheExpectedDigest;
   TestValidatePackageSha256ChecksTheExpectedDigest;
   TestValidateUpdateManifestReadsTheExpectedFields;

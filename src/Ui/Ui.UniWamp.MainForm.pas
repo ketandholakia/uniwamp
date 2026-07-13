@@ -219,7 +219,6 @@ type
     procedure UpdateVHostActionState;
     procedure UpdateMenuState;
     procedure UpdateVHostEmptyState;
-    function AreServicesHealthyForDashboard: Boolean;
     procedure LaunchDashboardIfHealthy;
     function IsAutoStartEnabled: Boolean;
     procedure SetAutoStartEnabled(const Enabled: Boolean);
@@ -2443,17 +2442,14 @@ begin
   SetButtonCaption(exitbutton, 'Exit');
 end;
 
-function TMainForm.AreServicesHealthyForDashboard: Boolean;
-begin
-  Result := FConfig.ApacheRunning and FConfig.MariaDbRunning;
-end;
-
 procedure TMainForm.LaunchDashboardIfHealthy;
+var
+  ErrorMessage: string;
 begin
-  if AreServicesHealthyForDashboard then
+  if FRuntime.AreWebToolsReady(ErrorMessage) then
     FRuntime.LaunchUrl(Format('http://127.0.0.1:%d/dashboard/', [FConfig.HttpPort]))
   else
-    AppendStatus('Dashboard not opened: Apache and MariaDB must both be running.');
+    AppendStatus('Dashboard not opened: ' + ErrorMessage);
 end;
 
 procedure TMainForm.UpdateVHostActionState;
@@ -3120,16 +3116,28 @@ end;
 
 procedure TMainForm.LaunchDashboardClick(Sender: TObject);
 var
+  ErrorMessage: string;
   ResultInfo: TRuntimeActionResult;
 begin
+  if not FRuntime.AreWebToolsReady(ErrorMessage) then
+  begin
+    AppendStatus('Dashboard not opened: ' + ErrorMessage);
+    Exit;
+  end;
   ResultInfo := FRuntime.LaunchUrl(Format('http://127.0.0.1:%d/dashboard/', [StrToIntDef(HttpPortEdit.Text, 8080)]));
   AppendStatus(ResultInfo.Message);
 end;
 
 procedure TMainForm.LaunchAdminerClick(Sender: TObject);
 var
+  ErrorMessage: string;
   ResultInfo: TRuntimeActionResult;
 begin
+  if not FRuntime.AreWebToolsReady(ErrorMessage) then
+  begin
+    AppendStatus('Adminer not opened: ' + ErrorMessage);
+    Exit;
+  end;
   ResultInfo := FRuntime.LaunchAdminer;
   AppendStatus(ResultInfo.Message);
 end;
