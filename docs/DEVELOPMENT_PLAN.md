@@ -53,6 +53,12 @@ Current next step:
 - Add a small portable config test harness before moving on to process and service lifecycle work.
 - Keep the repository-level verification script as the canonical local check for app and config changes.
 
+Completed:
+
+- Added focused config harness coverage for malformed, partially valid, and already-current `config/uniwamp.json` cases.
+- Verified `LoadOrCreate` only reports migration when data actually changes.
+- Kept the repository-level verification script green after the config coverage update.
+
 ## Phase 2: Process and service lifecycle reliability
 
 - Centralize structured process execution with executable, working directory, arguments, timeout, exit code, output, and child-process handling.
@@ -63,6 +69,11 @@ Current next step:
 - Validate Apache configuration with `httpd.exe -t` before starting or restarting.
 
 Tests: stale PID, PID reuse, duplicate start, timeout, failed executable, graceful stop, forced stop, and restart races with mocked processes.
+
+Completed:
+
+- Added process harness coverage for Apache start blocking when configuration validation fails.
+- Verified the start path reports the real validation failure output and does not leave Apache state marked as running.
 
 ## Phase 3: Runtime-specific correctness
 
