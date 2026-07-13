@@ -175,6 +175,7 @@ Completed:
 - Extended the sidebar to the full available height and shrank the activity strip to emphasize live output.
 - Reparented the tool rail into a dedicated right column so the app reads as left controls, center workspace, and sidebar.
 - Removed stacked icon text overlays from the sidebar buttons so captions render as a single centered line.
+- Rebalanced the three-column layout by narrowing the sidebar dock so the center workspace has more room.
 - Added process harness coverage for the vHost filter clear hint wording.
 - Added process harness coverage for the vHost filter search hint wording.
 - Added process harness coverage for the always-on status-bar hint wording.

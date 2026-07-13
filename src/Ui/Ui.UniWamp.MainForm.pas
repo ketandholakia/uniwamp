@@ -883,7 +883,7 @@ begin
   RightPanel.Color := AppBackgroundColor;
   pnltools.Parent := MainPanel;
   pnltools.Align := alRight;
-  pnltools.Width := 240;
+  pnltools.Width := 190;
   pnltools.Height := MainPanel.ClientHeight;
   pnltools.BringToFront;
   HeaderPanel.Height := 86;
@@ -1726,8 +1726,8 @@ begin
     Exit;
 
   ButtonWidth := pnltools.ClientWidth - (SideMargin * 2);
-  if ButtonWidth < 132 then
-    ButtonWidth := 132;
+  if ButtonWidth < 122 then
+    ButtonWidth := 122;
 
   Y := 10;
   PlaceLabel(ToolGroupWebLabel);
