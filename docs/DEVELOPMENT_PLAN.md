@@ -187,6 +187,7 @@ Completed:
 - Added a portable update staging workspace under `tmp\updates` for future staged updater work.
 - Added process harness coverage for update staging workspace creation inside the portable root.
 - Added rollback snapshot and restore helpers for staged update workspaces.
+- Added a Composer launcher in the tool panel for repository-root maintenance workflows.
 
 ## Priority model
 

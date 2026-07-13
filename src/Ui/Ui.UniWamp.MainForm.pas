@@ -108,6 +108,7 @@ type
     Label1: TLabel;
     Label2: TLabel;
     OpenRepoTerminalButton: TPanel;
+    ComposerButton: TPanel;
 
   published
     HeaderPanel: TPanel;
@@ -238,6 +239,7 @@ type
     procedure SetMariaDbRootPasswordClick(Sender: TObject);
     procedure LaunchTerminalClick(Sender: TObject);
     procedure OpenRepoTerminalClick(Sender: TObject);
+    procedure LaunchComposerClick(Sender: TObject);
     procedure GenerateSslClick(Sender: TObject);
     procedure OpenApacheLogClick(Sender: TObject);
     procedure OpenMariaDbLogClick(Sender: TObject);
@@ -922,6 +924,25 @@ begin
   OpenRepoTerminalButton.Hint := BuildToolPanelHint('Open the terminal in the UniWamp repository root',
     'Launches the configured terminal in the application root for Git and maintenance tasks.');
   OpenRepoTerminalButton.ShowHint := True;
+  ComposerButton := TPanel.Create(Self);
+  ComposerButton.Parent := pnltools;
+  ComposerButton.SetBounds(370, 41, 92, 24);
+  ComposerButton.Cursor := crHandPoint;
+  ComposerButton.BevelOuter := bvNone;
+  ComposerButton.Caption := 'Composer';
+  ComposerButton.Color := 16053492;
+  ComposerButton.Font.Charset := DEFAULT_CHARSET;
+  ComposerButton.Font.Color := clWindowText;
+  ComposerButton.Font.Height := -11;
+  ComposerButton.Font.Name := 'Segoe UI';
+  ComposerButton.Font.Style := [fsBold];
+  ComposerButton.ParentBackground := False;
+  ComposerButton.ParentFont := False;
+  ComposerButton.TabOrder := 6;
+  ComposerButton.OnClick := LaunchComposerClick;
+  ComposerButton.Hint := BuildToolPanelHint('Launch Composer from the UniWamp repository root',
+    'Opens Composer in the application root when composer.exe is available on PATH.');
+  ComposerButton.ShowHint := True;
   SaveConfigButton.OnClick := SaveConfigClick;
   SaveConfigButton.Hint := BuildToolPanelHint('Save configuration',
     'Persists the current dashboard settings to config/uniwamp.json.');
@@ -1103,6 +1124,7 @@ begin
   ApplyPanelIcon(GenerateSslButton, 'lock');
   ApplyPanelIcon(LaunchTerminalButton, 'terminal');
   ApplyPanelIcon(OpenRepoTerminalButton, 'terminal');
+  ApplyPanelIcon(ComposerButton, 'code');
   ApplyPanelIcon(CopyDiagnosticReportButton, 'description');
   ApplyPanelIcon(CopyActivityLogButton, 'content_copy');
   ApplyPanelIcon(OpenPhpExtensionsButton, 'extension');
@@ -1125,6 +1147,7 @@ begin
   ApplyPanelIcon(EditMariaDbIniButton, 'database');
   SetButtonCaption(LaunchTerminalButton, 'Terminal');
   SetButtonCaption(OpenRepoTerminalButton, 'Repo Terminal');
+  SetButtonCaption(ComposerButton, 'Composer');
   SetButtonCaption(SaveConfigButton, 'Save Config');
   SetButtonCaption(GenerateSslButton, 'Generate SSL');
   SetButtonCaption(CopyDiagnosticReportButton, 'Copy Report');
@@ -2714,6 +2737,14 @@ var
   ResultInfo: TRuntimeActionResult;
 begin
   ResultInfo := FRuntime.LaunchTerminalInWorkingDir(FPaths.AppRoot);
+  AppendStatus(ResultInfo.Message);
+end;
+
+procedure TMainForm.LaunchComposerClick(Sender: TObject);
+var
+  ResultInfo: TRuntimeActionResult;
+begin
+  ResultInfo := FRuntime.LaunchComposerInWorkingDir(FPaths.AppRoot);
   AppendStatus(ResultInfo.Message);
 end;
 

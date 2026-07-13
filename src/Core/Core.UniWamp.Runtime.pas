@@ -76,6 +76,7 @@ type
     function RestartMariaDb: TRuntimeActionResult;
     function GenerateSslCertificate: TRuntimeActionResult;
     function LaunchUrl(const Url: string): TRuntimeActionResult;
+    function LaunchComposerInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function PreferredTextEditorExecutable: string;
     function LaunchTextEditor(const FileName: string): TRuntimeActionResult;
     function ComputeFileSha256Hex(const FileName: string): string;
@@ -444,6 +445,31 @@ begin
   finally
     Zip.Free;
   end;
+end;
+
+function TUniWampRuntime.LaunchComposerInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
+var
+  ComposerExe: string;
+  Buffer: array[0..MAX_PATH] of Char;
+  BufferSize: DWORD;
+  FilePart: PChar;
+begin
+  ComposerExe := '';
+  FilePart := nil;
+  BufferSize := SearchPath(nil, 'composer.exe', nil, Length(Buffer), Buffer, FilePart);
+  if BufferSize > 0 then
+    ComposerExe := Buffer;
+  if ComposerExe = '' then
+  begin
+    Result.Success := False;
+    Result.Message := 'Composer was not found on PATH.';
+    Exit;
+  end;
+  Result.Success := ShellExecute(0, 'open', 'cmd.exe', PChar('/K "' + ComposerExe + '"'), PChar(WorkingDir), SW_SHOWNORMAL) > 32;
+  if Result.Success then
+    Result.Message := 'Composer launched'
+  else
+    Result.Message := 'Failed to launch Composer';
 end;
 
 function TUniWampRuntime.PrepareUpdateStagingArea(const PackageName: string; out StagingDir: string; out ErrorMessage: string): Boolean;
