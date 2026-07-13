@@ -42,6 +42,13 @@ Name: "{app}\tmp"
 Name: "{app}\vhosts"
 Name: "{app}\www"
 Name: "{app}\bin\cmder\config\profile.d"
+Name: "{app}\runtime\tools"
+Name: "{app}\runtime\tools\composer"
+Name: "{app}\runtime\tools\git"
+Name: "{app}\runtime\tools\wp-cli"
+Name: "{app}\runtime\tools\mailpit"
+Name: "{app}\runtime\tools\redis"
+Name: "{app}\runtime\tools\memcached"
 
 [Files]
 Source: "..\src\tmpbuild\bin\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
@@ -90,6 +97,12 @@ Source: "..\runtime\php\php83\*"; DestDir: "{app}\runtime\php\php83"; Flags: rec
 Source: "..\runtime\php\php84\*"; DestDir: "{app}\runtime\php\php84"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\runtime\php\php85\*"; DestDir: "{app}\runtime\php\php85"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\runtime\mariadb\data\*"; DestDir: "{app}\runtime\mariadb\data"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\runtime\tools\composer\*"; DestDir: "{app}\runtime\tools\composer"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\runtime\tools\git\*"; DestDir: "{app}\runtime\tools\git"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\runtime\tools\wp-cli\*"; DestDir: "{app}\runtime\tools\wp-cli"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\runtime\tools\mailpit\*"; DestDir: "{app}\runtime\tools\mailpit"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\runtime\tools\redis\*"; DestDir: "{app}\runtime\tools\redis"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\runtime\tools\memcached\*"; DestDir: "{app}\runtime\tools\memcached"; Flags: recursesubdirs createallsubdirs ignoreversion
 #endif
 
 [Icons]

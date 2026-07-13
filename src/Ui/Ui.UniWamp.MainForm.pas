@@ -128,7 +128,6 @@ type
     PnpmButton: TPanel;
     EditorButton: TPanel;
     UpdateButton: TPanel;
-    FUpdateManifestDialog: TOpenDialog;
 
   published
     HeaderPanel: TPanel;
@@ -186,6 +185,7 @@ type
     FVHostFilterLabel: TLabel;
     FVHostFilterEdit: TEdit;
     FVHostFilterClearLabel: TLabel;
+    FUpdateManifestDialog: TOpenDialog;
     FHeaderCards: array[0..2] of THeaderStatusCard;
     procedure FormCreate(Sender: TObject);
     procedure FormResize(Sender: TObject);

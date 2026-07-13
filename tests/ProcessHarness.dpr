@@ -79,6 +79,13 @@ begin
   Result.GeneratedConfigDir := TPath.Combine(Result.ConfigDir, 'generated');
   Result.TemplatesDir := TPath.Combine(Root, 'templates');
   Result.RuntimeDir := TPath.Combine(Root, 'runtime');
+  Result.ToolsDir := TPath.Combine(Result.RuntimeDir, 'tools');
+  Result.ComposerDir := TPath.Combine(Result.ToolsDir, 'composer');
+  Result.GitDir := TPath.Combine(Result.ToolsDir, 'git');
+  Result.WpCliDir := TPath.Combine(Result.ToolsDir, 'wp-cli');
+  Result.MailpitDir := TPath.Combine(Result.ToolsDir, 'mailpit');
+  Result.RedisDir := TPath.Combine(Result.ToolsDir, 'redis');
+  Result.MemcachedDir := TPath.Combine(Result.ToolsDir, 'memcached');
   Result.ApacheDir := TPath.Combine(Result.RuntimeDir, 'apache');
   Result.ApacheBinDir := TPath.Combine(Result.ApacheDir, 'bin');
   Result.ApacheConfDir := TPath.Combine(Result.ApacheDir, 'conf');

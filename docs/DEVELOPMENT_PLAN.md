@@ -236,6 +236,7 @@ Completed:
 - Added staged update promotion backups so prior targets can be restored after replacement failures.
 - Updated the README and operational docs to describe the staged update flow and tool-panel launchers.
 - Added a Stage Update tool-panel action for manifest-driven local update staging.
+- Added bundled `runtime\tools` directories so the full installer can ship local Composer, Git, WP-CLI, Mailpit, Redis, and Memcached payloads when present.
 
 ## Priority model
 

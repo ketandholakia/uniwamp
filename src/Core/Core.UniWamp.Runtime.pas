@@ -36,6 +36,7 @@ type
     function ResolvePortablePath(const PathValue: string): string;
     function CmderExe: string;
     function WindowsTerminalExe: string;
+    function BundledToolExecutable(const ToolDir, ExecutableName: string): string;
     function RenderManagedHostsBlock: string;
     function ApacheModuleDir: string;
     function RenderApacheModuleLines: string;
@@ -158,6 +159,15 @@ begin
   if WindowsTerminalPath <> '' then
     Exit(WindowsTerminalPath);
   Result := 'cmd.exe';
+end;
+
+function TUniWampRuntime.BundledToolExecutable(const ToolDir, ExecutableName: string): string;
+begin
+  if (ToolDir = '') or (ExecutableName = '') then
+    Exit('');
+  Result := TPath.Combine(ToolDir, ExecutableName);
+  if not FileExists(Result) then
+    Result := '';
 end;
 
 constructor TUniWampRuntime.Create(const Paths: TAppPaths; Config: TUniWampConfig);
@@ -694,15 +704,18 @@ var
   BufferSize: DWORD;
   FilePart: PChar;
 begin
-  ComposerExe := '';
-  FilePart := nil;
-  BufferSize := SearchPath(nil, 'composer.exe', nil, Length(Buffer), Buffer, FilePart);
-  if BufferSize > 0 then
-    ComposerExe := Buffer;
+  ComposerExe := BundledToolExecutable(FPaths.ComposerDir, 'composer.exe');
+  if ComposerExe = '' then
+  begin
+    FilePart := nil;
+    BufferSize := SearchPath(nil, 'composer.exe', nil, Length(Buffer), Buffer, FilePart);
+    if BufferSize > 0 then
+      ComposerExe := Buffer;
+  end;
   if ComposerExe = '' then
   begin
     Result.Success := False;
-    Result.Message := 'Composer was not found on PATH.';
+    Result.Message := 'Composer was not found in runtime\tools\composer or on PATH.';
     Exit;
   end;
   Result.Success := ShellExecute(0, 'open', 'cmd.exe', PChar('/K "' + ComposerExe + '"'), PChar(WorkingDir), SW_SHOWNORMAL) > 32;
@@ -719,15 +732,18 @@ var
   BufferSize: DWORD;
   FilePart: PChar;
 begin
-  GitExe := '';
-  FilePart := nil;
-  BufferSize := SearchPath(nil, 'git.exe', nil, Length(Buffer), Buffer, FilePart);
-  if BufferSize > 0 then
-    GitExe := Buffer;
+  GitExe := BundledToolExecutable(FPaths.GitDir, 'git.exe');
+  if GitExe = '' then
+  begin
+    FilePart := nil;
+    BufferSize := SearchPath(nil, 'git.exe', nil, Length(Buffer), Buffer, FilePart);
+    if BufferSize > 0 then
+      GitExe := Buffer;
+  end;
   if GitExe = '' then
   begin
     Result.Success := False;
-    Result.Message := 'Git was not found on PATH.';
+    Result.Message := 'Git was not found in runtime\tools\git or on PATH.';
     Exit;
   end;
   Result.Success := ShellExecute(0, 'open', 'cmd.exe', PChar('/K "' + GitExe + '" status'), PChar(WorkingDir), SW_SHOWNORMAL) > 32;
@@ -762,15 +778,18 @@ var
   BufferSize: DWORD;
   FilePart: PChar;
 begin
-  WpExe := '';
-  FilePart := nil;
-  BufferSize := SearchPath(nil, 'wp.exe', nil, Length(Buffer), Buffer, FilePart);
-  if BufferSize > 0 then
-    WpExe := Buffer;
+  WpExe := BundledToolExecutable(FPaths.WpCliDir, 'wp.exe');
+  if WpExe = '' then
+  begin
+    FilePart := nil;
+    BufferSize := SearchPath(nil, 'wp.exe', nil, Length(Buffer), Buffer, FilePart);
+    if BufferSize > 0 then
+      WpExe := Buffer;
+  end;
   if WpExe = '' then
   begin
     Result.Success := False;
-    Result.Message := 'WP-CLI was not found on PATH.';
+    Result.Message := 'WP-CLI was not found in runtime\tools\wp-cli or on PATH.';
     Exit;
   end;
   Result.Success := ShellExecute(0, 'open', 'cmd.exe', PChar('/K "' + WpExe + '" --info'), PChar(WorkingDir), SW_SHOWNORMAL) > 32;
@@ -862,15 +881,18 @@ var
   BufferSize: DWORD;
   FilePart: PChar;
 begin
-  MailpitExe := '';
-  FilePart := nil;
-  BufferSize := SearchPath(nil, 'mailpit.exe', nil, Length(Buffer), Buffer, FilePart);
-  if BufferSize > 0 then
-    MailpitExe := Buffer;
+  MailpitExe := BundledToolExecutable(FPaths.MailpitDir, 'mailpit.exe');
+  if MailpitExe = '' then
+  begin
+    FilePart := nil;
+    BufferSize := SearchPath(nil, 'mailpit.exe', nil, Length(Buffer), Buffer, FilePart);
+    if BufferSize > 0 then
+      MailpitExe := Buffer;
+  end;
   if MailpitExe = '' then
   begin
     Result.Success := False;
-    Result.Message := 'Mailpit was not found on PATH.';
+    Result.Message := 'Mailpit was not found in runtime\tools\mailpit or on PATH.';
     Exit;
   end;
   Result.Success := ShellExecute(0, 'open', PChar(MailpitExe), nil, PChar(FPaths.AppRoot), SW_SHOWNORMAL) > 32;
@@ -887,15 +909,18 @@ var
   BufferSize: DWORD;
   FilePart: PChar;
 begin
-  RedisExe := '';
-  FilePart := nil;
-  BufferSize := SearchPath(nil, 'redis-server.exe', nil, Length(Buffer), Buffer, FilePart);
-  if BufferSize > 0 then
-    RedisExe := Buffer;
+  RedisExe := BundledToolExecutable(FPaths.RedisDir, 'redis-server.exe');
+  if RedisExe = '' then
+  begin
+    FilePart := nil;
+    BufferSize := SearchPath(nil, 'redis-server.exe', nil, Length(Buffer), Buffer, FilePart);
+    if BufferSize > 0 then
+      RedisExe := Buffer;
+  end;
   if RedisExe = '' then
   begin
     Result.Success := False;
-    Result.Message := 'Redis was not found on PATH.';
+    Result.Message := 'Redis was not found in runtime\tools\redis or on PATH.';
     Exit;
   end;
   Result.Success := ShellExecute(0, 'open', PChar(RedisExe), nil, PChar(FPaths.AppRoot), SW_SHOWNORMAL) > 32;
@@ -912,15 +937,18 @@ var
   BufferSize: DWORD;
   FilePart: PChar;
 begin
-  MemcachedExe := '';
-  FilePart := nil;
-  BufferSize := SearchPath(nil, 'memcached.exe', nil, Length(Buffer), Buffer, FilePart);
-  if BufferSize > 0 then
-    MemcachedExe := Buffer;
+  MemcachedExe := BundledToolExecutable(FPaths.MemcachedDir, 'memcached.exe');
+  if MemcachedExe = '' then
+  begin
+    FilePart := nil;
+    BufferSize := SearchPath(nil, 'memcached.exe', nil, Length(Buffer), Buffer, FilePart);
+    if BufferSize > 0 then
+      MemcachedExe := Buffer;
+  end;
   if MemcachedExe = '' then
   begin
     Result.Success := False;
-    Result.Message := 'Memcached was not found on PATH.';
+    Result.Message := 'Memcached was not found in runtime\tools\memcached or on PATH.';
     Exit;
   end;
   Result.Success := ShellExecute(0, 'open', PChar(MemcachedExe), nil, PChar(FPaths.AppRoot), SW_SHOWNORMAL) > 32;
