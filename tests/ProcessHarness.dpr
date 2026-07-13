@@ -939,6 +939,21 @@ begin
   end;
 end;
 
+procedure TestLogRedactionLeavesNonSecretsIntact;
+var
+  SampleText: string;
+  RedactedText: string;
+begin
+  SampleText := 'keep=passwordless keep2=tokenized password=abc;token=xyz&secret=top pass=low';
+  RedactedText := RedactSensitiveText(SampleText);
+  AssertContains(RedactedText, 'keep=passwordless', 'Non-secret text should be preserved');
+  AssertContains(RedactedText, 'keep2=tokenized', 'Non-secret text should be preserved');
+  AssertContains(RedactedText, 'password=[redacted]', 'Password should still be redacted');
+  AssertContains(RedactedText, 'token=[redacted]', 'Token should still be redacted');
+  AssertContains(RedactedText, 'secret=[redacted]', 'Secret should still be redacted');
+  AssertContains(RedactedText, 'pass=[redacted]', 'Pass should still be redacted');
+end;
+
 procedure TestDiagnosticReportIncludesState;
 var
   RootDir: string;
@@ -1013,6 +1028,7 @@ begin
     TestManagedHostsSyncUsesOverride;
     TestRotatedLogAppendsAndTrims;
     TestLogRedactionMasksSecrets;
+    TestLogRedactionLeavesNonSecretsIntact;
     TestDiagnosticReportIncludesState;
     Writeln('Process harness passed.');
   except

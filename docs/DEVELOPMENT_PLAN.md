@@ -124,6 +124,11 @@ Completed:
 - Show versions, paths, services, ports, health checks, permissions, and recent errors in the UI and copied diagnostics.
 - Add configuration, vhost, certificate, and database backup/restore workflows with confirmation.
 
+Completed:
+
+- Added process harness coverage for log redaction preserving non-secret text around common separators.
+- Verified redaction still masks sensitive keys while leaving ordinary key/value text intact.
+
 ## Phase 6: Dashboard and workflow quality
 
 - Add consistent status language, loading/disabled/error/empty states, and clear destructive-action labels.
