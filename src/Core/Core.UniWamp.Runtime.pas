@@ -80,6 +80,7 @@ type
     function LaunchGitInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function LaunchNodeInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function LaunchWpCliInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
+    function LaunchMailpit: TRuntimeActionResult;
     function PreferredTextEditorExecutable: string;
     function LaunchTextEditor(const FileName: string): TRuntimeActionResult;
     function ComputeFileSha256Hex(const FileName: string): string;
@@ -541,6 +542,31 @@ begin
     Result.Message := 'WP-CLI launched'
   else
     Result.Message := 'Failed to launch WP-CLI';
+end;
+
+function TUniWampRuntime.LaunchMailpit: TRuntimeActionResult;
+var
+  MailpitExe: string;
+  Buffer: array[0..MAX_PATH] of Char;
+  BufferSize: DWORD;
+  FilePart: PChar;
+begin
+  MailpitExe := '';
+  FilePart := nil;
+  BufferSize := SearchPath(nil, 'mailpit.exe', nil, Length(Buffer), Buffer, FilePart);
+  if BufferSize > 0 then
+    MailpitExe := Buffer;
+  if MailpitExe = '' then
+  begin
+    Result.Success := False;
+    Result.Message := 'Mailpit was not found on PATH.';
+    Exit;
+  end;
+  Result.Success := ShellExecute(0, 'open', PChar(MailpitExe), nil, PChar(FPaths.AppRoot), SW_SHOWNORMAL) > 32;
+  if Result.Success then
+    Result.Message := 'Mailpit launched'
+  else
+    Result.Message := 'Failed to launch Mailpit';
 end;
 
 function TUniWampRuntime.PrepareUpdateStagingArea(const PackageName: string; out StagingDir: string; out ErrorMessage: string): Boolean;

@@ -112,6 +112,7 @@ type
     GitButton: TPanel;
     NodeButton: TPanel;
     WpCliButton: TPanel;
+    MailpitButton: TPanel;
 
   published
     HeaderPanel: TPanel;
@@ -246,6 +247,7 @@ type
     procedure LaunchGitClick(Sender: TObject);
     procedure LaunchNodeClick(Sender: TObject);
     procedure LaunchWpCliClick(Sender: TObject);
+    procedure LaunchMailpitClick(Sender: TObject);
     procedure GenerateSslClick(Sender: TObject);
     procedure OpenApacheLogClick(Sender: TObject);
     procedure OpenMariaDbLogClick(Sender: TObject);
@@ -1006,6 +1008,25 @@ begin
   WpCliButton.Hint := BuildToolPanelHint('Launch WP-CLI from the selected document root',
     'Opens wp.exe when available on PATH and targets the application root.');
   WpCliButton.ShowHint := True;
+  MailpitButton := TPanel.Create(Self);
+  MailpitButton.Parent := pnltools;
+  MailpitButton.SetBounds(734, 41, 92, 24);
+  MailpitButton.Cursor := crHandPoint;
+  MailpitButton.BevelOuter := bvNone;
+  MailpitButton.Caption := 'Mailpit';
+  MailpitButton.Color := 16053492;
+  MailpitButton.Font.Charset := DEFAULT_CHARSET;
+  MailpitButton.Font.Color := clWindowText;
+  MailpitButton.Font.Height := -11;
+  MailpitButton.Font.Name := 'Segoe UI';
+  MailpitButton.Font.Style := [fsBold];
+  MailpitButton.ParentBackground := False;
+  MailpitButton.ParentFont := False;
+  MailpitButton.TabOrder := 10;
+  MailpitButton.OnClick := LaunchMailpitClick;
+  MailpitButton.Hint := BuildToolPanelHint('Launch Mailpit from the UniWamp application root',
+    'Opens Mailpit when mailpit.exe is available on PATH.');
+  MailpitButton.ShowHint := True;
   SaveConfigButton.OnClick := SaveConfigClick;
   SaveConfigButton.Hint := BuildToolPanelHint('Save configuration',
     'Persists the current dashboard settings to config/uniwamp.json.');
@@ -1191,6 +1212,7 @@ begin
   ApplyPanelIcon(GitButton, 'source');
   ApplyPanelIcon(NodeButton, 'dns');
   ApplyPanelIcon(WpCliButton, 'wordpress');
+  ApplyPanelIcon(MailpitButton, 'mail');
   ApplyPanelIcon(CopyDiagnosticReportButton, 'description');
   ApplyPanelIcon(CopyActivityLogButton, 'content_copy');
   ApplyPanelIcon(OpenPhpExtensionsButton, 'extension');
@@ -1217,6 +1239,7 @@ begin
   SetButtonCaption(GitButton, 'Git');
   SetButtonCaption(NodeButton, 'Node');
   SetButtonCaption(WpCliButton, 'WP-CLI');
+  SetButtonCaption(MailpitButton, 'Mailpit');
   SetButtonCaption(SaveConfigButton, 'Save Config');
   SetButtonCaption(GenerateSslButton, 'Generate SSL');
   SetButtonCaption(CopyDiagnosticReportButton, 'Copy Report');
@@ -2838,6 +2861,14 @@ var
   ResultInfo: TRuntimeActionResult;
 begin
   ResultInfo := FRuntime.LaunchWpCliInWorkingDir(FPaths.AppRoot);
+  AppendStatus(ResultInfo.Message);
+end;
+
+procedure TMainForm.LaunchMailpitClick(Sender: TObject);
+var
+  ResultInfo: TRuntimeActionResult;
+begin
+  ResultInfo := FRuntime.LaunchMailpit;
   AppendStatus(ResultInfo.Message);
 end;
 
