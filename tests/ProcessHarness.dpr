@@ -5,8 +5,10 @@ program ProcessHarness;
 uses
   System.IOUtils,
   System.SysUtils,
+  Winapi.Windows,
   Core.UniWamp.Config,
   Core.UniWamp.Paths,
+  Core.UniWamp.TemplateRenderer,
   Core.UniWamp.Runtime,
   Core.UniWamp.ProcessManager;
 
@@ -329,6 +331,48 @@ begin
   end;
 end;
 
+procedure TestManagedHostsSyncUsesOverride;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  HostsFile: string;
+  ResultInfo: TRuntimeActionResult;
+  HostsText: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-hosts-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    TTemplateRenderer.EnsureDefaultTemplates(Paths);
+    HostsFile := TPath.Combine(RootDir, 'hosts');
+    TFile.WriteAllText(HostsFile, '127.0.0.1 localhost' + sLineBreak, TEncoding.ASCII);
+    SetEnvironmentVariable('UNIWAMP_HOSTS_FILE', PChar(HostsFile));
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      Config.SelectedPhpVersion := '';
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        ResultInfo := Runtime.AddVHost('example.test', TPath.Combine(RootDir, 'site'), '', False);
+        AssertTrue(ResultInfo.Success, 'VHost add should succeed with hosts override');
+        HostsText := TFile.ReadAllText(HostsFile, TEncoding.ASCII);
+        AssertContains(HostsText, '# BEGIN UniWamp Managed Hosts', 'Managed hosts block should be written');
+        AssertContains(HostsText, '127.0.0.1 example.test', 'Managed hosts block should contain the vhost');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+      SetEnvironmentVariable('UNIWAMP_HOSTS_FILE', nil);
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 begin
   try
     TestMissingExecutable;
@@ -342,6 +386,7 @@ begin
     TestMariaDbDuplicateStartShortCircuit;
     TestRestartFailureMessages;
     TestMissingRuntimeDependencies;
+    TestManagedHostsSyncUsesOverride;
     Writeln('Process harness passed.');
   except
     on E: Exception do

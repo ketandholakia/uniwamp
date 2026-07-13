@@ -203,7 +203,12 @@ end;
 function TUniWampRuntime.HostsFilePath: string;
 var
   SystemRoot: string;
+  ConfiguredHostsFile: string;
 begin
+  ConfiguredHostsFile := GetEnvironmentVariable('UNIWAMP_HOSTS_FILE');
+  if Trim(ConfiguredHostsFile) <> '' then
+    Exit(ConfiguredHostsFile);
+
   SystemRoot := GetEnvironmentVariable('SystemRoot');
   if SystemRoot = '' then
     SystemRoot := 'C:\Windows';
@@ -404,18 +409,31 @@ end;
 function TUniWampRuntime.RenderManagedHostsBlock: string;
 var
   Hosts: TStringList;
+  ManagedHosts: TStringList;
   Entry: TVHostEntry;
+  ManagedHostEntry: string;
+  ManagedHostLine: string;
 begin
   Hosts := TStringList.Create;
+  ManagedHosts := TStringList.Create;
   try
+    for Entry in FConfig.VHosts do
+      if Trim(Entry.ServerName) <> '' then
+      begin
+        ManagedHostLine := '127.0.0.1 ' + Trim(Entry.ServerName);
+        if ManagedHosts.IndexOf(ManagedHostLine) < 0 then
+          ManagedHosts.Add(ManagedHostLine);
+      end;
+    ManagedHosts.Sort;
+
     Hosts.Add(ManagedHostsBeginMarker);
     Hosts.Add('127.0.0.1 ' + FConfig.HostName);
-    for Entry in FConfig.VHosts do
-      if (Trim(Entry.ServerName) <> '') and (Hosts.IndexOf('127.0.0.1 ' + Entry.ServerName) < 0) then
-        Hosts.Add('127.0.0.1 ' + Entry.ServerName);
+    for ManagedHostEntry in ManagedHosts do
+      Hosts.Add(ManagedHostEntry);
     Hosts.Add(ManagedHostsEndMarker);
     Result := Hosts.Text;
   finally
+    ManagedHosts.Free;
     Hosts.Free;
   end;
 end;
