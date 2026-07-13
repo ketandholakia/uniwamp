@@ -219,6 +219,7 @@ type
   procedure LaunchSiteClick(Sender: TObject);
   procedure LaunchDashboardClick(Sender: TObject);
   procedure LaunchAdminerClick(Sender: TObject);
+  procedure CopyDiagnosticReportClick(Sender: TObject);
   procedure OpenPhpExtensionsClick(Sender: TObject);
     procedure OpenPhpSettingsClick(Sender: TObject);
     procedure OpenApacheModulesClick(Sender: TObject);
@@ -1120,6 +1121,8 @@ begin
   AddItem(MenuItem, '-');
   Item := AddItem(MenuItem, '&Terminal', LaunchTerminalClick);
   Item.ShortCut := ShortCut(Ord('T'), [ssCtrl]);
+  Item := AddItem(MenuItem, '&Copy Diagnostic Report', CopyDiagnosticReportClick);
+  Item.ShortCut := ShortCut(Ord('R'), [ssCtrl, ssShift]);
   Item := AddItem(MenuItem, 'Apache &Log', OpenApacheLogClick);
   Item.ShortCut := ShortCut(Ord('L'), [ssCtrl]);
   Item := AddItem(MenuItem, 'MariaDB &Log', OpenMariaDbLogClick);
@@ -2327,6 +2330,12 @@ begin
   FConfig.Save(FPaths);
   ResultInfo := FRuntime.LaunchTerminal;
   AppendStatus(ResultInfo.Message);
+end;
+
+procedure TMainForm.CopyDiagnosticReportClick(Sender: TObject);
+begin
+  Clipboard.AsText := FRuntime.BuildDiagnosticReport;
+  AppendStatus('Diagnostic report copied to clipboard.');
 end;
 
 procedure TMainForm.GenerateSslClick(Sender: TObject);

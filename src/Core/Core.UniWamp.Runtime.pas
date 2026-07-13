@@ -76,6 +76,7 @@ type
     function DeleteVHost(const ServerName: string): TRuntimeActionResult;
     function SetMariaDbRootPassword(const NewPassword: string): TRuntimeActionResult;
     function DescribePortOwner(const Port: Integer): string;
+    function BuildDiagnosticReport: string;
   end;
 
 implementation
@@ -619,6 +620,62 @@ begin
     CsvFields.Free;
     CsvLines.Free;
     Tokens.Free;
+    Lines.Free;
+  end;
+end;
+
+function TUniWampRuntime.BuildDiagnosticReport: string;
+var
+  Lines: TStringList;
+  HttpOwner: string;
+  HttpsOwner: string;
+  DbOwner: string;
+  ApacheState: string;
+  MariaState: string;
+begin
+  Lines := TStringList.Create;
+  try
+    if FConfig.ApacheRunning then
+      ApacheState := 'running'
+    else
+      ApacheState := 'stopped';
+    if FConfig.MariaDbRunning then
+      MariaState := 'running'
+    else
+      MariaState := 'stopped';
+
+    HttpOwner := DescribePortOwner(FConfig.HttpPort);
+    HttpsOwner := DescribePortOwner(FConfig.HttpsPort);
+    DbOwner := DescribePortOwner(FConfig.DatabasePort);
+
+    Lines.Add('UniWamp Diagnostic Report');
+    Lines.Add('Generated: ' + FormatDateTime('yyyy-mm-dd hh:nn:ss', Now));
+    Lines.Add('App root: ' + FPaths.AppRoot);
+    Lines.Add('Config dir: ' + FPaths.ConfigDir);
+    Lines.Add('Runtime dir: ' + FPaths.RuntimeDir);
+    Lines.Add('Logs dir: ' + FPaths.LogsDir);
+    Lines.Add('Document root: ' + FConfig.DocumentRoot);
+    Lines.Add('Host name: ' + FConfig.HostName);
+    Lines.Add('PHP version: ' + FConfig.SelectedPhpVersion);
+    Lines.Add('PHP profile: ' + FConfig.PhpProfile);
+    Lines.Add('Node version: ' + FConfig.SelectedNodeVersion);
+    Lines.Add('Apache: ' + ApacheState + ' pid=' + IntToStr(FConfig.ApachePid) + ' port=' + IntToStr(FConfig.HttpPort));
+    Lines.Add('Apache port owner: ' + HttpOwner);
+    Lines.Add('Apache SSL port owner: ' + HttpsOwner);
+    Lines.Add('MariaDB: ' + MariaState + ' pid=' + IntToStr(FConfig.MariaDbPid) + ' port=' + IntToStr(FConfig.DatabasePort));
+    Lines.Add('MariaDB port owner: ' + DbOwner);
+    Lines.Add('VHosts: ' + IntToStr(Length(FConfig.VHosts)));
+    Lines.Add('Last hosts sync: ' + FConfig.LastHostsSyncStatus);
+    Lines.Add('Last Apache error: ' + FConfig.LastApacheError);
+    Lines.Add('Last MariaDB error: ' + FConfig.LastMariaDbError);
+    Lines.Add('Apache config: ' + FPaths.ApacheHttpdConfFile);
+    Lines.Add('Apache SSL config: ' + FPaths.ApacheSslConfFile);
+    Lines.Add('Apache vhosts config: ' + FPaths.ApacheVHostsConfFile);
+    Lines.Add('MariaDB config: ' + FPaths.MariaDbIniFile);
+    Lines.Add('PHP config: ' + FPaths.ActivePhpIniFile);
+    Lines.Add('Hosts file: ' + HostsFilePath);
+    Result := Lines.Text;
+  finally
     Lines.Free;
   end;
 end;

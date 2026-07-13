@@ -436,6 +436,53 @@ begin
   end;
 end;
 
+procedure TestDiagnosticReportIncludesState;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  ReportText: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-report-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    TTemplateRenderer.EnsureDefaultTemplates(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      Config.HostName := 'report.local';
+      Config.DocumentRoot := TPath.Combine(RootDir, 'www');
+      Config.SelectedPhpVersion := 'php85';
+      Config.SelectedNodeVersion := 'node-v22';
+      Config.ApacheRunning := True;
+      Config.ApachePid := 1234;
+      Config.MariaDbRunning := False;
+      Config.MariaDbPid := 0;
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        ReportText := Runtime.BuildDiagnosticReport;
+        AssertContains(ReportText, 'UniWamp Diagnostic Report', 'Report heading should be present');
+        AssertContains(ReportText, 'report.local', 'Report should include host name');
+        AssertContains(ReportText, Config.DocumentRoot, 'Report should include document root');
+        AssertContains(ReportText, 'php85', 'Report should include selected PHP version');
+        AssertContains(ReportText, 'node-v22', 'Report should include selected node version');
+        AssertContains(ReportText, 'Apache: running', 'Report should include Apache state');
+        AssertContains(ReportText, 'MariaDB: stopped', 'Report should include MariaDB state');
+        AssertContains(ReportText, Paths.AppRoot, 'Report should include app root');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 begin
   try
     TestMissingExecutable;
@@ -452,6 +499,7 @@ begin
     TestManagedHostsSyncUsesOverride;
     TestRotatedLogAppendsAndTrims;
     TestLogRedactionMasksSecrets;
+    TestDiagnosticReportIncludesState;
     Writeln('Process harness passed.');
   except
     on E: Exception do
