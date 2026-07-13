@@ -263,11 +263,135 @@ begin
   end;
 end;
 
+procedure TestCurrentConfigDoesNotMigrate;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  JsonText: string;
+  SavedText: string;
+begin
+  RootDir := CreateTempRoot('current');
+  try
+    Paths := BuildPaths(RootDir);
+    EnsureTestLayout(Paths);
+    JsonText :=
+      '{' +
+      '"configVersion":1,' +
+      '"httpPort":8080,' +
+      '"httpsPort":8443,' +
+      '"databasePort":3307,' +
+      '"hostName":"localhost",' +
+      '"documentRoot":"' + StringReplace(Paths.WwwDir, '\', '\\', [rfReplaceAll]) + '",' +
+      '"selectedPhpVersion":"php85",' +
+      '"selectedNodeVersion":"node-v22",' +
+      '"terminalExePath":"bin\\cmder\\cmder.exe",' +
+      '"phpProfile":"development",' +
+      '"enableSsl":false,' +
+      '"apachePid":0,' +
+      '"mariaDbPid":0,' +
+      '"apacheRunning":false,' +
+      '"mariaDbRunning":false,' +
+      '"lastApacheError":"",' +
+      '"lastMariaDbError":"",' +
+      '"lastHostsSyncStatus":"",' +
+      '"mariaDbRootPassword":"",' +
+      '"apacheEnabledModules":[],' +
+      '"phpVersions":["php85"],' +
+      '"phpEnabledExtensions":[],' +
+      '"phpSettings":{},' +
+      '"nodeVersions":["node-v22"],' +
+      '"vhosts":[]' +
+      '}';
+    WriteTextFile(Paths.AppConfigFile, JsonText);
+
+    Config := TUniWampConfig.Create;
+    try
+      AssertTrue(not Config.LoadOrCreate(Paths), 'Current config should not report migration');
+      AssertTrue(Config.LastMigrationMessage = '', 'Current config should not set a migration message');
+      SavedText := TFile.ReadAllText(Paths.AppConfigFile, TEncoding.UTF8);
+      AssertTrue(Pos('"configVersion":1', SavedText) > 0, 'Current config should remain versioned');
+      AssertTrue(Pos('"httpPort":8080', SavedText) > 0, 'Current config should preserve the HTTP port');
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TestPartiallyValidConfigMigratesOnlyInvalidValues;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  JsonText: string;
+begin
+  RootDir := CreateTempRoot('partial');
+  try
+    Paths := BuildPaths(RootDir);
+    EnsureTestLayout(Paths);
+    JsonText :=
+      '{' +
+      '"configVersion":1,' +
+      '"httpPort":8080,' +
+      '"httpsPort":8443,' +
+      '"databasePort":3306,' +
+      '"hostName":"",' +
+      '"documentRoot":"",' +
+      '"selectedPhpVersion":"php85",' +
+      '"selectedNodeVersion":"node-v22",' +
+      '"terminalExePath":"bin\\cmder\\cmder.exe",' +
+      '"phpProfile":"development",' +
+      '"enableSsl":false,' +
+      '"apachePid":0,' +
+      '"mariaDbPid":0,' +
+      '"apacheRunning":false,' +
+      '"mariaDbRunning":false,' +
+      '"lastApacheError":"",' +
+      '"lastMariaDbError":"",' +
+      '"lastHostsSyncStatus":"",' +
+      '"mariaDbRootPassword":"",' +
+      '"apacheEnabledModules":[],' +
+      '"phpVersions":[],' +
+      '"phpEnabledExtensions":[],' +
+      '"phpSettings":{},' +
+      '"nodeVersions":[],' +
+      '"vhosts":[' +
+      '{"serverName":"partial.local","serverAliases":"","documentRoot":"www\\partial","enableSsl":false,"sslCertFile":"ssl\\cert.pem","sslKeyFile":"ssl\\key.pem"}' +
+      ']'+
+      '}';
+    WriteTextFile(Paths.AppConfigFile, JsonText);
+
+    Config := TUniWampConfig.Create;
+    try
+      AssertTrue(Config.LoadOrCreate(Paths), 'Partially valid config should report migration');
+      AssertEquals('localhost', Config.HostName, 'Empty hostname should fall back to localhost');
+      AssertEquals(Paths.WwwDir, Config.DocumentRoot, 'Empty document root should fall back to www');
+      AssertTrue(SameText(Config.TerminalExePath, 'bin\cmder\cmder.exe'),
+        'Portable terminal path should remain relative');
+      AssertTrue(SameText(Config.VHosts[0].DocumentRoot, TPath.Combine(Paths.AppRoot, 'www\partial')),
+        'Relative vHost document root should resolve to the app root');
+      AssertTrue(SameText(Config.VHosts[0].SslCertFile, TPath.Combine(Paths.AppRoot, 'ssl\cert.pem')),
+        'Relative vHost SSL cert should resolve to the app root');
+      AssertTrue(SameText(Config.VHosts[0].SslKeyFile, TPath.Combine(Paths.AppRoot, 'ssl\key.pem')),
+        'Relative vHost SSL key should resolve to the app root');
+      AssertTrue(Config.LastMigrationMessage <> '', 'Partially valid config should produce a migration message');
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 begin
   try
     TestMalformedConfigRecovery;
+    TestCurrentConfigDoesNotMigrate;
     TestRelativePathMigration;
     TestInvalidPortsAndDefaults;
+    TestPartiallyValidConfigMigratesOnlyInvalidValues;
     TestAtomicSaveFailure;
     Writeln('Config harness passed.');
   except
