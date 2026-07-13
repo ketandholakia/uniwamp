@@ -1854,14 +1854,10 @@ begin
       Format('MariaDB %s PID %d', [BoolToStr(FConfig.MariaDbRunning, True), FConfig.MariaDbPid]),
       MariaDbSummary,
       []);
-    StatusBar.ShowHint := True;
-    StatusBar.Hint := BuildStatusBarHint(FConfig.LastMariaDbError);
-  end
-  else
-  begin
-    StatusBar.ShowHint := False;
-    StatusBar.Hint := '';
   end;
+
+  StatusBar.ShowHint := True;
+  StatusBar.Hint := BuildStatusBarHint(FConfig.LastMariaDbError);
 
   StatusBar.SimpleText := StatusText;
 end;

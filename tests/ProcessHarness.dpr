@@ -1217,6 +1217,9 @@ begin
   AssertTrue(
     BuildStatusBarHint('') = 'Status summary',
     'Status bar hint should stay short when there is no error');
+  AssertTrue(
+    BuildStatusBarHint(' ') = 'Status summary',
+    'Whitespace-only errors should not add an extra line');
 end;
 
 procedure TestVHostFilterHintMakesTheClearActionExplicit;

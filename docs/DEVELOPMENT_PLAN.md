@@ -171,6 +171,7 @@ Completed:
 - Added process harness coverage for the MariaDB status-bar hint wording.
 - Added process harness coverage for the vHost filter clear hint wording.
 - Added process harness coverage for the vHost filter search hint wording.
+- Added process harness coverage for the always-on status-bar hint wording.
 
 ## Priority model
 
