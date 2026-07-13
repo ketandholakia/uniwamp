@@ -103,6 +103,9 @@ type
     Panel13: TPanel;
     CopyDiagnosticReportButton: TPanel;
     CopyActivityLogButton: TPanel;
+    ToolGroupWebLabel: TPanel;
+    ToolGroupRuntimeLabel: TPanel;
+    ToolGroupMaintenanceLabel: TPanel;
     OpenPhpExtensionsButton: TPanel;
     OpenPhpSettingsButton: TPanel;
     OpenApacheModulesButton: TPanel;
@@ -907,6 +910,39 @@ begin
     'Shows all projects and vHosts again.');
   FVHostFilterClearLabel.ShowHint := True;
   FVHostFilterClearLabel.OnClick := VHostFilterClearClick;
+  ToolGroupWebLabel := TPanel.Create(Self);
+  ToolGroupWebLabel.Parent := pnltools;
+  ToolGroupWebLabel.BevelOuter := bvNone;
+  ToolGroupWebLabel.Caption := 'Web and config';
+  ToolGroupWebLabel.Color := clWhite;
+  ToolGroupWebLabel.Font.Name := 'Segoe UI';
+  ToolGroupWebLabel.Font.Size := 9;
+  ToolGroupWebLabel.Font.Style := [fsBold];
+  ToolGroupWebLabel.ParentBackground := False;
+  ToolGroupWebLabel.ParentFont := False;
+  ToolGroupWebLabel.Alignment := taLeftJustify;
+  ToolGroupRuntimeLabel := TPanel.Create(Self);
+  ToolGroupRuntimeLabel.Parent := pnltools;
+  ToolGroupRuntimeLabel.BevelOuter := bvNone;
+  ToolGroupRuntimeLabel.Caption := 'Runtime tools';
+  ToolGroupRuntimeLabel.Color := clWhite;
+  ToolGroupRuntimeLabel.Font.Name := 'Segoe UI';
+  ToolGroupRuntimeLabel.Font.Size := 9;
+  ToolGroupRuntimeLabel.Font.Style := [fsBold];
+  ToolGroupRuntimeLabel.ParentBackground := False;
+  ToolGroupRuntimeLabel.ParentFont := False;
+  ToolGroupRuntimeLabel.Alignment := taLeftJustify;
+  ToolGroupMaintenanceLabel := TPanel.Create(Self);
+  ToolGroupMaintenanceLabel.Parent := pnltools;
+  ToolGroupMaintenanceLabel.BevelOuter := bvNone;
+  ToolGroupMaintenanceLabel.Caption := 'Maintenance';
+  ToolGroupMaintenanceLabel.Color := clWhite;
+  ToolGroupMaintenanceLabel.Font.Name := 'Segoe UI';
+  ToolGroupMaintenanceLabel.Font.Size := 9;
+  ToolGroupMaintenanceLabel.Font.Style := [fsBold];
+  ToolGroupMaintenanceLabel.ParentBackground := False;
+  ToolGroupMaintenanceLabel.ParentFont := False;
+  ToolGroupMaintenanceLabel.Alignment := taLeftJustify;
   FActivityMemo := TMemo.Create(Self);
   FActivityMemo.Parent := FActivityCard;
   FActivityMemo.Align := alClient;
@@ -1563,10 +1599,19 @@ procedure TMainForm.LayoutToolSidebar;
 const
   SideMargin = 10;
   RowGap = 6;
+  GroupGap = 10;
   ButtonHeight = 24;
+  LabelHeight = 16;
 var
   ButtonWidth: Integer;
   Y: Integer;
+  procedure PlaceLabel(Panel: TPanel);
+  begin
+    if not Assigned(Panel) then
+      Exit;
+    Panel.SetBounds(SideMargin, Y, ButtonWidth, LabelHeight);
+    Inc(Y, LabelHeight + 3);
+  end;
   procedure PlaceButton(Button: TPanel);
   begin
     if not Assigned(Button) then
@@ -1583,14 +1628,14 @@ begin
     ButtonWidth := 140;
 
   Y := 10;
+  PlaceLabel(ToolGroupWebLabel);
   PlaceButton(GenerateSslButton);
   PlaceButton(Panel8);
   PlaceButton(Panel9);
   PlaceButton(LaunchTerminalButton);
   PlaceButton(OpenRepoTerminalButton);
-  PlaceButton(SaveConfigButton);
-  PlaceButton(CopyDiagnosticReportButton);
-  PlaceButton(CopyActivityLogButton);
+  Inc(Y, GroupGap);
+  PlaceLabel(ToolGroupRuntimeLabel);
   PlaceButton(OpenPhpSettingsButton);
   PlaceButton(OpenPhpExtensionsButton);
   PlaceButton(OpenApacheModulesButton);
@@ -1605,6 +1650,11 @@ begin
   PlaceButton(YarnButton);
   PlaceButton(PnpmButton);
   PlaceButton(EditorButton);
+  Inc(Y, GroupGap);
+  PlaceLabel(ToolGroupMaintenanceLabel);
+  PlaceButton(SaveConfigButton);
+  PlaceButton(CopyDiagnosticReportButton);
+  PlaceButton(CopyActivityLogButton);
   PlaceButton(UpdateButton);
 end;
 
