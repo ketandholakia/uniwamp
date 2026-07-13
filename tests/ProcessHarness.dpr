@@ -91,6 +91,7 @@ begin
   Result.DashboardDir := TPath.Combine(Result.HomeDir, 'dashboard');
   Result.LogsDir := TPath.Combine(Root, 'logs');
   Result.TmpDir := TPath.Combine(Root, 'tmp');
+  Result.UpdatesDir := TPath.Combine(Result.TmpDir, 'updates');
   Result.WwwDir := TPath.Combine(Root, 'www');
   Result.VHostsDir := Result.WwwDir;
   Result.SslDir := TPath.Combine(Root, 'ssl');
@@ -1435,6 +1436,39 @@ begin
   end;
 end;
 
+procedure TestUpdateStagingAreaCreatesPortableWorkspace;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  StagingDir: string;
+  ErrorMessage: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-staging-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        AssertTrue(Runtime.PrepareUpdateStagingArea('UniWamp-1.0.0.zip', StagingDir, ErrorMessage), ErrorMessage);
+        AssertTrue(TDirectory.Exists(StagingDir), 'Update staging area should be created under tmp\updates');
+        AssertTrue(StartsText(Paths.UpdatesDir, StagingDir),
+          'Staging area should stay inside the portable updates directory');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestVHostFilterHintMakesTheClearActionExplicit;
 begin
   AssertTrue(
@@ -1644,6 +1678,7 @@ begin
   TestSha256HelperReturnsTheExpectedDigest;
   TestRuntimeZipValidationAcceptsNonEmptyZipArchives;
   TestRuntimeZipImportExtractsArchiveContents;
+  TestUpdateStagingAreaCreatesPortableWorkspace;
   TestMariaDbRootPasswordRequiresRunningService;
   Writeln('Process harness passed.');
   except

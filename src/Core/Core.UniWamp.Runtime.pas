@@ -81,6 +81,7 @@ type
     function ComputeFileSha256Hex(const FileName: string): string;
     function ValidateRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
     function ImportRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
+    function PrepareUpdateStagingArea(const PackageName: string; out StagingDir: string; out ErrorMessage: string): Boolean;
     function LaunchAdminer: TRuntimeActionResult;
     function LaunchTerminal: TRuntimeActionResult;
     function LaunchTerminalInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
@@ -440,6 +441,32 @@ begin
     end;
   finally
     Zip.Free;
+  end;
+end;
+
+function TUniWampRuntime.PrepareUpdateStagingArea(const PackageName: string; out StagingDir: string; out ErrorMessage: string): Boolean;
+var
+  CleanName: string;
+begin
+  Result := False;
+  ErrorMessage := '';
+  StagingDir := '';
+  CleanName := Trim(PackageName);
+  if CleanName = '' then
+  begin
+    ErrorMessage := 'Update package name is required.';
+    Exit;
+  end;
+  CleanName := StringReplace(CleanName, '\', '_', [rfReplaceAll]);
+  CleanName := StringReplace(CleanName, '/', '_', [rfReplaceAll]);
+  CleanName := StringReplace(CleanName, ':', '_', [rfReplaceAll]);
+  StagingDir := TPath.Combine(FPaths.UpdatesDir, CleanName);
+  try
+    EnsureDirectory(StagingDir);
+    Result := True;
+  except
+    on E: Exception do
+      ErrorMessage := 'Update staging area could not be prepared: ' + E.Message;
   end;
 end;
 

@@ -184,6 +184,8 @@ Completed:
 - Added a SHA-256 file digest helper to support future runtime archive integrity checks.
 - Added ZIP archive validation coverage for the future local runtime import flow.
 - Added local ZIP runtime import coverage that extracts portable payloads into the app root.
+- Added a portable update staging workspace under `tmp\updates` for future staged updater work.
+- Added process harness coverage for update staging workspace creation inside the portable root.
 
 ## Priority model
 

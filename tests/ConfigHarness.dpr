@@ -79,6 +79,7 @@ begin
   Result.DashboardDir := TPath.Combine(Result.HomeDir, 'dashboard');
   Result.LogsDir := TPath.Combine(Root, 'logs');
   Result.TmpDir := TPath.Combine(Root, 'tmp');
+  Result.UpdatesDir := TPath.Combine(Result.TmpDir, 'updates');
   Result.WwwDir := TPath.Combine(Root, 'www');
   Result.VHostsDir := Result.WwwDir;
   Result.SslDir := TPath.Combine(Root, 'ssl');

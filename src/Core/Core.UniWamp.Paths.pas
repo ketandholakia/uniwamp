@@ -27,6 +27,7 @@ type
     DashboardDir: string;
     LogsDir: string;
     TmpDir: string;
+    UpdatesDir: string;
     WwwDir: string;
     VHostsDir: string;
     SslDir: string;
@@ -87,6 +88,7 @@ begin
   Result.DashboardDir := TPath.Combine(Result.HomeDir, 'dashboard');
   Result.LogsDir := TPath.Combine(Root, 'logs');
   Result.TmpDir := TPath.Combine(Root, 'tmp');
+  Result.UpdatesDir := TPath.Combine(Result.TmpDir, 'updates');
   Result.WwwDir := TPath.Combine(Root, 'www');
   Result.VHostsDir := Result.WwwDir;
   Result.SslDir := TPath.Combine(Root, 'ssl');
@@ -131,6 +133,7 @@ begin
   EnsureDirectory(Paths.DashboardDir);
   EnsureDirectory(Paths.LogsDir);
   EnsureDirectory(Paths.TmpDir);
+  EnsureDirectory(Paths.UpdatesDir);
   EnsureDirectory(Paths.WwwDir);
   EnsureDirectory(Paths.VHostsDir);
   EnsureDirectory(Paths.SslDir);
