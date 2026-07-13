@@ -84,13 +84,14 @@ Tests: stale PID, PID reuse, duplicate start, timeout, failed executable, gracef
 
 - Add structured activity records with timestamp, component, operation, service, PID, exit code, duration, category, and message.
 - Add log rotation, redaction, and a copyable diagnostic report.
-- Show versions, paths, services, ports, health checks, permissions, and recent errors.
+- Show versions, paths, services, ports, health checks, permissions, and recent errors in the UI and copied diagnostics.
 - Add configuration, vhost, certificate, and database backup/restore workflows with confirmation.
 
 ## Phase 6: Dashboard and workflow quality
 
 - Add consistent status language, loading/disabled/error/empty states, and clear destructive-action labels.
 - Improve responsive layout, keyboard navigation, focus states, labels, contrast, and theme persistence.
+- Keep action shortcuts, tool-panel hints, and empty states aligned with the implemented UI.
 - Add project search, filtering, open-folder/open-terminal actions, and project type detection.
 
 ## Phase 7: Optional integrations and update model
