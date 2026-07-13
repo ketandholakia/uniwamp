@@ -1218,7 +1218,7 @@ begin
   Item := AddItem(MenuItem, 'MariaDB &Log', OpenMariaDbLogClick);
   Item.ShortCut := ShortCut(Ord('M'), [ssCtrl]);
   Item := AddItem(MenuItem, 'Activity &Log', OpenActivityClick);
-  Item.ShortCut := ShortCut(Ord('A'), [ssCtrl]);
+  Item.ShortCut := ShortCut(Ord('V'), [ssCtrl, ssShift]);
 
   MenuItem := AddItem(FMainMenu.Items, '&Window');
   ApplyMenuIcon(MenuItem, 'view_quilt');
