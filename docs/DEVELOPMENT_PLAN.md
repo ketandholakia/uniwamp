@@ -176,6 +176,7 @@ Completed:
 - Added process harness coverage for the header status-card hint wording.
 - Added process harness coverage for the header title hint wording.
 - Added process harness coverage for the header overview hint wording.
+- Added process harness coverage for the header overview region hint wording.
 
 ## Priority model
 

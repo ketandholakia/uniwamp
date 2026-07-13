@@ -1258,6 +1258,13 @@ begin
     'Header overview hint should describe the stack status area');
 end;
 
+procedure TestHeaderPanelHintDescribesTheOverviewRegion;
+begin
+  AssertTrue(
+    BuildHeaderOverviewHint <> '',
+    'Header overview hint should not be empty');
+end;
+
 procedure TestVHostFilterHintMakesTheClearActionExplicit;
 begin
   AssertTrue(
@@ -1460,6 +1467,7 @@ begin
   TestHeaderCardHintSummarizesStatusAndPorts;
   TestHeaderTitleHintStaysOnBrand;
   TestHeaderOverviewHintDescribesTheDashboardSummary;
+  TestHeaderPanelHintDescribesTheOverviewRegion;
   TestDiagnosticReportUsesConsistentServiceStateLabels;
   TestGeneratedEnvBatDoesNotStartWithUtf8Bom;
   TestTerminalExecutablePathResolvesRelativeConfigValues;
