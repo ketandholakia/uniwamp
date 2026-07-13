@@ -188,6 +188,7 @@ Completed:
 - Increased the vHost header height and slightly reduced sidebar button height for better balance.
 - Reverted the vHost header strip change and kept the filter on the grid card.
 - Increased sidebar header label height while keeping the sidebar buttons slightly shorter.
+- Moved the vHost filter controls to the right side of the `Virtual hosts` header and enlarged sidebar button height to prevent terminal overlap.
 - Removed the duplicate repo-terminal sidebar control and kept the streamed DFM control only once.
 - Added process harness coverage for the vHost filter clear hint wording.
 - Added process harness coverage for the vHost filter search hint wording.

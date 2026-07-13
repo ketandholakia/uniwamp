@@ -907,18 +907,18 @@ begin
   FVHostEmptyLabel.OnClick := VHostEmptyLabelClick;
   FVHostEmptyLabel.Visible := False;
   FVHostFilterLabel := TLabel.Create(Self);
-  FVHostFilterLabel.Parent := VHostCard;
+  FVHostFilterLabel.Parent := Label11;
   FVHostFilterLabel.Left := 12;
-  FVHostFilterLabel.Top := 10;
+  FVHostFilterLabel.Top := 12;
   FVHostFilterLabel.Caption := 'Filter';
   FVHostFilterLabel.Font.Name := 'Segoe UI';
   FVHostFilterLabel.Font.Size := 9;
   FVHostFilterLabel.Font.Style := [fsBold];
   FVHostFilterLabel.Transparent := True;
   FVHostFilterEdit := TEdit.Create(Self);
-  FVHostFilterEdit.Parent := VHostCard;
-  FVHostFilterEdit.Left := 12;
-  FVHostFilterEdit.Top := 30;
+  FVHostFilterEdit.Parent := Label11;
+  FVHostFilterEdit.Left := 428;
+  FVHostFilterEdit.Top := 8;
   FVHostFilterEdit.Width := 220;
   FVHostFilterEdit.TextHint := 'Type a site name or document path';
   FVHostFilterEdit.Hint := BuildToolPanelHint('Filter vHosts',
@@ -927,9 +927,9 @@ begin
   FVHostFilterEdit.OnChange := VHostFilterChanged;
   FVHostFilterEdit.OnKeyDown := VHostFilterKeyDown;
   FVHostFilterClearLabel := TLabel.Create(Self);
-  FVHostFilterClearLabel.Parent := VHostCard;
-  FVHostFilterClearLabel.Left := 244;
-  FVHostFilterClearLabel.Top := 33;
+  FVHostFilterClearLabel.Parent := Label11;
+  FVHostFilterClearLabel.Left := 658;
+  FVHostFilterClearLabel.Top := 12;
   FVHostFilterClearLabel.Caption := 'Clear';
   FVHostFilterClearLabel.Cursor := crHandPoint;
   FVHostFilterClearLabel.Font.Name := 'Segoe UI';
@@ -942,7 +942,7 @@ begin
   FVHostFilterClearLabel.ShowHint := True;
   FVHostFilterClearLabel.OnClick := VHostFilterClearClick;
   Label11.Caption := 'Virtual hosts';
-  Label11.Height := 28;
+  Label11.Height := 38;
   Label11.Alignment := taLeftJustify;
   ToolGroupWebLabel := TPanel.Create(Self);
   ToolGroupWebLabel.Parent := pnltools;
@@ -1692,7 +1692,7 @@ const
   SideMargin = 8;
   RowGap = 4;
   GroupGap = 8;
-  ButtonHeight = 22;
+  ButtonHeight = 24;
   LabelHeight = 16;
 var
   ButtonWidth: Integer;
