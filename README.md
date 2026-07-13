@@ -79,6 +79,9 @@ If you want a different Cmder location, update `terminalExePath` to the full pat
 
 The main Tools menu and tool panel also expose:
 
+- `Open Site` to launch the local root site
+- `Open Adminer` to launch Adminer when `home/adminer/index.php` exists
+- `Terminal` to launch the configured terminal executable
 - `Copy Report` to copy a diagnostic snapshot with paths, versions, ports, service state, and recent errors
 - `Copy Activity` to copy the current activity log to the clipboard
 - `Esc` to close the main window through the normal shutdown flow
