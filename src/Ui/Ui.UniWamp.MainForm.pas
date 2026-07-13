@@ -194,6 +194,7 @@ type
     procedure SetButtonCaption(Button: TPanel; const CaptionText: string);
     procedure UpdateButtonIcons(Button: TPanel; const IconColor: TColor);
     procedure ApplyPanelIcon(Button: TPanel; const IconName: string; const IconSize: Integer = 14);
+    procedure ClearPanelIcon(Button: TPanel);
     procedure ApplyMenuIcon(Item: TMenuItem; const IconName: string);
     procedure DrawIconInRect(Canvas: TCanvas; const IconName: string; const Bounds: TRect;
       const IconSize: Integer);
@@ -756,6 +757,19 @@ begin
   IconImage.SendToBack;
 end;
 
+procedure TMainForm.ClearPanelIcon(Button: TPanel);
+var
+  I: Integer;
+begin
+  if not Assigned(Button) then
+    Exit;
+
+  for I := Button.ControlCount - 1 downto 0 do
+    if Button.Controls[I] is TImage then
+      Button.Controls[I].Free;
+  Button.Tag := 0;
+end;
+
 procedure TMainForm.ApplyMenuIcon(Item: TMenuItem; const IconName: string);
 begin
   Item.Bitmap.Assign(LoadTintedIconBitmap(IconName, $00333333, MenuIconSize));
@@ -918,6 +932,7 @@ begin
   ToolGroupWebLabel.Font.Name := 'Segoe UI';
   ToolGroupWebLabel.Font.Size := 9;
   ToolGroupWebLabel.Font.Style := [fsBold];
+  ToolGroupWebLabel.Font.Color := RGB(30, 64, 175);
   ToolGroupWebLabel.ParentBackground := False;
   ToolGroupWebLabel.ParentFont := False;
   ToolGroupWebLabel.Alignment := taLeftJustify;
@@ -929,6 +944,7 @@ begin
   ToolGroupRuntimeLabel.Font.Name := 'Segoe UI';
   ToolGroupRuntimeLabel.Font.Size := 9;
   ToolGroupRuntimeLabel.Font.Style := [fsBold];
+  ToolGroupRuntimeLabel.Font.Color := RGB(31, 95, 73);
   ToolGroupRuntimeLabel.ParentBackground := False;
   ToolGroupRuntimeLabel.ParentFont := False;
   ToolGroupRuntimeLabel.Alignment := taLeftJustify;
@@ -940,6 +956,7 @@ begin
   ToolGroupMaintenanceLabel.Font.Name := 'Segoe UI';
   ToolGroupMaintenanceLabel.Font.Size := 9;
   ToolGroupMaintenanceLabel.Font.Style := [fsBold];
+  ToolGroupMaintenanceLabel.Font.Color := RGB(107, 33, 168);
   ToolGroupMaintenanceLabel.ParentBackground := False;
   ToolGroupMaintenanceLabel.ParentFont := False;
   ToolGroupMaintenanceLabel.Alignment := taLeftJustify;
@@ -1464,6 +1481,52 @@ begin
   SetButtonCaption(EditPhpIniButton, 'php.ini');
   SetButtonCaption(EditHttpdConfButton, 'httpd.conf');
   SetButtonCaption(EditMariaDbIniButton, 'mariadb.ini');
+  ClearPanelIcon(GenerateSslButton);
+  ClearPanelIcon(Panel8);
+  ClearPanelIcon(Panel9);
+  ClearPanelIcon(LaunchTerminalButton);
+  ClearPanelIcon(OpenRepoTerminalButton);
+  ClearPanelIcon(SaveConfigButton);
+  ClearPanelIcon(CopyDiagnosticReportButton);
+  ClearPanelIcon(CopyActivityLogButton);
+  ClearPanelIcon(OpenPhpExtensionsButton);
+  ClearPanelIcon(OpenPhpSettingsButton);
+  ClearPanelIcon(OpenApacheModulesButton);
+  ClearPanelIcon(ComposerButton);
+  ClearPanelIcon(GitButton);
+  ClearPanelIcon(NodeButton);
+  ClearPanelIcon(WpCliButton);
+  ClearPanelIcon(MailpitButton);
+  ClearPanelIcon(RedisButton);
+  ClearPanelIcon(MemcachedButton);
+  ClearPanelIcon(NpmButton);
+  ClearPanelIcon(YarnButton);
+  ClearPanelIcon(PnpmButton);
+  ClearPanelIcon(EditorButton);
+  ClearPanelIcon(UpdateButton);
+  SetButtonCaption(GenerateSslButton, 'Generate SSL');
+  SetButtonCaption(Panel8, 'Web Dashboard');
+  SetButtonCaption(Panel9, 'Adminer');
+  SetButtonCaption(LaunchTerminalButton, 'Terminal');
+  SetButtonCaption(OpenRepoTerminalButton, 'Repo Terminal');
+  SetButtonCaption(SaveConfigButton, 'Save Config');
+  SetButtonCaption(CopyDiagnosticReportButton, 'Copy Report');
+  SetButtonCaption(CopyActivityLogButton, 'Copy Activity');
+  SetButtonCaption(OpenPhpExtensionsButton, 'PHP Extensions');
+  SetButtonCaption(OpenPhpSettingsButton, 'PHP Settings');
+  SetButtonCaption(OpenApacheModulesButton, 'Apache Modules');
+  SetButtonCaption(ComposerButton, 'Composer');
+  SetButtonCaption(GitButton, 'Git');
+  SetButtonCaption(NodeButton, 'Node');
+  SetButtonCaption(WpCliButton, 'WP-CLI');
+  SetButtonCaption(MailpitButton, 'Mailpit');
+  SetButtonCaption(RedisButton, 'Redis');
+  SetButtonCaption(MemcachedButton, 'Memcached');
+  SetButtonCaption(NpmButton, 'npm');
+  SetButtonCaption(YarnButton, 'yarn');
+  SetButtonCaption(PnpmButton, 'pnpm');
+  SetButtonCaption(EditorButton, 'Editor');
+  SetButtonCaption(UpdateButton, 'Update');
   BuildMenus;
   Menu := FMainMenu;
   if HandleAllocated then

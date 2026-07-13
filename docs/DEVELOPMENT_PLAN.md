@@ -169,6 +169,7 @@ Completed:
 - Added process harness coverage for copy action hints on diagnostic report and activity log actions.
 - Added process harness coverage for the MariaDB status-bar hint wording.
 - Reworked the tool-panel layout so sidebar actions are stacked and grouped by purpose.
+- Refined the sidebar styling with centered labels, icon-free action buttons, and distinct section colors.
 - Added process harness coverage for the vHost filter clear hint wording.
 - Added process harness coverage for the vHost filter search hint wording.
 - Added process harness coverage for the always-on status-bar hint wording.
