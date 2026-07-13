@@ -180,6 +180,7 @@ Completed:
 - Added process harness coverage for preferred text-editor selection via `EDITOR`.
 - Added process harness coverage for the text-editor fallback defaulting to Notepad.
 - Added process harness coverage for terminal executable fallback ordering across Cmder, Windows Terminal, and cmd.exe.
+- Added a repo-root terminal shortcut in the tool panel for Git and maintenance workflows.
 
 ## Priority model
 

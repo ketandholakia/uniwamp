@@ -833,6 +833,24 @@ object MainForm: TMainForm
             ParentFont = False
             TabOrder = 4
           end
+          object OpenRepoTerminalButton: TPanel
+            Left = 232
+            Top = 41
+            Width = 126
+            Height = 24
+            Cursor = crHandPoint
+            BevelOuter = bvNone
+            Caption = 'Repo Terminal'
+            Color = 16053492
+            Font.Charset = DEFAULT_CHARSET
+            Font.Color = clWindowText
+            Font.Height = -11
+            Font.Name = 'Segoe UI'
+            Font.Style = [fsBold]
+            ParentBackground = False
+            ParentFont = False
+            TabOrder = 8
+          end
           object OpenPhpExtensionsButton: TPanel
             Left = 452
             Top = 9

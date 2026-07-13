@@ -107,6 +107,7 @@ type
     OpenApacheModulesButton: TPanel;
     Label1: TLabel;
     Label2: TLabel;
+    OpenRepoTerminalButton: TPanel;
 
   published
     HeaderPanel: TPanel;
@@ -236,6 +237,7 @@ type
     procedure VHostFilterKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure SetMariaDbRootPasswordClick(Sender: TObject);
     procedure LaunchTerminalClick(Sender: TObject);
+    procedure OpenRepoTerminalClick(Sender: TObject);
     procedure GenerateSslClick(Sender: TObject);
     procedure OpenApacheLogClick(Sender: TObject);
     procedure OpenMariaDbLogClick(Sender: TObject);
@@ -901,6 +903,25 @@ begin
   LaunchTerminalButton.Hint := BuildToolPanelHint('Open the terminal in the UniWamp document root',
     'Uses Cmder when available, otherwise falls back to cmd.exe.');
   LaunchTerminalButton.ShowHint := True;
+  OpenRepoTerminalButton := TPanel.Create(Self);
+  OpenRepoTerminalButton.Parent := pnltools;
+  OpenRepoTerminalButton.SetBounds(232, 41, 126, 24);
+  OpenRepoTerminalButton.Cursor := crHandPoint;
+  OpenRepoTerminalButton.BevelOuter := bvNone;
+  OpenRepoTerminalButton.Caption := 'Repo Terminal';
+  OpenRepoTerminalButton.Color := 16053492;
+  OpenRepoTerminalButton.Font.Charset := DEFAULT_CHARSET;
+  OpenRepoTerminalButton.Font.Color := clWindowText;
+  OpenRepoTerminalButton.Font.Height := -11;
+  OpenRepoTerminalButton.Font.Name := 'Segoe UI';
+  OpenRepoTerminalButton.Font.Style := [fsBold];
+  OpenRepoTerminalButton.ParentBackground := False;
+  OpenRepoTerminalButton.ParentFont := False;
+  OpenRepoTerminalButton.TabOrder := 5;
+  OpenRepoTerminalButton.OnClick := OpenRepoTerminalClick;
+  OpenRepoTerminalButton.Hint := BuildToolPanelHint('Open the terminal in the UniWamp repository root',
+    'Launches the configured terminal in the application root for Git and maintenance tasks.');
+  OpenRepoTerminalButton.ShowHint := True;
   SaveConfigButton.OnClick := SaveConfigClick;
   SaveConfigButton.Hint := BuildToolPanelHint('Save configuration',
     'Persists the current dashboard settings to config/uniwamp.json.');
@@ -1081,6 +1102,7 @@ begin
   ApplyPanelIcon(MariaRestartButton, 'restart_alt');
   ApplyPanelIcon(GenerateSslButton, 'lock');
   ApplyPanelIcon(LaunchTerminalButton, 'terminal');
+  ApplyPanelIcon(OpenRepoTerminalButton, 'terminal');
   ApplyPanelIcon(CopyDiagnosticReportButton, 'description');
   ApplyPanelIcon(CopyActivityLogButton, 'content_copy');
   ApplyPanelIcon(OpenPhpExtensionsButton, 'extension');
@@ -1102,6 +1124,7 @@ begin
   ApplyPanelIcon(EditHttpdConfButton, 'web');
   ApplyPanelIcon(EditMariaDbIniButton, 'database');
   SetButtonCaption(LaunchTerminalButton, 'Terminal');
+  SetButtonCaption(OpenRepoTerminalButton, 'Repo Terminal');
   SetButtonCaption(SaveConfigButton, 'Save Config');
   SetButtonCaption(GenerateSslButton, 'Generate SSL');
   SetButtonCaption(CopyDiagnosticReportButton, 'Copy Report');
@@ -2683,6 +2706,14 @@ begin
   SaveUiIntoState;
   FConfig.Save(FPaths);
   ResultInfo := FRuntime.LaunchTerminal;
+  AppendStatus(ResultInfo.Message);
+end;
+
+procedure TMainForm.OpenRepoTerminalClick(Sender: TObject);
+var
+  ResultInfo: TRuntimeActionResult;
+begin
+  ResultInfo := FRuntime.LaunchTerminalInWorkingDir(FPaths.AppRoot);
   AppendStatus(ResultInfo.Message);
 end;
 
