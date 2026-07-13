@@ -77,6 +77,7 @@ type
     function GenerateSslCertificate: TRuntimeActionResult;
     function LaunchUrl(const Url: string): TRuntimeActionResult;
     function LaunchComposerInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
+    function LaunchGitInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function PreferredTextEditorExecutable: string;
     function LaunchTextEditor(const FileName: string): TRuntimeActionResult;
     function ComputeFileSha256Hex(const FileName: string): string;
@@ -470,6 +471,31 @@ begin
     Result.Message := 'Composer launched'
   else
     Result.Message := 'Failed to launch Composer';
+end;
+
+function TUniWampRuntime.LaunchGitInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
+var
+  GitExe: string;
+  Buffer: array[0..MAX_PATH] of Char;
+  BufferSize: DWORD;
+  FilePart: PChar;
+begin
+  GitExe := '';
+  FilePart := nil;
+  BufferSize := SearchPath(nil, 'git.exe', nil, Length(Buffer), Buffer, FilePart);
+  if BufferSize > 0 then
+    GitExe := Buffer;
+  if GitExe = '' then
+  begin
+    Result.Success := False;
+    Result.Message := 'Git was not found on PATH.';
+    Exit;
+  end;
+  Result.Success := ShellExecute(0, 'open', 'cmd.exe', PChar('/K "' + GitExe + '" status'), PChar(WorkingDir), SW_SHOWNORMAL) > 32;
+  if Result.Success then
+    Result.Message := 'Git launched'
+  else
+    Result.Message := 'Failed to launch Git';
 end;
 
 function TUniWampRuntime.PrepareUpdateStagingArea(const PackageName: string; out StagingDir: string; out ErrorMessage: string): Boolean;

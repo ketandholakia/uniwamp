@@ -109,6 +109,7 @@ type
     Label2: TLabel;
     OpenRepoTerminalButton: TPanel;
     ComposerButton: TPanel;
+    GitButton: TPanel;
 
   published
     HeaderPanel: TPanel;
@@ -240,6 +241,7 @@ type
     procedure LaunchTerminalClick(Sender: TObject);
     procedure OpenRepoTerminalClick(Sender: TObject);
     procedure LaunchComposerClick(Sender: TObject);
+    procedure LaunchGitClick(Sender: TObject);
     procedure GenerateSslClick(Sender: TObject);
     procedure OpenApacheLogClick(Sender: TObject);
     procedure OpenMariaDbLogClick(Sender: TObject);
@@ -943,6 +945,25 @@ begin
   ComposerButton.Hint := BuildToolPanelHint('Launch Composer from the UniWamp repository root',
     'Opens Composer in the application root when composer.exe is available on PATH.');
   ComposerButton.ShowHint := True;
+  GitButton := TPanel.Create(Self);
+  GitButton.Parent := pnltools;
+  GitButton.SetBounds(472, 41, 74, 24);
+  GitButton.Cursor := crHandPoint;
+  GitButton.BevelOuter := bvNone;
+  GitButton.Caption := 'Git';
+  GitButton.Color := 16053492;
+  GitButton.Font.Charset := DEFAULT_CHARSET;
+  GitButton.Font.Color := clWindowText;
+  GitButton.Font.Height := -11;
+  GitButton.Font.Name := 'Segoe UI';
+  GitButton.Font.Style := [fsBold];
+  GitButton.ParentBackground := False;
+  GitButton.ParentFont := False;
+  GitButton.TabOrder := 7;
+  GitButton.OnClick := LaunchGitClick;
+  GitButton.Hint := BuildToolPanelHint('Launch Git from the UniWamp repository root',
+    'Opens Git in the application root when git.exe is available on PATH.');
+  GitButton.ShowHint := True;
   SaveConfigButton.OnClick := SaveConfigClick;
   SaveConfigButton.Hint := BuildToolPanelHint('Save configuration',
     'Persists the current dashboard settings to config/uniwamp.json.');
@@ -1125,6 +1146,7 @@ begin
   ApplyPanelIcon(LaunchTerminalButton, 'terminal');
   ApplyPanelIcon(OpenRepoTerminalButton, 'terminal');
   ApplyPanelIcon(ComposerButton, 'code');
+  ApplyPanelIcon(GitButton, 'source');
   ApplyPanelIcon(CopyDiagnosticReportButton, 'description');
   ApplyPanelIcon(CopyActivityLogButton, 'content_copy');
   ApplyPanelIcon(OpenPhpExtensionsButton, 'extension');
@@ -1148,6 +1170,7 @@ begin
   SetButtonCaption(LaunchTerminalButton, 'Terminal');
   SetButtonCaption(OpenRepoTerminalButton, 'Repo Terminal');
   SetButtonCaption(ComposerButton, 'Composer');
+  SetButtonCaption(GitButton, 'Git');
   SetButtonCaption(SaveConfigButton, 'Save Config');
   SetButtonCaption(GenerateSslButton, 'Generate SSL');
   SetButtonCaption(CopyDiagnosticReportButton, 'Copy Report');
@@ -2745,6 +2768,14 @@ var
   ResultInfo: TRuntimeActionResult;
 begin
   ResultInfo := FRuntime.LaunchComposerInWorkingDir(FPaths.AppRoot);
+  AppendStatus(ResultInfo.Message);
+end;
+
+procedure TMainForm.LaunchGitClick(Sender: TObject);
+var
+  ResultInfo: TRuntimeActionResult;
+begin
+  ResultInfo := FRuntime.LaunchGitInWorkingDir(FPaths.AppRoot);
   AppendStatus(ResultInfo.Message);
 end;
 
