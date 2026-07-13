@@ -816,6 +816,7 @@ begin
   Caption := 'UniWamp';
 //  Width := 1450;
 //  Height := 1020;
+  WindowState := wsMaximized;
   Constraints.MinWidth := 1200;
   Constraints.MinHeight := 800;
   Position := poScreenCenter;
