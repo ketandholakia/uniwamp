@@ -37,6 +37,11 @@ type
     function CmderExe: string;
     function WindowsTerminalExe: string;
     function BundledToolExecutable(const ToolDir, ExecutableName: string): string;
+    function QuoteForCmd(const Value: string): string;
+    function BuildCmdCommandLine(const ExecutablePath, Arguments: string): string;
+    function ShellExecuteInWorkingDir(const Executable, Parameters, WorkingDir: string): Boolean;
+    function ShellExecuteCmdInWorkingDir(const WorkingDir, CommandLine: string): Boolean;
+    function BundledEditorExecutable: string;
     function RenderManagedHostsBlock: string;
     function ApacheModuleDir: string;
     function RenderApacheModuleLines: string;
@@ -168,6 +173,34 @@ begin
   Result := TPath.Combine(ToolDir, ExecutableName);
   if not FileExists(Result) then
     Result := '';
+end;
+
+function TUniWampRuntime.QuoteForCmd(const Value: string): string;
+begin
+  Result := '"' + StringReplace(Value, '"', '""', [rfReplaceAll]) + '"';
+end;
+
+function TUniWampRuntime.BuildCmdCommandLine(const ExecutablePath, Arguments: string): string;
+begin
+  Result := QuoteForCmd(ExecutablePath);
+  if Trim(Arguments) <> '' then
+    Result := Result + ' ' + Arguments;
+end;
+
+function TUniWampRuntime.ShellExecuteInWorkingDir(const Executable, Parameters, WorkingDir: string): Boolean;
+var
+  DirectoryArg: PChar;
+begin
+  if Trim(WorkingDir) = '' then
+    DirectoryArg := nil
+  else
+    DirectoryArg := PChar(WorkingDir);
+  Result := ShellExecute(0, 'open', PChar(Executable), PChar(Parameters), DirectoryArg, SW_SHOWNORMAL) > 32;
+end;
+
+function TUniWampRuntime.ShellExecuteCmdInWorkingDir(const WorkingDir, CommandLine: string): Boolean;
+begin
+  Result := ShellExecuteInWorkingDir('cmd.exe', '/K ' + CommandLine, WorkingDir);
 end;
 
 constructor TUniWampRuntime.Create(const Paths: TAppPaths; Config: TUniWampConfig);
@@ -700,6 +733,8 @@ end;
 function TUniWampRuntime.LaunchComposerInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
 var
   ComposerExe: string;
+  ComposerPhar: string;
+  PhpExe: string;
   Buffer: array[0..MAX_PATH] of Char;
   BufferSize: DWORD;
   FilePart: PChar;
@@ -712,13 +747,41 @@ begin
     if BufferSize > 0 then
       ComposerExe := Buffer;
   end;
-  if ComposerExe = '' then
+  if ComposerExe <> '' then
+  begin
+    Result.Success := ShellExecuteCmdInWorkingDir(WorkingDir, BuildCmdCommandLine(ComposerExe, ''));
+    if Result.Success then
+      Result.Message := 'Composer launched'
+    else
+      Result.Message := 'Failed to launch Composer';
+    Exit;
+  end;
+
+  ComposerPhar := TPath.Combine(FPaths.ComposerDir, 'composer.phar');
+  if not FileExists(ComposerPhar) then
   begin
     Result.Success := False;
     Result.Message := 'Composer was not found in runtime\tools\composer or on PATH.';
     Exit;
   end;
-  Result.Success := ShellExecute(0, 'open', 'cmd.exe', PChar('/K "' + ComposerExe + '"'), PChar(WorkingDir), SW_SHOWNORMAL) > 32;
+
+  PhpExe := SelectedPhpExe;
+  if not FileExists(PhpExe) then
+  begin
+    FilePart := nil;
+    BufferSize := SearchPath(nil, 'php.exe', nil, Length(Buffer), Buffer, FilePart);
+    if BufferSize > 0 then
+      PhpExe := Buffer;
+  end;
+  if PhpExe = '' then
+  begin
+    Result.Success := False;
+    Result.Message := 'Composer was found at runtime\tools\composer\composer.phar, but php.exe was not found in the selected PHP runtime or on PATH.';
+    Exit;
+  end;
+
+  Result.Success := ShellExecuteCmdInWorkingDir(WorkingDir,
+    BuildCmdCommandLine(PhpExe, QuoteForCmd(ComposerPhar)));
   if Result.Success then
     Result.Message := 'Composer launched'
   else
@@ -746,7 +809,7 @@ begin
     Result.Message := 'Git was not found in runtime\tools\git or on PATH.';
     Exit;
   end;
-  Result.Success := ShellExecute(0, 'open', 'cmd.exe', PChar('/K "' + GitExe + '" status'), PChar(WorkingDir), SW_SHOWNORMAL) > 32;
+  Result.Success := ShellExecuteCmdInWorkingDir(WorkingDir, BuildCmdCommandLine(GitExe, 'status'));
   if Result.Success then
     Result.Message := 'Git launched'
   else
@@ -764,7 +827,7 @@ begin
     Result.Message := 'Node executable not found for ' + FConfig.SelectedNodeVersion + '.';
     Exit;
   end;
-  Result.Success := ShellExecute(0, 'open', PChar(NodeExe), nil, PChar(WorkingDir), SW_SHOWNORMAL) > 32;
+  Result.Success := ShellExecuteInWorkingDir(NodeExe, '', WorkingDir);
   if Result.Success then
     Result.Message := 'Node launched'
   else
@@ -774,6 +837,8 @@ end;
 function TUniWampRuntime.LaunchWpCliInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
 var
   WpExe: string;
+  WpPhar: string;
+  PhpExe: string;
   Buffer: array[0..MAX_PATH] of Char;
   BufferSize: DWORD;
   FilePart: PChar;
@@ -786,13 +851,41 @@ begin
     if BufferSize > 0 then
       WpExe := Buffer;
   end;
-  if WpExe = '' then
+  if WpExe <> '' then
+  begin
+    Result.Success := ShellExecuteCmdInWorkingDir(WorkingDir, BuildCmdCommandLine(WpExe, '--info'));
+    if Result.Success then
+      Result.Message := 'WP-CLI launched'
+    else
+      Result.Message := 'Failed to launch WP-CLI';
+    Exit;
+  end;
+
+  WpPhar := TPath.Combine(FPaths.WpCliDir, 'wp-cli.phar');
+  if not FileExists(WpPhar) then
   begin
     Result.Success := False;
     Result.Message := 'WP-CLI was not found in runtime\tools\wp-cli or on PATH.';
     Exit;
   end;
-  Result.Success := ShellExecute(0, 'open', 'cmd.exe', PChar('/K "' + WpExe + '" --info'), PChar(WorkingDir), SW_SHOWNORMAL) > 32;
+
+  PhpExe := SelectedPhpExe;
+  if not FileExists(PhpExe) then
+  begin
+    FilePart := nil;
+    BufferSize := SearchPath(nil, 'php.exe', nil, Length(Buffer), Buffer, FilePart);
+    if BufferSize > 0 then
+      PhpExe := Buffer;
+  end;
+  if PhpExe = '' then
+  begin
+    Result.Success := False;
+    Result.Message := 'WP-CLI was found at runtime\tools\wp-cli\wp-cli.phar, but php.exe was not found in the selected PHP runtime or on PATH.';
+    Exit;
+  end;
+
+  Result.Success := ShellExecuteCmdInWorkingDir(WorkingDir,
+    BuildCmdCommandLine(PhpExe, QuoteForCmd(WpPhar) + ' --info'));
   if Result.Success then
     Result.Message := 'WP-CLI launched'
   else
@@ -802,22 +895,34 @@ end;
 function TUniWampRuntime.LaunchNpmInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
 var
   NpmExe: string;
+  SelectedNpmExe: string;
   Buffer: array[0..MAX_PATH] of Char;
   BufferSize: DWORD;
   FilePart: PChar;
 begin
-  NpmExe := '';
-  FilePart := nil;
-  BufferSize := SearchPath(nil, 'npm.cmd', nil, Length(Buffer), Buffer, FilePart);
-  if BufferSize > 0 then
-    NpmExe := Buffer;
+  NpmExe := TPath.Combine(SelectedNodeDir, 'npm.cmd');
+  if not FileExists(NpmExe) then
+  begin
+    SelectedNpmExe := TPath.Combine(SelectedNodeDir, 'node_modules\npm\bin\npm.cmd');
+    if FileExists(SelectedNpmExe) then
+      NpmExe := SelectedNpmExe
+    else
+      NpmExe := '';
+  end;
+  if NpmExe = '' then
+  begin
+    FilePart := nil;
+    BufferSize := SearchPath(nil, 'npm.cmd', nil, Length(Buffer), Buffer, FilePart);
+    if BufferSize > 0 then
+      NpmExe := Buffer;
+  end;
   if NpmExe = '' then
   begin
     Result.Success := False;
-    Result.Message := 'npm was not found on PATH.';
+    Result.Message := 'npm was not found in the selected Node.js runtime or on PATH.';
     Exit;
   end;
-  Result.Success := ShellExecute(0, 'open', 'cmd.exe', PChar('/K "' + NpmExe + '"'), PChar(WorkingDir), SW_SHOWNORMAL) > 32;
+  Result.Success := ShellExecuteCmdInWorkingDir(WorkingDir, BuildCmdCommandLine(NpmExe, ''));
   if Result.Success then
     Result.Message := 'npm launched'
   else
@@ -827,22 +932,40 @@ end;
 function TUniWampRuntime.LaunchYarnInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
 var
   YarnExe: string;
+  SelectedYarnExe: string;
   Buffer: array[0..MAX_PATH] of Char;
   BufferSize: DWORD;
   FilePart: PChar;
 begin
-  YarnExe := '';
-  FilePart := nil;
-  BufferSize := SearchPath(nil, 'yarn.cmd', nil, Length(Buffer), Buffer, FilePart);
-  if BufferSize > 0 then
-    YarnExe := Buffer;
+  YarnExe := TPath.Combine(SelectedNodeDir, 'yarn.cmd');
+  if not FileExists(YarnExe) then
+  begin
+    SelectedYarnExe := TPath.Combine(SelectedNodeDir, 'node_modules\corepack\shims\yarn.cmd');
+    if FileExists(SelectedYarnExe) then
+      YarnExe := SelectedYarnExe
+    else
+      YarnExe := '';
+  end;
+  if YarnExe = '' then
+  begin
+    SelectedYarnExe := TPath.Combine(SelectedNodeDir, 'node_modules\corepack\shims\yarnpkg.cmd');
+    if FileExists(SelectedYarnExe) then
+      YarnExe := SelectedYarnExe;
+  end;
+  if YarnExe = '' then
+  begin
+    FilePart := nil;
+    BufferSize := SearchPath(nil, 'yarn.cmd', nil, Length(Buffer), Buffer, FilePart);
+    if BufferSize > 0 then
+      YarnExe := Buffer;
+  end;
   if YarnExe = '' then
   begin
     Result.Success := False;
-    Result.Message := 'yarn was not found on PATH.';
+    Result.Message := 'yarn was not found in the selected Node.js runtime or on PATH.';
     Exit;
   end;
-  Result.Success := ShellExecute(0, 'open', 'cmd.exe', PChar('/K "' + YarnExe + '"'), PChar(WorkingDir), SW_SHOWNORMAL) > 32;
+  Result.Success := ShellExecuteCmdInWorkingDir(WorkingDir, BuildCmdCommandLine(YarnExe, ''));
   if Result.Success then
     Result.Message := 'yarn launched'
   else
@@ -852,22 +975,35 @@ end;
 function TUniWampRuntime.LaunchPnpmInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
 var
   PnpmExe: string;
+  SelectedPnpmExe: string;
   Buffer: array[0..MAX_PATH] of Char;
   BufferSize: DWORD;
   FilePart: PChar;
 begin
-  PnpmExe := '';
-  FilePart := nil;
-  BufferSize := SearchPath(nil, 'pnpm.cmd', nil, Length(Buffer), Buffer, FilePart);
-  if BufferSize > 0 then
-    PnpmExe := Buffer;
+  PnpmExe := TPath.Combine(SelectedNodeDir, 'pnpm.cmd');
+  if not FileExists(PnpmExe) then
+  begin
+    SelectedPnpmExe := TPath.Combine(SelectedNodeDir, 'node_modules\corepack\shims\pnpm.cmd');
+    if FileExists(SelectedPnpmExe) then
+      PnpmExe := SelectedPnpmExe
+    else
+      PnpmExe := '';
+  end;
+  if PnpmExe = '' then
+  begin
+    PnpmExe := '';
+    FilePart := nil;
+    BufferSize := SearchPath(nil, 'pnpm.cmd', nil, Length(Buffer), Buffer, FilePart);
+    if BufferSize > 0 then
+      PnpmExe := Buffer;
+  end;
   if PnpmExe = '' then
   begin
     Result.Success := False;
-    Result.Message := 'pnpm was not found on PATH.';
+    Result.Message := 'pnpm was not found in the selected Node.js runtime or on PATH.';
     Exit;
   end;
-  Result.Success := ShellExecute(0, 'open', 'cmd.exe', PChar('/K "' + PnpmExe + '"'), PChar(WorkingDir), SW_SHOWNORMAL) > 32;
+  Result.Success := ShellExecuteCmdInWorkingDir(WorkingDir, BuildCmdCommandLine(PnpmExe, ''));
   if Result.Success then
     Result.Message := 'pnpm launched'
   else
@@ -895,7 +1031,7 @@ begin
     Result.Message := 'Mailpit was not found in runtime\tools\mailpit or on PATH.';
     Exit;
   end;
-  Result.Success := ShellExecute(0, 'open', PChar(MailpitExe), nil, PChar(FPaths.AppRoot), SW_SHOWNORMAL) > 32;
+  Result.Success := ShellExecuteInWorkingDir(MailpitExe, '', FPaths.AppRoot);
   if Result.Success then
     Result.Message := 'Mailpit launched'
   else
@@ -923,7 +1059,7 @@ begin
     Result.Message := 'Redis was not found in runtime\tools\redis or on PATH.';
     Exit;
   end;
-  Result.Success := ShellExecute(0, 'open', PChar(RedisExe), nil, PChar(FPaths.AppRoot), SW_SHOWNORMAL) > 32;
+  Result.Success := ShellExecuteInWorkingDir(RedisExe, '', FPaths.AppRoot);
   if Result.Success then
     Result.Message := 'Redis launched'
   else
@@ -931,13 +1067,22 @@ begin
 end;
 
 function TUniWampRuntime.LaunchMemcached: TRuntimeActionResult;
+const
+  MemcachedCandidates: array[0..2] of string = ('memcached.exe', 'memcached-avx.exe', 'memcached-tls.exe');
 var
   MemcachedExe: string;
   Buffer: array[0..MAX_PATH] of Char;
   BufferSize: DWORD;
   FilePart: PChar;
+  Candidate: string;
 begin
-  MemcachedExe := BundledToolExecutable(FPaths.MemcachedDir, 'memcached.exe');
+  MemcachedExe := '';
+  for Candidate in MemcachedCandidates do
+  begin
+    MemcachedExe := BundledToolExecutable(FPaths.MemcachedDir, Candidate);
+    if MemcachedExe <> '' then
+      Break;
+  end;
   if MemcachedExe = '' then
   begin
     FilePart := nil;
@@ -951,7 +1096,7 @@ begin
     Result.Message := 'Memcached was not found in runtime\tools\memcached or on PATH.';
     Exit;
   end;
-  Result.Success := ShellExecute(0, 'open', PChar(MemcachedExe), nil, PChar(FPaths.AppRoot), SW_SHOWNORMAL) > 32;
+  Result.Success := ShellExecuteInWorkingDir(MemcachedExe, '', FPaths.AppRoot);
   if Result.Success then
     Result.Message := 'Memcached launched'
   else
@@ -1105,16 +1250,18 @@ var
   Item: string;
   ExtensionName: string;
   ExtensionPath: string;
+  ExtensionDir: string;
 begin
   Block := TStringList.Create;
   try
+    ExtensionDir := TPath.Combine(SelectedPhpDir, 'ext');
     for Item in FConfig.PhpExtensions do
     begin
       ExtensionName := Trim(Item);
       if ExtensionName = '' then
         Continue;
 
-      ExtensionPath := TPath.Combine(SelectedPhpDir, ExtensionName);
+      ExtensionPath := TPath.Combine(ExtensionDir, ExtensionName);
       if not FileExists(ExtensionPath) then
         Continue;
 
@@ -2368,7 +2515,7 @@ end;
 
 function TUniWampRuntime.LaunchUrl(const Url: string): TRuntimeActionResult;
 begin
-  Result.Success := ShellExecute(0, 'open', PChar(Url), nil, nil, SW_SHOWNORMAL) > 32;
+  Result.Success := ShellExecuteInWorkingDir(Url, '', '');
   if Result.Success then
     Result.Message := 'Launched ' + Url
   else
@@ -2377,7 +2524,9 @@ end;
 
 function TUniWampRuntime.PreferredTextEditorExecutable: string;
 begin
-  Result := ResolvePortablePath(GetEnvironmentVariable('EDITOR'));
+  Result := BundledEditorExecutable;
+  if Result = '' then
+    Result := ResolvePortablePath(GetEnvironmentVariable('EDITOR'));
   if Result = '' then
     Result := 'notepad.exe';
 end;
@@ -2387,14 +2536,23 @@ var
   EditorExe: string;
 begin
   EditorExe := PreferredTextEditorExecutable;
-  Result.Success := ShellExecute(0, 'open', PChar(EditorExe), PChar('"' + FileName + '"'), nil, SW_SHOWNORMAL) > 32;
+  Result.Success := ShellExecuteInWorkingDir(EditorExe, QuoteForCmd(FileName), '');
   if Result.Success then
     Result.Message := 'Launched ' + EditorExe
   else
     Result.Message := 'Failed to launch ' + EditorExe;
 end;
 
+function TUniWampRuntime.BundledEditorExecutable: string;
+begin
+  Result := TPath.Combine(FPaths.AppRoot, 'runtime\tools\lite-xl\lite-xl.exe');
+  if not FileExists(Result) then
+    Result := '';
+end;
+
 function TUniWampRuntime.LaunchAdminer: TRuntimeActionResult;
+var
+  AdminerUrl: string;
 begin
   if not AreWebToolsReady(Result.Message) then
   begin
@@ -2402,7 +2560,11 @@ begin
     Exit;
   end;
   if FileExists(TPath.Combine(FPaths.AdminerDir, 'index.php')) then
-    Result := LaunchUrl(Format('http://%s:%d/adminer/index.php', [FConfig.HostName, FConfig.HttpPort]))
+  begin
+    AdminerUrl := Format('http://%s:%d/adminer/index.php?server=127.0.0.1:%d&username=root',
+      [FConfig.HostName, FConfig.HttpPort, FConfig.DatabasePort]);
+    Result := LaunchUrl(AdminerUrl);
+  end
   else
   begin
     Result.Success := False;
@@ -2465,7 +2627,7 @@ begin
     ProfileText := TFile.ReadAllText(FPaths.EnvBatFile, TEncoding.UTF8);
     TFile.WriteAllText(TargetCmd, ProfileText, TEncoding.ASCII);
 
-    Result.Success := ShellExecute(0, 'open', PChar(TerminalExe), PChar('/START "' + WorkingDir + '"'), nil, SW_SHOWNORMAL) > 32;
+    Result.Success := ShellExecuteInWorkingDir(TerminalExe, '/START ' + QuoteForCmd(WorkingDir), '');
     if Result.Success then
       Result.Message := 'Launched Cmder terminal'
     else
@@ -2473,7 +2635,7 @@ begin
   end
   else if SameText(ExtractFileName(TerminalExe), 'wt.exe') then
   begin
-    Result.Success := ShellExecute(0, 'open', PChar(TerminalExe), PChar('-d "' + WorkingDir + '"'), nil, SW_SHOWNORMAL) > 32;
+    Result.Success := ShellExecuteInWorkingDir(TerminalExe, '-d ' + QuoteForCmd(WorkingDir), '');
     if Result.Success then
       Result.Message := 'Launched Windows Terminal'
     else
@@ -2481,7 +2643,7 @@ begin
   end
   else
   begin
-    Result.Success := ShellExecute(0, 'open', 'cmd.exe', PChar('/K "' + FPaths.EnvBatFile + '"'), PChar(WorkingDir), SW_SHOWNORMAL) > 32;
+    Result.Success := ShellExecuteCmdInWorkingDir(WorkingDir, QuoteForCmd(FPaths.EnvBatFile));
     if Result.Success then
       Result.Message := 'Launched standard CMD terminal'
     else

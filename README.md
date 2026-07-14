@@ -10,6 +10,7 @@ UniWamp is a portable Windows WAMP dashboard built in Delphi 12.4. It controls a
 - Manages enabled PHP extensions for the active PHP runtime
 - Generates Apache, PHP, and MariaDB config files from UniWamp templates
 - Manages local virtual hosts
+- The virtual-host grid provides browser, folder, code editor, terminal, delete, and SSL actions per row
 - Launches the local site, Adminer, logs, terminals, and local developer tools
 - Optionally generates a self-signed SSL certificate
 - Checks for basic port conflicts before startup
@@ -83,7 +84,7 @@ The main Tools menu and tool panel also expose:
 - `Open Adminer` to launch Adminer when `home/adminer/index.php` exists
 - `Terminal` to launch the configured terminal executable
 - `Repo Terminal` to open a terminal at the UniWamp root for Git and maintenance work
-- `Composer`, `Git`, `Node`, `WP-CLI`, `npm`, `yarn`, `pnpm`, `Mailpit`, `Redis`, `Memcached`, and `Editor` launchers when the corresponding executables are available on PATH
+- `Composer` launches the bundled `runtime\tools\composer\composer.phar` through the selected PHP runtime or `php.exe` on PATH; `WP-CLI` launches the bundled `runtime\tools\wp-cli\wp-cli.phar` the same way; `npm`, `pnpm`, and `yarn` prefer the selected Node.js runtime's bundled commands or corepack shims before falling back to PATH; `Git`, `Node`, `Mailpit`, `Redis`, `Memcached`, and `Editor` launchers use the corresponding executables when available on PATH; the editor button prefers bundled Lite XL from `runtime\tools\lite-xl\lite-xl.exe`
 - `Update` to stage a manifest-driven package into `tmp\updates`
 - The second tool row keeps the repository-oriented launchers and update action grouped together for faster maintenance work
 - `Copy Report` to copy a diagnostic snapshot with paths, versions, ports, service state, and recent errors
@@ -134,6 +135,11 @@ It switches Cmder to a green-on-black color scheme and shows the selected PHP ve
 
 Open `src/UniWamp.dpr` in Delphi 12.4 and build the Win32 or Win64 VCL target.
 
+### Script catalog
+
+UniWamp includes a JSON-driven project script catalog under `scripts/catalog.json`. Open `Help -> Scripts` to browse and run the bundled CMS and PHP framework bootstrap scripts. The reusable engine supports directory creation, downloads, ZIP extraction, recursive copies, file writes, and portable command execution. See `scripts/README.md` when adding catalog entries.
+For maintainer guidance, see [`docs/SCRIPTS_MAINTENANCE.md`](docs/SCRIPTS_MAINTENANCE.md).
+
 ## Verification
 
 Run the full local verification flow from the repository root:
@@ -171,15 +177,16 @@ The build script generates five installer files:
 
 Profile scope:
 
-- Php82: Apache, MariaDB, and PHP 82
-- Php83: Apache, MariaDB, and PHP 83
-- Php84: Apache, MariaDB, and PHP 84
-- Php85: Apache, MariaDB, and PHP 85
-- Full: Apache, MariaDB, PHP 82/83/84/85, and a preseeded `runtime/mariadb/data` folder
+- Php82: Apache, MariaDB, PHP 82, plus bundled Composer, WP-CLI, and the Node.js runtime
+- Php83: Apache, MariaDB, PHP 83, plus bundled Composer, WP-CLI, and the Node.js runtime
+- Php84: Apache, MariaDB, PHP 84, plus bundled Composer, WP-CLI, and the Node.js runtime
+- Php85: Apache, MariaDB, PHP 85, plus bundled Composer, WP-CLI, and the Node.js runtime
+- Full: Apache, MariaDB, PHP 82/83/84/85, bundled Composer, WP-CLI, the Node.js runtime, and the bundled developer tools
 
 Each profile-specific script includes the same shared payload rules from `installer/UniWamp.Common.issinc`.
 
 The installer packages the portable app tree into a user-writable install folder and creates the runtime directories UniWamp needs on first launch.
+MariaDB system tables are generated on the first MariaDB start instead of being shipped in the installer payload.
 
 ## Update Model
 

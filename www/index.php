@@ -15,9 +15,18 @@ if (is_file($configFile)) {
 }
 
 $httpPort = (int) ($config['httpPort'] ?? 8080);
+$databasePort = (int) ($config['databasePort'] ?? 3307);
 $hostName = (string) ($config['hostName'] ?? 'localhost');
 $dashboardUrl = sprintf('http://%s:%d/dashboard/', $hostName, $httpPort);
-$adminerUrl = sprintf('http://%s:%d/adminer/index.php', $hostName, $httpPort);
+$adminerUrl = sprintf(
+    'http://%s:%d/adminer/index.php?%s',
+    $hostName,
+    $httpPort,
+    http_build_query([
+        'server' => '127.0.0.1:' . $databasePort,
+        'username' => 'root',
+    ])
+);
 
 ?>
 <!doctype html>

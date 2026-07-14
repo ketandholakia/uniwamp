@@ -15,12 +15,15 @@ uses
   Ui.UniWamp.ShutdownProgressForm in 'Ui\Ui.UniWamp.ShutdownProgressForm.pas',
   Ui.UniWamp.PasswordDialog in 'Ui\Ui.UniWamp.PasswordDialog.pas',
   Ui.UniWamp.VHostDialog in 'Ui\Ui.UniWamp.VHostDialog.pas',
+  Ui.UniWamp.ScriptManagerForm in 'Ui\Ui.UniWamp.ScriptManagerForm.pas',
   Core.UniWamp.Config in 'Core\Core.UniWamp.Config.pas',
   Core.UniWamp.Paths in 'Core\Core.UniWamp.Paths.pas',
   Core.UniWamp.Runtime in 'Core\Core.UniWamp.Runtime.pas',
   Core.UniWamp.ProcessManager in 'Core\Core.UniWamp.ProcessManager.pas',
   Core.UniWamp.TemplateRenderer in 'Core\Core.UniWamp.TemplateRenderer.pas',
-  Core.UniWamp.PortUtils in 'Core\Core.UniWamp.PortUtils.pas';
+  Core.UniWamp.PortUtils in 'Core\Core.UniWamp.PortUtils.pas',
+  Core.UniWamp.ScriptCatalog in 'Core\Core.UniWamp.ScriptCatalog.pas',
+  Core.UniWamp.ScriptEngine in 'Core\Core.UniWamp.ScriptEngine.pas';
 
 {$R *.res}
 {$R UniWampAssets.res}

@@ -836,6 +836,16 @@ function dashboardLoadState(string $root): array
     $availableApacheModules = dashboardCoreDetectApacheModules($root . DIRECTORY_SEPARATOR . 'runtime' . DIRECTORY_SEPARATOR . 'apache' . DIRECTORY_SEPARATOR . 'modules');
     $enabledApacheModules = dashboardCoreLoadEnabledApacheModules($config, $availableApacheModules);
 
+    $adminerUrl = sprintf(
+        'http://%s:%d/adminer/index.php?%s',
+        $hostName,
+        $httpPort,
+        http_build_query([
+            'server' => '127.0.0.1:' . $dbPort,
+            'username' => 'root',
+        ])
+    );
+
     return [
         'root' => $root,
         'config' => $config,
@@ -874,7 +884,7 @@ function dashboardLoadState(string $root): array
         'logsUrl' => '/dashboard/logs.php',
         'apacheModulesUrl' => '/dashboard/apache-modules.php',
         'projectsUrl' => '/dashboard/projects.php',
-        'adminerUrl' => sprintf('http://%s:%d/adminer/index.php', $hostName, $httpPort),
+        'adminerUrl' => $adminerUrl,
         'apacheUrl' => sprintf('http://127.0.0.1:%d/', $httpPort),
         'dashboardUrl' => '/dashboard/',
     ];
@@ -1044,9 +1054,26 @@ function dashboardHandleRequest(array $state): void
             if (!is_array($postedExtensions)) {
                 $postedExtensions = [];
             }
+            $wasApacheRunning = !empty($config['apacheRunning']);
             $config['phpEnabledExtensions'] = dashboardNormalizePhpExtensions($postedExtensions, $availableExtensions);
             $saveAndRefresh($config);
-            $notice = 'PHP extensions updated.';
+            if ($wasApacheRunning) {
+                dashboardCoreStopApache($paths);
+                $config = dashboardCoreRefreshRuntimeState($config, $paths);
+                $config['apacheRunning'] = false;
+                $config['apachePid'] = 0;
+                $result = dashboardCoreStartApache($config, $paths);
+                $config = dashboardCoreRefreshRuntimeState($config, $paths);
+                $config['apacheRunning'] = $result['success'] || !empty($config['apacheRunning']);
+                $saveAndRefresh($config);
+                if (!$result['success']) {
+                    $error = (string) ($result['output'] ?? 'Apache restart failed after updating PHP extensions.');
+                } else {
+                    $notice = 'PHP extensions updated and Apache restarted.';
+                }
+            } else {
+                $notice = 'PHP extensions updated.';
+            }
             break;
 
         case 'apache_modules_save':

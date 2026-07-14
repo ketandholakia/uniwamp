@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "items": [
+    {
+      "id": "drupal",
+      "name": "Drupal",
+      "category": "CMS",
+      "summary": "Create a Drupal project with Composer.",
+      "homepage": "https://www.drupal.org/",
+      "license": "GPL-2.0-or-later",
+      "version": "recommended",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar create-project drupal/recommended-project ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 600000
+        },
+        {
+          "type": "create_database",
+          "destination": "${projectName}"
+        }
+      ]
+    },
+    {
+      "id": "joomla",
+      "name": "Joomla",
+      "category": "CMS",
+      "summary": "Create a Joomla project with Composer.",
+      "homepage": "https://www.joomla.org/",
+      "license": "GPL-2.0-or-later",
+      "version": "recommended",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar create-project joomla/joomla-cms ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 600000
+        }
+      ]
+    },
+    {
+      "id": "laravel",
+      "name": "Laravel",
+      "category": "PHP Framework",
+      "summary": "Create a Laravel application with Composer.",
+      "homepage": "https://laravel.com/",
+      "license": "MIT",
+      "version": "recommended",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar create-project laravel/laravel ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 600000
+        }
+      ]
+    },
+    {
+      "id": "symfony",
+      "name": "Symfony",
+      "category": "PHP Framework",
+      "summary": "Create a Symfony web application with Composer.",
+      "homepage": "https://symfony.com/",
+      "license": "MIT",
+      "version": "recommended",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar create-project symfony/skeleton ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 600000
+        }
+      ]
+    },
+    {
+      "id": "wordpress",
+      "name": "WordPress",
+      "category": "CMS",
+      "summary": "Download the latest WordPress core into a project folder with WP-CLI.",
+      "homepage": "https://wordpress.org/",
+      "license": "GPL-2.0-or-later",
+      "version": "latest",
+      "install": [
+        {
+          "type": "create_directory",
+          "destination": "${www}/${projectName}"
+        },
+        {
+          "type": "create_database",
+          "destination": "${projectName}"
+        },
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/wp-cli/wp-cli.phar core download --path=${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 600000
+        }
+      ]
+    }
+  ]
+}

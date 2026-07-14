@@ -615,7 +615,7 @@ begin
           [Paths.AppRoot]);
       Save(Paths);
     end;
-    Result := Migrated;
+    Result := True;
   finally
     Root.Free;
   end;

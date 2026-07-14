@@ -105,12 +105,15 @@
         <DCCReference Include="Ui\Ui.UniWamp.ShutdownProgressForm.pas"/>
         <DCCReference Include="Ui\Ui.UniWamp.PasswordDialog.pas"/>
         <DCCReference Include="Ui\Ui.UniWamp.VHostDialog.pas"/>
+        <DCCReference Include="Ui\Ui.UniWamp.ScriptManagerForm.pas"/>
         <DCCReference Include="Core\Core.UniWamp.Config.pas"/>
         <DCCReference Include="Core\Core.UniWamp.Paths.pas"/>
         <DCCReference Include="Core\Core.UniWamp.Runtime.pas"/>
         <DCCReference Include="Core\Core.UniWamp.ProcessManager.pas"/>
         <DCCReference Include="Core\Core.UniWamp.TemplateRenderer.pas"/>
         <DCCReference Include="Core\Core.UniWamp.PortUtils.pas"/>
+        <DCCReference Include="Core\Core.UniWamp.ScriptCatalog.pas"/>
+        <DCCReference Include="Core\Core.UniWamp.ScriptEngine.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

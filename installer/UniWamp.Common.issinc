@@ -1,6 +1,7 @@
 #define MyAppName "UniWamp"
 #define MyAppExeName "UniWamp.exe"
 #define MyAppVersion GetFileVersion("..\src\tmpbuild\bin\UniWamp.exe")
+#define BundledNodeVersion "node-v22.23.1-win-x64"
 
 [Setup]
 AppId={{B1E4A0B5-4D8E-4D2A-8D1B-9D7D2A77F3C1}
@@ -49,6 +50,9 @@ Name: "{app}\runtime\tools\wp-cli"
 Name: "{app}\runtime\tools\mailpit"
 Name: "{app}\runtime\tools\redis"
 Name: "{app}\runtime\tools\memcached"
+Name: "{app}\runtime\nodejs"
+Name: "{app}\runtime\tools\lite-xl"
+Name: "{app}\scripts"
 
 [Files]
 Source: "..\src\tmpbuild\bin\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
@@ -59,6 +63,8 @@ Source: "..\templates\*"; DestDir: "{app}\templates"; Flags: recursesubdirs crea
 Source: "..\home\*"; DestDir: "{app}\home"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\www\index.php"; DestDir: "{app}\www"; Flags: ignoreversion
 Source: "..\bin\cmder\*"; DestDir: "{app}\bin\cmder"; Excludes: "config\*"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\runtime\tools\lite-xl\*"; DestDir: "{app}\runtime\tools\lite-xl"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\scripts\*"; DestDir: "{app}\scripts"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 #ifdef InstallerProfileStandard
 #undef InstallerProfileStandard
@@ -73,6 +79,36 @@ Source: "..\bin\cmder\*"; DestDir: "{app}\bin\cmder"; Excludes: "config\*"; Flag
 #ifdef InstallerProfileFull
 #undef InstallerProfileFull
 #define InstallerProfileAllPhp
+#endif
+
+#ifdef InstallerProfilePhp82
+#ifndef InstallerProfileBundledWebTools
+#define InstallerProfileBundledWebTools
+#endif
+#endif
+
+#ifdef InstallerProfilePhp83
+#ifndef InstallerProfileBundledWebTools
+#define InstallerProfileBundledWebTools
+#endif
+#endif
+
+#ifdef InstallerProfilePhp84
+#ifndef InstallerProfileBundledWebTools
+#define InstallerProfileBundledWebTools
+#endif
+#endif
+
+#ifdef InstallerProfilePhp85
+#ifndef InstallerProfileBundledWebTools
+#define InstallerProfileBundledWebTools
+#endif
+#endif
+
+#ifdef InstallerProfileAllPhp
+#ifndef InstallerProfileBundledWebTools
+#define InstallerProfileBundledWebTools
+#endif
 #endif
 
 #ifdef InstallerProfilePhp82
@@ -96,13 +132,18 @@ Source: "..\runtime\php\php82\*"; DestDir: "{app}\runtime\php\php82"; Flags: rec
 Source: "..\runtime\php\php83\*"; DestDir: "{app}\runtime\php\php83"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\runtime\php\php84\*"; DestDir: "{app}\runtime\php\php84"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\runtime\php\php85\*"; DestDir: "{app}\runtime\php\php85"; Flags: recursesubdirs createallsubdirs ignoreversion
-Source: "..\runtime\mariadb\data\*"; DestDir: "{app}\runtime\mariadb\data"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\runtime\tools\composer\*"; DestDir: "{app}\runtime\tools\composer"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\runtime\tools\git\*"; DestDir: "{app}\runtime\tools\git"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\runtime\tools\wp-cli\*"; DestDir: "{app}\runtime\tools\wp-cli"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\runtime\tools\mailpit\*"; DestDir: "{app}\runtime\tools\mailpit"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\runtime\tools\redis\*"; DestDir: "{app}\runtime\tools\redis"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\runtime\tools\memcached\*"; DestDir: "{app}\runtime\tools\memcached"; Flags: recursesubdirs createallsubdirs ignoreversion
+#endif
+
+#ifdef InstallerProfileBundledWebTools
+Source: "..\runtime\tools\composer\*"; DestDir: "{app}\runtime\tools\composer"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\runtime\tools\wp-cli\*"; DestDir: "{app}\runtime\tools\wp-cli"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\runtime\nodejs\{#BundledNodeVersion}\*"; DestDir: "{app}\runtime\nodejs\{#BundledNodeVersion}"; Flags: recursesubdirs createallsubdirs ignoreversion
 #endif
 
 [Icons]

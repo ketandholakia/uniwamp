@@ -8,6 +8,8 @@ uses
   System.SysUtils;
 
 type
+  TProcessOutputEvent = reference to procedure(const Text: string);
+
   TProcessStartResult = record
     Success: Boolean;
     ProcessId: Cardinal;
@@ -18,7 +20,8 @@ type
   public
     class function StartDetached(const ExecutablePath, Arguments, WorkingDirectory: string): TProcessStartResult; static;
     class function RunAndCaptureOutput(const ExecutablePath, Arguments, WorkingDirectory: string;
-      out Output: string; const TimeoutMs: Cardinal = 0): Boolean; static;
+      out Output: string; const TimeoutMs: Cardinal = 0;
+      const OnOutput: TProcessOutputEvent = nil): Boolean; static;
     class function StopProcess(const ProcessId: Cardinal; const ForceAfterMs: Cardinal = 4000): Boolean; static;
     class function WaitForExit(const ProcessId: Cardinal; const TimeoutMs: Cardinal): Boolean; static;
     class function IsRunning(const ProcessId: Cardinal): Boolean; static;
@@ -67,7 +70,8 @@ begin
 end;
 
 class function TProcessManager.RunAndCaptureOutput(const ExecutablePath, Arguments,
-  WorkingDirectory: string; out Output: string; const TimeoutMs: Cardinal): Boolean;
+  WorkingDirectory: string; out Output: string; const TimeoutMs: Cardinal;
+  const OnOutput: TProcessOutputEvent): Boolean;
 var
   StartupInfo: TStartupInfo;
   ProcessInfo: TProcessInformation;
@@ -146,10 +150,16 @@ begin
         begin
           if BytesAvailable > SizeOf(Buffer) then
             BytesAvailable := SizeOf(Buffer);
-          if not ReadFile(ReadPipe, Buffer, BytesAvailable, BytesRead, nil) or (BytesRead = 0) then
-            Break;
-          Captured.WriteBuffer(Buffer, BytesRead);
-        end;
+            if not ReadFile(ReadPipe, Buffer, BytesAvailable, BytesRead, nil) or (BytesRead = 0) then
+              Break;
+            Captured.WriteBuffer(Buffer, BytesRead);
+            if Assigned(OnOutput) then
+            begin
+              SetLength(Chunk, BytesRead);
+              Move(Buffer[0], Chunk[0], BytesRead);
+              OnOutput(TEncoding.Default.GetString(Chunk));
+            end;
+          end;
 
         if (TimeoutMs > 0) and ((GetTickCount64 - StartTick) >= TimeoutMs) then
         begin
@@ -170,16 +180,16 @@ begin
         Captured.WriteBuffer(Buffer, BytesRead);
       end;
 
-      if Captured.Size > 0 then
-      begin
-        SetLength(Chunk, Captured.Size);
-        Captured.Position := 0;
-        Captured.ReadBuffer(Chunk[0], Length(Chunk));
-        if TimedOut then
-          Output := Output + sLineBreak + TEncoding.Default.GetString(Chunk)
-        else
-          Output := TEncoding.Default.GetString(Chunk);
-      end;
+        if Captured.Size > 0 then
+        begin
+          SetLength(Chunk, Captured.Size);
+          Captured.Position := 0;
+          Captured.ReadBuffer(Chunk[0], Length(Chunk));
+          if TimedOut then
+            Output := Output + sLineBreak + TEncoding.Default.GetString(Chunk)
+          else
+            Output := TEncoding.Default.GetString(Chunk);
+        end;
       HasExitCode := GetExitCodeProcess(ProcessInfo.hProcess, ExitCode);
       if not TimedOut and HasExitCode and (ExitCode <> 0) then
       begin

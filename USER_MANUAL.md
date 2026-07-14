@@ -5,6 +5,7 @@ This manual explains how to set up and use UniWamp after the binaries are in pla
 ## 1. First Run
 
 When UniWamp starts for the first time, it creates or loads state from `config/uniwamp.json` and prepares the portable folder structure.
+The MariaDB data directory is initialized on the first MariaDB start.
 
 Before using the app, make sure you have placed the required binaries into the expected runtime folders:
 
@@ -131,6 +132,7 @@ To open or manage an existing host:
 
 - Click `Open` to launch the site in a browser
 - Click `Root` to open the document folder
+- Click `Code` to open the document root in Lite XL
 - Click `Del` to remove the host
 
 After adding or deleting a host, UniWamp regenerates the vhost config and, if Apache is running, reloads Apache.
@@ -144,6 +146,7 @@ Use the action buttons near the bottom of the window:
 - `Open Adminer`
 - `Open Site`
 - `Terminal`
+- `Editor`
 - `Copy Report`
 - `Copy Activity`
 
@@ -162,6 +165,7 @@ The diagnostic report includes current paths, versions, service state, ports, vh
 - `Open Site` opens the local root site
 - `Open Adminer` opens Adminer if `home/adminer/index.php` exists
 - `Terminal` launches the configured terminal executable
+- `Editor` opens the repository root in bundled Lite XL from `runtime\tools\lite-xl\lite-xl.exe`, then `EDITOR`, then Notepad
 - `Copy Report` copies a redacted diagnostic snapshot to the clipboard
 - `Copy Activity` copies the current activity log to the clipboard
 

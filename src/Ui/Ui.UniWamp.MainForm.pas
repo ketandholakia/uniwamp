@@ -22,6 +22,8 @@ uses
   Vcl.ComCtrls,
   Vcl.Dialogs,
   Vcl.Clipbrd,
+  Ui.UniWamp.AboutForm,
+  Ui.UniWamp.ScriptManagerForm,
   Core.UniWamp.Config,
   Core.UniWamp.Diagnostics,
   Core.UniWamp.Paths,
@@ -191,6 +193,8 @@ type
     procedure FormResize(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure BuildMenus;
+    procedure AboutClick(Sender: TObject);
+    procedure ScriptsClick(Sender: TObject);
     function IconFileName(const IconName: string): string;
     function LoadIconGraphic(const IconName: string): TPngImage;
     function LoadTintedIconBitmap(const IconName: string; const IconColor: TColor;
@@ -235,6 +239,7 @@ type
     function SelectedVHostServerName: string;
     procedure DeleteVHostByName(const ServerName: string);
     procedure OpenVHostFolder(const ServerName: string);
+    procedure OpenVHostEditor(const ServerName: string);
     procedure OpenVHostUrl(const ServerName: string);
     procedure VHostGridDrawCell(Sender: TObject; ACol, ARow: Integer; CellRect: TRect; State: TGridDrawState);
     procedure VHostGridMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
@@ -808,6 +813,19 @@ begin
   Canvas.StretchDraw(DrawRect, Png);
 end;
 
+procedure TMainForm.AboutClick(Sender: TObject);
+begin
+  TAboutForm.Execute(Self);
+end;
+
+procedure TMainForm.ScriptsClick(Sender: TObject);
+begin
+  TScriptManagerForm.Execute(Self, FPaths);
+  FConfig.LoadOrCreate(FPaths);
+  LoadStateIntoUi;
+  RefreshStatus;
+end;
+
 constructor TMainForm.Create(AOwner: TComponent);
 var
   PathsMigrated: Boolean;
@@ -1060,7 +1078,7 @@ begin
   ComposerButton.TabOrder := 6;
   ComposerButton.OnClick := LaunchComposerClick;
   ComposerButton.Hint := BuildToolPanelHint('Launch Composer from the UniWamp repository root',
-    'Opens Composer in the application root when composer.exe is available on PATH.');
+    'Opens bundled composer.phar in the application root using the selected PHP runtime or php.exe on PATH.');
   ComposerButton.ShowHint := True;
   GitButton := TPanel.Create(Self);
   GitButton.Parent := pnltools;
@@ -1117,7 +1135,7 @@ begin
   WpCliButton.TabOrder := 9;
   WpCliButton.OnClick := LaunchWpCliClick;
   WpCliButton.Hint := BuildToolPanelHint('Launch WP-CLI from the selected document root',
-    'Opens wp.exe when available on PATH and targets the application root.');
+    'Opens bundled wp-cli.phar in the application root using the selected PHP runtime or php.exe on PATH.');
   WpCliButton.ShowHint := True;
   MailpitButton := TPanel.Create(Self);
   MailpitButton.Parent := pnltools;
@@ -1193,7 +1211,7 @@ begin
   NpmButton.TabOrder := 13;
   NpmButton.OnClick := LaunchNpmClick;
   NpmButton.Hint := BuildToolPanelHint('Launch npm from the selected Node.js runtime',
-    'Opens npm.cmd from PATH in the UniWamp application root.');
+    'Opens bundled npm.cmd from the selected Node.js runtime or npm.cmd from PATH in the UniWamp application root.');
   NpmButton.ShowHint := True;
   YarnButton := TPanel.Create(Self);
   YarnButton.Parent := pnltools;
@@ -1212,7 +1230,7 @@ begin
   YarnButton.TabOrder := 14;
   YarnButton.OnClick := LaunchYarnClick;
   YarnButton.Hint := BuildToolPanelHint('Launch yarn from the selected Node.js runtime',
-    'Opens yarn.cmd from PATH in the UniWamp application root.');
+    'Opens bundled yarn.cmd or yarnpkg.cmd from the selected Node.js runtime, or falls back to PATH, in the UniWamp application root.');
   YarnButton.ShowHint := True;
   PnpmButton := TPanel.Create(Self);
   PnpmButton.Parent := pnltools;
@@ -1231,7 +1249,7 @@ begin
   PnpmButton.TabOrder := 15;
   PnpmButton.OnClick := LaunchPnpmClick;
   PnpmButton.Hint := BuildToolPanelHint('Launch pnpm from the selected Node.js runtime',
-    'Opens pnpm.cmd from PATH in the UniWamp application root.');
+    'Opens bundled pnpm.cmd from the selected Node.js runtime or pnpm.cmd from PATH in the UniWamp application root.');
   PnpmButton.ShowHint := True;
   EditorButton := TPanel.Create(Self);
   EditorButton.Parent := pnltools;
@@ -1250,7 +1268,7 @@ begin
   EditorButton.TabOrder := 16;
   EditorButton.OnClick := LaunchEditorClick;
   EditorButton.Hint := BuildToolPanelHint('Launch the preferred text editor',
-    'Opens the repository root in the editor selected by EDITOR or Notepad.');
+    'Opens the repository root in bundled Lite XL, then EDITOR, then Notepad.');
   EditorButton.ShowHint := True;
   UpdateButton := TPanel.Create(Self);
   UpdateButton.Parent := pnltools;
@@ -1591,7 +1609,7 @@ begin
   VHostGrid.ColWidths[0] := 110;
   VHostGrid.ColWidths[1] := 262;
   VHostGrid.ColWidths[2] := 152;
-  VHostGrid.ColWidths[3] := 170;
+  VHostGrid.ColWidths[3] := 206;
   LoadStateIntoUi;
   LayoutDashboard;
   RefreshStatus;
@@ -1670,7 +1688,7 @@ begin
   GridWidth := VHostGrid.ClientWidth;
   VHostGrid.ColWidths[0] := 110;
   VHostGrid.ColWidths[2] := 160;
-  VHostGrid.ColWidths[3] := 160;
+  VHostGrid.ColWidths[3] := 206;
   AvailableGridColumns := GridWidth - VHostGrid.ColWidths[0] - VHostGrid.ColWidths[2] - VHostGrid.ColWidths[3];
   if AvailableGridColumns < 250 then
     AvailableGridColumns := 250;
@@ -1970,6 +1988,12 @@ begin
   MenuItem := AddItem(FMainMenu.Items, '&Window');
   ApplyMenuIcon(MenuItem, 'view_quilt');
   FMainWindowToggleItem := AddItem(MenuItem, 'Hide Window', ToggleWindowClick);
+
+  MenuItem := AddItem(FMainMenu.Items, '&Help');
+  ApplyMenuIcon(MenuItem, 'help');
+  AddItem(MenuItem, '&Scripts', ScriptsClick);
+  AddItem(MenuItem, '-');
+  AddItem(MenuItem, '&About UniWamp', AboutClick);
 
   FTrayMenu := TPopupMenu.Create(Self);
   FTrayMenu.OnPopup := TrayMenuPopup;
@@ -2794,6 +2818,25 @@ begin
     ShellExecute(0, 'open', PChar(FolderPath), nil, nil, SW_SHOWNORMAL);
 end;
 
+procedure TMainForm.OpenVHostEditor(const ServerName: string);
+var
+  RowIndex: Integer;
+  FolderPath: string;
+begin
+  FolderPath := '';
+  for RowIndex := 1 to VHostGrid.RowCount - 1 do
+    if SameText(VHostGrid.Cells[0, RowIndex], ServerName) then
+    begin
+      FolderPath := VHostGrid.Cells[1, RowIndex];
+      Break;
+    end;
+
+  if FolderPath = '' then
+    Exit;
+
+  AppendStatus(FRuntime.LaunchTextEditor(FolderPath).Message);
+end;
+
 procedure TMainForm.DeleteVHostByName(const ServerName: string);
 var
   ResultInfo: TRuntimeActionResult;
@@ -2818,6 +2861,7 @@ const
   ActionGap = 4;
   OpenWidth = 36;
   FolderWidth = 36;
+  EditorWidth = 36;
   TerminalWidth = 36;
   DeleteWidth = 36;
   SslWidth = 36;
@@ -2888,6 +2932,12 @@ begin
   DrawIconInRect(Grid.Canvas, 'folder_open', ButtonRect, 16);
 
   Inc(ActionLeft, FolderWidth + ActionGap);
+  ButtonRect := System.Types.Rect(ActionLeft, CellRect.Top + 4, ActionLeft + EditorWidth, CellRect.Bottom - 4);
+  Grid.Canvas.Brush.Color := ButtonAccentColor;
+  Grid.Canvas.RoundRect(ButtonRect.Left, ButtonRect.Top, ButtonRect.Right, ButtonRect.Bottom, 8, 8);
+  DrawIconInRect(Grid.Canvas, 'code', ButtonRect, 16);
+
+  Inc(ActionLeft, EditorWidth + ActionGap);
   ButtonRect := System.Types.Rect(ActionLeft, CellRect.Top + 4, ActionLeft + TerminalWidth, CellRect.Bottom - 4);
   Grid.Canvas.Brush.Color := ButtonAccentColor;
   Grid.Canvas.RoundRect(ButtonRect.Left, ButtonRect.Top, ButtonRect.Right, ButtonRect.Bottom, 8, 8);
@@ -2917,6 +2967,7 @@ const
   ActionGap = 4;
   OpenWidth = 36;
   FolderWidth = 36;
+  EditorWidth = 36;
   TerminalWidth = 36;
   DeleteWidth = 36;
   SslWidth = 36;
@@ -2928,6 +2979,7 @@ var
   ServerName: string;
   OpenLeft: Integer;
   FolderLeft: Integer;
+  EditorLeft: Integer;
   TerminalLeft: Integer;
   DeleteLeft: Integer;
   SslLeft: Integer;
@@ -2948,7 +3000,8 @@ begin
   RelativeX := X - CellRect.Left;
   OpenLeft := 6;
   FolderLeft := OpenLeft + OpenWidth + ActionGap;
-  TerminalLeft := FolderLeft + FolderWidth + ActionGap;
+  EditorLeft := FolderLeft + FolderWidth + ActionGap;
+  TerminalLeft := EditorLeft + EditorWidth + ActionGap;
   DeleteLeft := TerminalLeft + TerminalWidth + ActionGap;
   SslLeft := DeleteLeft + DeleteWidth + ActionGap;
   if not TryGetVHostEntry(ServerName, VHostEntry) then
@@ -2961,6 +3014,8 @@ begin
     OpenVHostUrl(ServerName)
   else if (RelativeX >= FolderLeft) and (RelativeX < (FolderLeft + FolderWidth)) then
     OpenVHostFolder(ServerName)
+  else if (RelativeX >= EditorLeft) and (RelativeX < (EditorLeft + EditorWidth)) then
+    OpenVHostEditor(ServerName)
   else if (RelativeX >= TerminalLeft) and (RelativeX < (TerminalLeft + TerminalWidth)) then
     OpenVHostTerminalClick(Sender)
   else if (RelativeX >= DeleteLeft) and (RelativeX < (DeleteLeft + DeleteWidth)) then
@@ -2974,8 +3029,8 @@ end;
 procedure TMainForm.SaveConfigClick(Sender: TObject);
 begin
   SaveUiIntoState;
-  FRuntime.GenerateAllConfigs;
   FConfig.Save(FPaths);
+  FRuntime.GenerateAllConfigs;
   AppendStatus('Configuration saved and generated.');
   RefreshStatus;
 end;
@@ -2985,6 +3040,7 @@ var
   ResultInfo: TRuntimeActionResult;
 begin
   SaveUiIntoState;
+  FConfig.Save(FPaths);
   ResultInfo := FRuntime.StartApache;
   AppendStatus(ResultInfo.Message);
   FConfig.Save(FPaths);
@@ -3013,6 +3069,7 @@ var
   ResultInfo: TRuntimeActionResult;
 begin
   SaveUiIntoState;
+  FConfig.Save(FPaths);
   ResultInfo := FRuntime.RestartApache;
   AppendStatus('Apache restart: ' + ResultInfo.Message);
   FConfig.Save(FPaths);
@@ -3178,9 +3235,16 @@ begin
 end;
 
 procedure TMainForm.OpenPhpExtensionsClick(Sender: TObject);
+var
+  RestartInfo: TRuntimeActionResult;
 begin
   if TPhpExtensionsForm.Execute(Self, FPaths, FConfig, FRuntime) then
   begin
+    if FConfig.ApacheRunning then
+    begin
+      RestartInfo := FRuntime.RestartApache;
+      AppendStatus('Apache reload after PHP extensions: ' + RestartInfo.Message);
+    end;
     LoadStateIntoUi;
     RefreshStatus;
     AppendStatus('PHP extensions saved.');
@@ -3198,9 +3262,16 @@ begin
 end;
 
 procedure TMainForm.OpenPhpSettingsClick(Sender: TObject);
+var
+  RestartInfo: TRuntimeActionResult;
 begin
   if TPhpSettingsForm.Execute(Self, FPaths, FConfig, FRuntime) then
   begin
+    if FConfig.ApacheRunning then
+    begin
+      RestartInfo := FRuntime.RestartApache;
+      AppendStatus('Apache reload after PHP settings: ' + RestartInfo.Message);
+    end;
     LoadStateIntoUi;
     RefreshStatus;
     AppendStatus('PHP settings saved.');

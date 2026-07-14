@@ -2,13 +2,13 @@
 title UniWamp Cmder
 color 0A
 set "UNIWAMP_ROOT=D:\ketan\github\uniwamp"
-set "UNIWAMP_DOCROOT=D:\ketan\github\uniwamp\www"
+set "UNIWAMP_DOCROOT=D:\ketan\github\uniwamp\www\alliancelifescience.com"
 set "UNIWAMP_MARIADB_BIN=D:\ketan\github\uniwamp\runtime\mariadb\bin"
-set "UNIWAMP_PHP_VERSION=php85"
+set "UNIWAMP_PHP_VERSION=php82"
 set "UNIWAMP_NODE_VERSION=node-v22.23.1-win-x64"
-set "PHP_HOME=D:\ketan\github\uniwamp\runtime\php\php85"
-set "PHP_BIN=D:\ketan\github\uniwamp\runtime\php\php85"
-set "PATH=D:\ketan\github\uniwamp\runtime\php\php85;%PATH%"
+set "PHP_HOME=D:\ketan\github\uniwamp\runtime\php\php82"
+set "PHP_BIN=D:\ketan\github\uniwamp\runtime\php\php82"
+set "PATH=D:\ketan\github\uniwamp\runtime\php\php82;%PATH%"
 set "NODE_HOME=D:\ketan\github\uniwamp\runtime\nodejs\node-v22.23.1-win-x64"
 set "NODE_BIN=D:\ketan\github\uniwamp\runtime\nodejs\node-v22.23.1-win-x64"
 set "PATH=D:\ketan\github\uniwamp\runtime\nodejs\node-v22.23.1-win-x64;%PATH%"
@@ -22,4 +22,4 @@ if "%UNIWAMP_NODE_VERSION%"=="" (
 echo  Working path: %UNIWAMP_DOCROOT%
 echo  MariaDB bin: %UNIWAMP_MARIADB_BIN%
 echo.
-cd /d "D:\ketan\github\uniwamp\www"
+cd /d "D:\ketan\github\uniwamp\www\alliancelifescience.com"
