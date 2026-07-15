@@ -23,6 +23,7 @@ uses
   Vcl.Dialogs,
   Vcl.Clipbrd,
   Ui.UniWamp.AboutForm,
+  Ui.UniWamp.AppSettingsForm,
   Ui.UniWamp.ScriptManagerForm,
   Core.UniWamp.Config,
   Core.UniWamp.Diagnostics,
@@ -156,6 +157,8 @@ type
   FMainMariaMenu: TServiceMenuSet;
   FTrayApacheMenu: TServiceMenuSet;
   FTrayMariaMenu: TServiceMenuSet;
+    FMainStartAllOnLaunchItem: TMenuItem;
+    FTrayStartAllOnLaunchItem: TMenuItem;
     FMainPhpVersionItems: TList<TMenuItem>;
     FMainPhpProfileItems: TList<TMenuItem>;
     FMainWindowToggleItem: TMenuItem;
@@ -181,6 +184,7 @@ type
     FLastDbPortChecked: Integer;
     FLastActivityLogWriteTime: TDateTime;
     FStatusRefreshBusy: Boolean;
+    FStartupActionExecuted: Boolean;
     FActivityMemo: TMemo;
     FVHostEmptyLabel: TLabel;
     FVHostHeaderTitle: TLabel;
@@ -228,6 +232,7 @@ type
     procedure LaunchDashboardIfHealthy;
     function IsAutoStartEnabled: Boolean;
     procedure SetAutoStartEnabled(const Enabled: Boolean);
+    procedure StartAllOnLaunchClick(Sender: TObject);
     procedure StatusRefreshTimer(Sender: TObject);
     procedure AutoStartClick(Sender: TObject);
     procedure RefreshActivityLogView;
@@ -259,6 +264,7 @@ type
     procedure CopyActivityLogClick(Sender: TObject);
     procedure OpenPhpExtensionsClick(Sender: TObject);
     procedure OpenPhpSettingsClick(Sender: TObject);
+    procedure OpenAppSettingsClick(Sender: TObject);
     procedure OpenApacheModulesClick(Sender: TObject);
     procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure VHostEmptyLabelClick(Sender: TObject);
@@ -1831,6 +1837,13 @@ begin
   if HandleAllocated then
     DrawMenuBar(Handle);
   LayoutDashboard;
+  if (not FStartupActionExecuted) and FConfig.StartAllOnLaunch then
+  begin
+    FStartupActionExecuted := True;
+    StartButtonClick(Self);
+  end
+  else
+    FStartupActionExecuted := True;
 end;
 
 procedure TMainForm.BuildMenus;
@@ -1868,6 +1881,10 @@ begin
   AddItem(MenuItem, '-');
   FMainAutoStartItem := AddItem(MenuItem, 'Start with &Windows', AutoStartClick);
   FMainAutoStartItem.AutoCheck := True;
+  FMainStartAllOnLaunchItem := AddItem(MenuItem, 'Start all on &Launch', StartAllOnLaunchClick);
+  FMainStartAllOnLaunchItem.AutoCheck := True;
+  Item := AddItem(MenuItem, 'Application &Settings', OpenAppSettingsClick);
+  Item.ShortCut := ShortCut(Ord('S'), [ssCtrl, ssAlt]);
   FMainExitItem := AddItem(MenuItem, 'E&xit', ExitButtonClick);
 
   MenuItem := AddItem(FMainMenu.Items, '&Apache');
@@ -2010,6 +2027,10 @@ begin
   Item := AddItem(FTrayMenu.Items, '&Save Config', SaveConfigClick);
   ApplyMenuIcon(Item, 'save');
   Item.ShortCut := ShortCut(Ord('S'), [ssCtrl]);
+  FTrayStartAllOnLaunchItem := AddItem(FTrayMenu.Items, 'Start all on &Launch', StartAllOnLaunchClick);
+  FTrayStartAllOnLaunchItem.AutoCheck := True;
+  Item := AddItem(FTrayMenu.Items, 'Application &Settings', OpenAppSettingsClick);
+  ApplyMenuIcon(Item, 'settings');
   Item := AddItem(FTrayMenu.Items, '&Generate SSL', GenerateSslClick);
   ApplyMenuIcon(Item, 'lock');
   Item.ShortCut := ShortCut(Ord('G'), [ssCtrl, ssShift]);
@@ -2657,6 +2678,10 @@ begin
     FMainAutoStartItem.Checked := AutoStartEnabled;
   if Assigned(FTrayAutoStartItem) then
     FTrayAutoStartItem.Checked := AutoStartEnabled;
+  if Assigned(FMainStartAllOnLaunchItem) then
+    FMainStartAllOnLaunchItem.Checked := FConfig.StartAllOnLaunch;
+  if Assigned(FTrayStartAllOnLaunchItem) then
+    FTrayStartAllOnLaunchItem.Checked := FConfig.StartAllOnLaunch;
 
   if Assigned(FMainPhpMenu) then
   begin
@@ -2715,6 +2740,17 @@ end;
 procedure TMainForm.AutoStartClick(Sender: TObject);
 begin
   SetAutoStartEnabled(not IsAutoStartEnabled);
+end;
+
+procedure TMainForm.StartAllOnLaunchClick(Sender: TObject);
+begin
+  FConfig.StartAllOnLaunch := not FConfig.StartAllOnLaunch;
+  FConfig.Save(FPaths);
+  UpdateMenuState;
+  if FConfig.StartAllOnLaunch then
+    AppendStatus('Start all on launch enabled.')
+  else
+    AppendStatus('Start all on launch disabled.');
 end;
 
 procedure TMainForm.ToggleMainWindow;
@@ -3275,6 +3311,16 @@ begin
     LoadStateIntoUi;
     RefreshStatus;
     AppendStatus('PHP settings saved.');
+  end;
+end;
+
+procedure TMainForm.OpenAppSettingsClick(Sender: TObject);
+begin
+  if TAppSettingsForm.Execute(Self, FPaths, FConfig, FRuntime) then
+  begin
+    LoadStateIntoUi;
+    RefreshStatus;
+    AppendStatus('Application settings saved.');
   end;
 end;
 

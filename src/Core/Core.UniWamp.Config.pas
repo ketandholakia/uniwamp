@@ -41,6 +41,7 @@ type
     TerminalExePath: string;
     PhpProfile: string;
     EnableSsl: Boolean;
+    StartAllOnLaunch: Boolean;
     ApachePid: Cardinal;
     MariaDbPid: Cardinal;
     ApacheRunning: Boolean;
@@ -285,6 +286,7 @@ begin
   SelectedNodeVersion := '';
   PhpProfile := 'development';
   EnableSsl := False;
+  StartAllOnLaunch := False;
   TerminalExePath := 'bin\cmder\Cmder.exe';
   ApachePid := 0;
   MariaDbPid := 0;
@@ -386,6 +388,7 @@ begin
     TerminalExePath := ReadStringOrDefault(Root, 'terminalExePath', TerminalExePath);
     PhpProfile := ReadStringOrDefault(Root, 'phpProfile', PhpProfile);
     EnableSsl := ReadBooleanOrDefault(Root, 'enableSsl', EnableSsl);
+    StartAllOnLaunch := ReadBooleanOrDefault(Root, 'startAllOnLaunch', StartAllOnLaunch);
     ApachePid := ReadIntegerOrDefault(Root, 'apachePid', ApachePid);
     MariaDbPid := ReadIntegerOrDefault(Root, 'mariaDbPid', MariaDbPid);
     ApacheRunning := ReadBooleanOrDefault(Root, 'apacheRunning', ApacheRunning);
@@ -648,6 +651,7 @@ begin
     Root.AddPair('terminalExePath', TerminalExePath);
     Root.AddPair('phpProfile', PhpProfile);
     Root.AddPair('enableSsl', TJSONBool.Create(EnableSsl));
+    Root.AddPair('startAllOnLaunch', TJSONBool.Create(StartAllOnLaunch));
     Root.AddPair('apachePid', TJSONNumber.Create(ApachePid));
     Root.AddPair('mariaDbPid', TJSONNumber.Create(MariaDbPid));
     Root.AddPair('apacheRunning', TJSONBool.Create(ApacheRunning));
