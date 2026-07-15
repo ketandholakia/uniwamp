@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SERVER_NAME}}</title>
+  <style>
+    :root {
+      --ink: #132238;
+      --muted: #5b6b7c;
+      --line: #d7e0ea;
+      --card: #ffffff;
+      --accent: #0f7b6c;
+      --accent-soft: #dff7f2;
+      --bg: linear-gradient(135deg, #edf6ff 0%, #f5fbf7 100%);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+    main {
+      width: min(760px, calc(100vw - 32px));
+      margin: 10vh auto;
+      padding: 36px;
+      border-radius: 18px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      box-shadow: 0 20px 50px rgba(18, 38, 63, 0.10);
+    }
+    .tag {
+      display: inline-block;
+      margin-bottom: 14px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    h1 { margin: 0 0 12px; font-size: 38px; line-height: 1.1; }
+    p { margin: 0 0 12px; color: var(--muted); line-height: 1.65; }
+    .meta { margin-top: 24px; display: grid; gap: 12px; }
+    .row { padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: #fbfdff; }
+    .label { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    code { font-family: Consolas, "Courier New", monospace; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <main>
+    <span class="tag">UniWamp Virtual Host</span>
+    <h1>{{SERVER_NAME}} is ready</h1>
+    <p>This starter page was generated automatically when the virtual host was created.</p>
+    <p>Replace <code>index.html</code> with your app entry point when you are ready.</p>
+    <section class="meta">
+      <div class="row">
+        <span class="label">Document Root</span>
+        <code>{{DOCUMENT_ROOT}}</code>
+      </div>
+      <div class="row">
+        <span class="label">Expected URL</span>
+        <code>http://{{SERVER_NAME}}:{{HTTP_PORT}}/</code>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

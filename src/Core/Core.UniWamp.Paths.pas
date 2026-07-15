@@ -29,6 +29,8 @@ type
     PhpDir: string;
     NodeDir: string;
     CmderDir: string;
+    MkcertDir: string;
+    MkcertExe: string;
     HomeDir: string;
     AdminerDir: string;
     DashboardDir: string;
@@ -43,6 +45,7 @@ type
     ApacheTemplateFile: string;
     ApacheSslTemplateFile: string;
     ApacheVHostsTemplateFile: string;
+    VHostIndexTemplateFile: string;
     MariaDbTemplateFile: string;
     PhpTemplateFile: string;
     ApacheHttpdConfFile: string;
@@ -97,6 +100,8 @@ begin
   Result.PhpDir := TPath.Combine(Result.RuntimeDir, 'php');
   Result.NodeDir := TPath.Combine(Result.RuntimeDir, 'nodejs');
   Result.CmderDir := TPath.Combine(Result.BinDir, 'cmder');
+  Result.MkcertDir := TPath.Combine(Result.ToolsDir, 'mkcert');
+  Result.MkcertExe := TPath.Combine(Result.MkcertDir, 'mkcert.exe');
   Result.HomeDir := TPath.Combine(Root, 'home');
   Result.AdminerDir := TPath.Combine(Result.HomeDir, 'adminer');
   Result.DashboardDir := TPath.Combine(Result.HomeDir, 'dashboard');
@@ -111,6 +116,7 @@ begin
   Result.ApacheTemplateFile := TPath.Combine(Result.TemplatesDir, 'httpd.conf.tpl');
   Result.ApacheSslTemplateFile := TPath.Combine(Result.TemplatesDir, 'httpd-ssl.conf.tpl');
   Result.ApacheVHostsTemplateFile := TPath.Combine(Result.TemplatesDir, 'httpd-vhosts.conf.tpl');
+  Result.VHostIndexTemplateFile := TPath.Combine(Result.TemplatesDir, 'vhost-index.html.tpl');
   Result.MariaDbTemplateFile := TPath.Combine(Result.TemplatesDir, 'mariadb.ini.tpl');
   Result.PhpTemplateFile := TPath.Combine(Result.TemplatesDir, 'php.ini.tpl');
   Result.ApacheHttpdConfFile := TPath.Combine(Result.GeneratedConfigDir, 'httpd.conf');
@@ -135,6 +141,7 @@ begin
   EnsureDirectory(Paths.TemplatesDir);
   EnsureDirectory(Paths.RuntimeDir);
   EnsureDirectory(Paths.ToolsDir);
+  EnsureDirectory(Paths.MkcertDir);
   EnsureDirectory(Paths.ComposerDir);
   EnsureDirectory(Paths.GitDir);
   EnsureDirectory(Paths.WpCliDir);

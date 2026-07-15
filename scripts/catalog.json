@@ -2,6 +2,96 @@
   "schemaVersion": 1,
   "items": [
     {
+      "id": "automad",
+      "name": "Automad",
+      "category": "Flat-file CMS",
+      "summary": "Create an Automad project with Composer.",
+      "homepage": "https://automad.org/",
+      "license": "MIT",
+      "version": "1.10.9",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar create-project automad/automad ${www}/${projectName} 1.10.9",
+          "workingDirectory": "${www}",
+          "timeoutMs": 600000
+        }
+      ]
+    },
+    {
+      "id": "bagisto",
+      "name": "Bagisto",
+      "category": "E-commerce CMS",
+      "summary": "Create a Bagisto project with Composer.",
+      "homepage": "https://bagisto.com/",
+      "license": "MIT",
+      "version": "recommended",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar create-project bagisto/bagisto ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 900000
+        }
+      ]
+    },
+    {
+      "id": "backdrop",
+      "name": "Backdrop CMS",
+      "category": "CMS",
+      "summary": "Clone the official Backdrop CMS repository into a project folder.",
+      "homepage": "https://backdropcms.org/",
+      "license": "GPL-2.0-or-later",
+      "version": "latest",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${tools}/git/bin/git.exe",
+          "arguments": "clone --depth 1 https://github.com/backdrop/backdrop.git ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 900000
+        }
+      ]
+    },
+    {
+      "id": "concrete-cms",
+      "name": "Concrete CMS",
+      "category": "CMS",
+      "summary": "Create a Concrete CMS project with Composer.",
+      "homepage": "https://www.concretecms.com/",
+      "license": "MIT",
+      "version": "recommended",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar create-project concretecms/composer ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 600000
+        }
+      ]
+    },
+    {
+      "id": "contao",
+      "name": "Contao",
+      "category": "CMS",
+      "summary": "Create a Contao managed-edition project with Composer.",
+      "homepage": "https://contao.org/",
+      "license": "LGPL-3.0-or-later",
+      "version": "recommended",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar create-project contao/managed-edition ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 600000
+        }
+      ]
+    },
+    {
       "id": "drupal",
       "name": "Drupal",
       "category": "CMS",
@@ -20,6 +110,24 @@
         {
           "type": "create_database",
           "destination": "${projectName}"
+        }
+      ]
+    },
+    {
+      "id": "grav",
+      "name": "Grav",
+      "category": "Flat-file CMS",
+      "summary": "Create a Grav project with Composer.",
+      "homepage": "https://getgrav.org/",
+      "license": "MIT",
+      "version": "recommended",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar create-project getgrav/grav ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 600000
         }
       ]
     },
@@ -60,6 +168,168 @@
       ]
     },
     {
+      "id": "magento-open-source",
+      "name": "Magento Open Source",
+      "category": "E-commerce CMS",
+      "summary": "Create a Magento Open Source project with Composer.",
+      "homepage": "https://business.adobe.com/products/magento/open-source.html",
+      "license": "OSL-3.0",
+      "version": "recommended",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar create-project --repository-url=https://repo.magento.com/ magento/project-community-edition ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 900000
+        }
+      ]
+    },
+    {
+      "id": "microweber",
+      "name": "Microweber",
+      "category": "Laravel CMS",
+      "summary": "Create a Microweber project with Composer.",
+      "homepage": "https://microweber.org/",
+      "license": "MIT",
+      "version": "recommended",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar create-project microweber/microweber ${www}/${projectName} dev-master",
+          "workingDirectory": "${www}",
+          "timeoutMs": 900000
+        }
+      ]
+    },
+    {
+      "id": "opencart",
+      "name": "OpenCart",
+      "category": "E-commerce CMS",
+      "summary": "Clone the official OpenCart repository into a project folder.",
+      "homepage": "https://www.opencart.com/",
+      "license": "GPL-3.0-or-later",
+      "version": "latest",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${tools}/git/bin/git.exe",
+          "arguments": "clone --depth 1 https://github.com/opencart/opencart.git ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 900000
+        }
+      ]
+    },
+    {
+      "id": "prestashop",
+      "name": "PrestaShop",
+      "category": "E-commerce CMS",
+      "summary": "Create a PrestaShop project with Composer.",
+      "homepage": "https://prestashop.com/",
+      "license": "OSL-3.0",
+      "version": "recommended",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar create-project prestashop/prestashop ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 900000
+        }
+      ]
+    },
+    {
+      "id": "processwire",
+      "name": "ProcessWire",
+      "category": "CMS",
+      "summary": "Create a ProcessWire project with Composer.",
+      "homepage": "https://processwire.com/",
+      "license": "MPL-2.0",
+      "version": "recommended",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar create-project processwire/processwire ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 600000
+        }
+      ]
+    },
+    {
+      "id": "silverstripe",
+      "name": "Silverstripe CMS",
+      "category": "CMS",
+      "summary": "Create a Silverstripe project with Composer.",
+      "homepage": "https://www.silverstripe.org/",
+      "license": "BSD-3-Clause",
+      "version": "recommended",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar create-project silverstripe/installer ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 600000
+        }
+      ]
+    },
+    {
+      "id": "statamic",
+      "name": "Statamic",
+      "category": "Laravel CMS",
+      "summary": "Clone the official Statamic project repository into a project folder.",
+      "homepage": "https://statamic.com/",
+      "license": "MIT",
+      "version": "latest",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${tools}/git/bin/git.exe",
+          "arguments": "clone --depth 1 https://github.com/statamic/statamic.git ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 900000
+        }
+      ]
+    },
+    {
+      "id": "sulu",
+      "name": "Sulu",
+      "category": "CMS",
+      "summary": "Create a Sulu skeleton project with Composer.",
+      "homepage": "https://sulu.io/",
+      "license": "MIT",
+      "version": "recommended",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar create-project sulu/skeleton ${www}/${projectName} -n",
+          "workingDirectory": "${www}",
+          "timeoutMs": 900000
+        }
+      ]
+    },
+    {
+      "id": "sylius",
+      "name": "Sylius",
+      "category": "E-commerce CMS",
+      "summary": "Create a Sylius Standard project with Composer.",
+      "homepage": "https://sylius.com/",
+      "license": "MIT",
+      "version": "recommended",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar create-project sylius/sylius-standard ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 900000
+        }
+      ]
+    },
+    {
       "id": "symfony",
       "name": "Symfony",
       "category": "PHP Framework",
@@ -78,6 +348,114 @@
       ]
     },
     {
+      "id": "thirty-bees",
+      "name": "Thirty Bees",
+      "category": "E-commerce CMS",
+      "summary": "Clone the official thirty bees repository into a project folder.",
+      "homepage": "https://thirtybees.com/",
+      "license": "AFL-3.0",
+      "version": "latest",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${tools}/git/bin/git.exe",
+          "arguments": "clone --recurse-submodules --depth 1 https://github.com/thirtybees/thirtybees.git ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 900000
+        }
+      ]
+    },
+    {
+      "id": "twill",
+      "name": "Twill",
+      "category": "Laravel CMS",
+      "summary": "Create a Laravel app and install Twill into it.",
+      "homepage": "https://twillcms.com/",
+      "license": "MIT",
+      "version": "3.5",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar create-project laravel/laravel:\"^12.0\" ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 600000
+        },
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar require area17/twill:\"^3.5\"",
+          "workingDirectory": "${www}/${projectName}",
+          "timeoutMs": 900000
+        }
+      ]
+    },
+    {
+      "id": "typesetter",
+      "name": "Typesetter CMS",
+      "category": "Flat-file CMS",
+      "summary": "Clone the official Typesetter repository into a project folder.",
+      "homepage": "https://www.typesettercms.com/",
+      "license": "GPL-3.0-or-later",
+      "version": "latest",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${tools}/git/bin/git.exe",
+          "arguments": "clone --depth 1 https://github.com/Typesetter/Typesetter.git ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 900000
+        }
+      ]
+    },
+    {
+      "id": "typo3",
+      "name": "TYPO3",
+      "category": "CMS",
+      "summary": "Create a TYPO3 base distribution with Composer.",
+      "homepage": "https://typo3.org/",
+      "license": "GPL-2.0-or-later",
+      "version": "recommended",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar create-project \"typo3/cms-base-distribution:^13.4\" ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 900000
+        }
+      ]
+    },
+    {
+      "id": "woocommerce",
+      "name": "WooCommerce",
+      "category": "E-commerce CMS",
+      "summary": "Download WordPress core and install WooCommerce with WP-CLI.",
+      "homepage": "https://woocommerce.com/",
+      "license": "GPL-3.0-or-later",
+      "version": "latest",
+      "install": [
+        {
+          "type": "create_directory",
+          "destination": "${www}/${projectName}"
+        },
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/wp-cli/wp-cli.phar core download --path=${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 600000
+        },
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/wp-cli/wp-cli.phar plugin install woocommerce --activate --path=${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 600000
+        }
+      ]
+    },
+    {
       "id": "wordpress",
       "name": "WordPress",
       "category": "CMS",
@@ -89,10 +467,6 @@
         {
           "type": "create_directory",
           "destination": "${www}/${projectName}"
-        },
-        {
-          "type": "create_database",
-          "destination": "${projectName}"
         },
         {
           "type": "run",

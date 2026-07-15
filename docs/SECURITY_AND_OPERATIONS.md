@@ -13,6 +13,7 @@
 - Validate service identifiers against an allowlist.
 - Validate ports as integers in the valid TCP range and reject duplicates.
 - Validate domains, document roots, runtime names, and executable paths before use.
+- Reject project names, vHost names, aliases, and update package names that contain shell or config metacharacters.
 - Prefer structured process APIs with explicit executable paths and argument lists.
 - Do not concatenate untrusted values into `cmd.exe`, PowerShell, or shell scripts.
 - Quote paths containing spaces and use an explicit working directory.
@@ -24,7 +25,8 @@
 
 Require explicit confirmation for database reset, vhost deletion, runtime removal, configuration reset, certificate replacement, and restore. Create backups before replacement, and leave the previous valid state available after failure.
 
-For staged updates, validate the manifest and package hash before extraction, promote only a verified workspace, and keep the previous target tree available in a backup directory until the replacement is confirmed.
+For staged updates, validate the manifest and package hash before extraction, reject manifest package names that are not plain file names, promote only a verified workspace, and keep the previous target tree available in a backup directory until the replacement is confirmed.
+Manifest authenticity is out of scope unless a trusted distribution channel signs or otherwise authenticates the manifest before UniWamp reads it.
 
 ## Hosts file
 
@@ -38,6 +40,7 @@ Only the following managed block may be changed:
 ```
 
 Write through a temporary file, preserve unrelated content, back up the previous file, and report administrator permission failures without overwriting application state.
+Hosts and Apache vHost content must be validated before they are written; do not rely on quote escaping alone.
 
 ## Runtime operations
 

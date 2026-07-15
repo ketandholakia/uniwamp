@@ -30,7 +30,7 @@ type
       const ProjectName: string): string;
     function SafePath(const Value: string; const Description: string): string;
     function RunStep(const Step: TScriptStep; const Item: TScriptCatalogItem;
-      const ProjectName: string; out Output: string): Boolean;
+      const ProjectName: string; out Output: string; const OnOutput: TScriptOutputEvent = nil): Boolean;
     function CopyDirectory(const SourceDirectory, DestinationDirectory: string): Boolean;
   public
     constructor Create(const Paths: TAppPaths);
@@ -43,6 +43,7 @@ implementation
 
 uses
   Core.UniWamp.ProcessManager,
+  Core.UniWamp.Security,
   System.Classes,
   System.JSON,
   System.IOUtils,
@@ -138,10 +139,7 @@ begin
     Exit;
   IniFile := FPaths.ActivePhpIniFile;
   ExtDir := IncludeTrailingPathDelimiter(ExtractFilePath(PhpExe)) + 'ext';
-  if TFile.Exists(IniFile) and TDirectory.Exists(ExtDir) then
-    Result := Format('-c "%s" -d extension_dir="%s" -d extension=php_openssl.dll',
-      [IniFile, ExtDir])
-  else if TFile.Exists(IniFile) then
+  if TFile.Exists(IniFile) then
     Result := Format('-c "%s"', [IniFile])
   else if TDirectory.Exists(ExtDir) then
     Result := Format('-d extension_dir="%s" -d extension=php_openssl.dll', [ExtDir]);
@@ -265,8 +263,25 @@ begin
   Result := True;
 end;
 
+type
+  TDownloadProgressHandler = class
+    FOnOutput: TScriptOutputEvent;
+    procedure ReceiveData(const Sender: TObject; AContentLength, AReadCount: Int64; var AAbort: Boolean);
+  end;
+
+procedure TDownloadProgressHandler.ReceiveData(const Sender: TObject; AContentLength, AReadCount: Int64; var AAbort: Boolean);
+var
+  Percent: Integer;
+begin
+  if Assigned(FOnOutput) and (AContentLength > 0) then
+  begin
+    Percent := Trunc((AReadCount / AContentLength) * 100);
+    FOnOutput(Format('[PROGRESS] %d', [Percent]));
+  end;
+end;
+
 function TScriptEngine.RunStep(const Step: TScriptStep;
-  const Item: TScriptCatalogItem; const ProjectName: string; out Output: string): Boolean;
+  const Item: TScriptCatalogItem; const ProjectName: string; out Output: string; const OnOutput: TScriptOutputEvent): Boolean;
 var
   SourcePath: string;
   DestinationPath: string;
@@ -276,6 +291,7 @@ var
   Client: THTTPClient;
   FileStream: TFileStream;
   ZipFile: TZipFile;
+  ProgressHandler: TDownloadProgressHandler;
 begin
   Output := '';
   Result := False;
@@ -303,11 +319,18 @@ begin
     EnsureDirectory(ExtractFilePath(DestinationPath));
     Client := THTTPClient.Create;
     try
-      FileStream := TFileStream.Create(DestinationPath, fmCreate);
+      ProgressHandler := TDownloadProgressHandler.Create;
       try
-        Client.Get(ExpandTokens(Step.Url, Item, ProjectName), FileStream);
+        ProgressHandler.FOnOutput := OnOutput;
+        Client.OnReceiveData := ProgressHandler.ReceiveData;
+        FileStream := TFileStream.Create(DestinationPath, fmCreate);
+        try
+          Client.Get(ExpandTokens(Step.Url, Item, ProjectName), FileStream);
+        finally
+          FileStream.Free;
+        end;
       finally
-        FileStream.Free;
+        ProgressHandler.Free;
       end;
     finally
       Client.Free;
@@ -322,7 +345,8 @@ begin
     ZipFile := TZipFile.Create;
     try
       ZipFile.Open(SourcePath, zmRead);
-      ZipFile.ExtractAll(DestinationPath);
+      if not ExtractZipSafely(ZipFile, DestinationPath, Output) then
+        Exit(False);
     finally
       ZipFile.Free;
     end;
@@ -361,7 +385,7 @@ begin
   try
     for I := Low(Item.Steps) to High(Item.Steps) do
     begin
-      if not RunStep(Item.Steps[I], Item, ProjectName, StepOutput) then
+      if not RunStep(Item.Steps[I], Item, ProjectName, StepOutput, OnOutput) then
       begin
         Result.Message := Format('Step %d failed.', [I + 1]);
         Result.Output := StepOutput;

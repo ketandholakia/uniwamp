@@ -27,7 +27,15 @@ uses
   Ui.UniWamp.ScriptManagerForm,
   Core.UniWamp.Config,
   Core.UniWamp.Diagnostics,
+  Core.UniWamp.Types,
   Core.UniWamp.Paths,
+  Core.UniWamp.Security,
+  Core.UniWamp.PackageManager,
+  Core.UniWamp.VHostManager,
+  Core.UniWamp.ConfigGenerator,
+  Core.UniWamp.HostsFileService,
+  Core.UniWamp.Interfaces,
+  Core.UniWamp.ServiceLocator,
   Core.UniWamp.Runtime;
 
 type
@@ -193,6 +201,10 @@ type
     FVHostFilterClearLabel: TLabel;
     FUpdateManifestDialog: TOpenDialog;
     FHeaderCards: array[0..2] of THeaderStatusCard;
+    FProgressSpinner: TProgressBar;
+    FIsBusy: Boolean;
+    procedure ShowBusyState(const StatusText: string);
+    procedure HideBusyState(const StatusText: string = '');
     procedure FormCreate(Sender: TObject);
     procedure FormResize(Sender: TObject);
     procedure FormShow(Sender: TObject);
@@ -217,7 +229,7 @@ type
     procedure PhpVersionMenuClick(Sender: TObject);
     procedure PhpProfileMenuClick(Sender: TObject);
     procedure LoadStateIntoUi;
-    procedure SaveUiIntoState;
+    function SaveUiIntoState: Boolean;
     procedure AppendStatus(const Text: string);
     procedure RefreshStatus;
     procedure UpdateHeaderStateColors;
@@ -858,6 +870,11 @@ begin
   FUpdateManifestDialog.Title := 'Select update manifest';
   FUpdateManifestDialog.Options := [ofFileMustExist, ofPathMustExist, ofEnableSizing, ofHideReadOnly];
   PathsMigrated := FConfig.LoadOrCreate(FPaths);
+
+  TServiceLocator.Instance.RegisterService<IConfigurationGenerator>(TConfigurationGenerator.Create(FPaths, FConfig));
+  TServiceLocator.Instance.RegisterService<IHostsFileService>(THostsFileService.Create(FPaths, FConfig));
+  TServiceLocator.Instance.RegisterService<IVHostManager>(TVHostManager.Create(FPaths, FConfig));
+
   FMainPhpVersionItems := TList<TMenuItem>.Create;
   FMainPhpProfileItems := TList<TMenuItem>.Create;
   FLastHttpPortChecked := -1;
@@ -2077,6 +2094,13 @@ begin
   FTrayIcon.PopupMenu := FTrayMenu;
   FTrayIcon.OnClick := TrayIconClick;
   UpdateMenuState;
+
+  FProgressSpinner := TProgressBar.Create(Self);
+  FProgressSpinner.Parent := StatusBar;
+  FProgressSpinner.Style := pbstMarquee;
+  FProgressSpinner.MarqueeInterval := 30;
+  FProgressSpinner.Visible := False;
+  FProgressSpinner.Align := alClient;
 end;
 
 destructor TMainForm.Destroy;
@@ -2166,10 +2190,29 @@ begin
   UpdateVHostEmptyState;
 end;
 
-procedure TMainForm.SaveUiIntoState;
+function TMainForm.SaveUiIntoState: Boolean;
+var
+  NormalizedText: string;
+  ErrorMessage: string;
 begin
-  FConfig.HostName := Trim(HostNameEdit.Text);
-  FConfig.DocumentRoot := Trim(DocumentRootEdit.Text);
+  Result := False;
+  if Trim(HostNameEdit.Text) = '' then
+    NormalizedText := 'localhost'
+  else if not ValidateServerName(HostNameEdit.Text, NormalizedText, ErrorMessage) then
+  begin
+    ShowMessage(ErrorMessage);
+    Exit;
+  end;
+  FConfig.HostName := NormalizedText;
+
+  if Trim(DocumentRootEdit.Text) = '' then
+    NormalizedText := FPaths.WwwDir
+  else if not ValidateDocumentRoot(DocumentRootEdit.Text, NormalizedText, ErrorMessage) then
+  begin
+    ShowMessage(ErrorMessage);
+    Exit;
+  end;
+  FConfig.DocumentRoot := NormalizedText;
   FConfig.EnableSsl := EnableSslCheck.Checked;
   if not TryStrToInt(Trim(HttpPortEdit.Text), FConfig.HttpPort) then
     FConfig.HttpPort := 8080;
@@ -2183,6 +2226,7 @@ begin
     FConfig.SelectedNodeVersion := NodeVersionCombo.Items[NodeVersionCombo.ItemIndex];
   if PhpProfileCombo.ItemIndex >= 0 then
     FConfig.PhpProfile := PhpProfileCombo.Items[PhpProfileCombo.ItemIndex];
+  Result := True;
 end;
 
 procedure TMainForm.AppendStatus(const Text: string);
@@ -2199,6 +2243,36 @@ begin
     FActivityMemo.SelStart := Length(FActivityMemo.Text);
     FActivityMemo.Perform(EM_SCROLLCARET, 0, 0);
   end;
+end;
+
+procedure TMainForm.ShowBusyState(const StatusText: string);
+begin
+  FIsBusy := True;
+  if Assigned(FProgressSpinner) then
+  begin
+    FProgressSpinner.Visible := True;
+    FProgressSpinner.BringToFront;
+  end;
+  AppendStatus(StatusText);
+  // Disable common action buttons
+  AddVHostButton.Enabled := False;
+  GenerateSslButton.Enabled := False;
+  StartAllButton.Enabled := False;
+  StopAllButton.Enabled := False;
+  Application.ProcessMessages;
+end;
+
+procedure TMainForm.HideBusyState(const StatusText: string);
+begin
+  FIsBusy := False;
+  if Assigned(FProgressSpinner) then
+    FProgressSpinner.Visible := False;
+  if StatusText <> '' then
+    AppendStatus(StatusText);
+  // Re-evaluate button states
+  UpdateStackActionState;
+  UpdateVHostActionState;
+  Application.ProcessMessages;
 end;
 
 procedure TMainForm.RefreshActivityLogView;
@@ -2880,7 +2954,8 @@ var
 begin
   if ServerName = '' then
     Exit;
-  ResultInfo := FRuntime.DeleteVHost(ServerName);
+  var VHostManager := TServiceLocator.Instance.GetService<IVHostManager>;
+  ResultInfo := VHostManager.DeleteVHost(ServerName);
   AppendStatus(ResultInfo.Message);
   if ResultInfo.Success and FConfig.ApacheRunning then
   begin
@@ -3064,7 +3139,8 @@ end;
 
 procedure TMainForm.SaveConfigClick(Sender: TObject);
 begin
-  SaveUiIntoState;
+  if not SaveUiIntoState then
+    Exit;
   FConfig.Save(FPaths);
   FRuntime.GenerateAllConfigs;
   AppendStatus('Configuration saved and generated.');
@@ -3072,51 +3148,96 @@ begin
 end;
 
 procedure TMainForm.ApacheStartClick(Sender: TObject);
-var
-  ResultInfo: TRuntimeActionResult;
 begin
-  SaveUiIntoState;
+  if not SaveUiIntoState then
+    Exit;
   FConfig.Save(FPaths);
-  ResultInfo := FRuntime.StartApache;
-  AppendStatus(ResultInfo.Message);
-  FConfig.Save(FPaths);
-  RefreshStatus;
-  if ResultInfo.Success then
-    LaunchDashboardIfHealthy;
+  ApacheStartButton.Enabled := False;
+  ApacheStopButton.Enabled := False;
+  ApacheRestartButton.Enabled := False;
+  TThread.CreateAnonymousThread(
+    procedure
+    var
+      ResultInfo: TRuntimeActionResult;
+    begin
+      ResultInfo := FRuntime.StartApache;
+      TThread.Queue(nil, TThreadProcedure(
+        procedure
+        begin
+          AppendStatus(ResultInfo.Message);
+          FConfig.Save(FPaths);
+          RefreshStatus;
+          ApacheStartButton.Enabled := True;
+          ApacheStopButton.Enabled := True;
+          ApacheRestartButton.Enabled := True;
+          if ResultInfo.Success then
+            LaunchDashboardIfHealthy;
+        end));
+    end).Start;
 end;
 
 procedure TMainForm.ApacheStopClick(Sender: TObject);
-var
-  ResultInfo: TRuntimeActionResult;
 begin
   FStatusRefreshTimer.Enabled := False;
-  try
-  ResultInfo := FRuntime.StopApache;
-  AppendStatus(ResultInfo.Message);
-  FConfig.Save(FPaths);
-  RefreshStatus;
-  finally
-    FStatusRefreshTimer.Enabled := True;
-  end;
+  ApacheStartButton.Enabled := False;
+  ApacheStopButton.Enabled := False;
+  ApacheRestartButton.Enabled := False;
+  TThread.CreateAnonymousThread(
+    procedure
+    var
+      ResultInfo: TRuntimeActionResult;
+    begin
+      ResultInfo := FRuntime.StopApache;
+      TThread.Queue(nil, TThreadProcedure(
+        procedure
+        begin
+          try
+            AppendStatus(ResultInfo.Message);
+            FConfig.Save(FPaths);
+            RefreshStatus;
+          finally
+            FStatusRefreshTimer.Enabled := True;
+            ApacheStartButton.Enabled := True;
+            ApacheStopButton.Enabled := True;
+            ApacheRestartButton.Enabled := True;
+          end;
+        end));
+    end).Start;
 end;
 
 procedure TMainForm.ApacheRestartClick(Sender: TObject);
-var
-  ResultInfo: TRuntimeActionResult;
 begin
-  SaveUiIntoState;
+  if not SaveUiIntoState then
+    Exit;
   FConfig.Save(FPaths);
-  ResultInfo := FRuntime.RestartApache;
-  AppendStatus('Apache restart: ' + ResultInfo.Message);
-  FConfig.Save(FPaths);
-  RefreshStatus;
+  ApacheStartButton.Enabled := False;
+  ApacheStopButton.Enabled := False;
+  ApacheRestartButton.Enabled := False;
+  TThread.CreateAnonymousThread(
+    procedure
+    var
+      ResultInfo: TRuntimeActionResult;
+    begin
+      ResultInfo := FRuntime.RestartApache;
+      TThread.Queue(nil, TThreadProcedure(
+        procedure
+        begin
+          AppendStatus('Apache restart: ' + ResultInfo.Message);
+          FConfig.Save(FPaths);
+          RefreshStatus;
+          ApacheStartButton.Enabled := True;
+          ApacheStopButton.Enabled := True;
+          ApacheRestartButton.Enabled := True;
+        end));
+    end).Start;
 end;
 
 procedure TMainForm.MariaDbStartClick(Sender: TObject);
 var
   ResultInfo: TRuntimeActionResult;
 begin
-  SaveUiIntoState;
+  if not SaveUiIntoState then
+    Exit;
   ResultInfo := TStartProgressForm.ExecuteStart(Self, FRuntime, FConfig, FPaths);
   AppendStatus(ResultInfo.Message);
   FConfig.Save(FPaths);
@@ -3142,7 +3263,8 @@ procedure TMainForm.MariaDbRestartClick(Sender: TObject);
 var
   ResultInfo: TRuntimeActionResult;
 begin
-  SaveUiIntoState;
+  if not SaveUiIntoState then
+    Exit;
   ResultInfo := FRuntime.RestartMariaDb;
   AppendStatus('MariaDB restart: ' + ResultInfo.Message);
   FConfig.Save(FPaths);
@@ -3152,86 +3274,113 @@ end;
 procedure TMainForm.StartButtonClick(Sender: TObject);
 var
   MariaResult: TRuntimeActionResult;
-  ApacheResult: TRuntimeActionResult;
-  AttemptedAnything: Boolean;
-  StartedAnything: Boolean;
 begin
-  SaveUiIntoState;
+  if not SaveUiIntoState then
+    Exit;
   RefreshStatus;
   FConfig.Save(FPaths);
 
-  AttemptedAnything := False;
-  StartedAnything := False;
-
   if not FConfig.MariaDbRunning then
   begin
-    AttemptedAnything := True;
     MariaResult := TStartProgressForm.ExecuteStart(Self, FRuntime, FConfig, FPaths);
     AppendStatus('Start all phase - MariaDB: ' + MariaResult.Message);
-    StartedAnything := StartedAnything or MariaResult.Success;
   end;
 
   if not FConfig.ApacheRunning then
   begin
-    AttemptedAnything := True;
-    ApacheResult := FRuntime.StartApache;
-    AppendStatus('Start all phase - Apache: ' + ApacheResult.Message);
-    StartedAnything := StartedAnything or ApacheResult.Success;
-  end;
-
-  if not AttemptedAnything then
-    AppendStatus('All services are already running.');
-  if AttemptedAnything then
+    ShowBusyState('Starting Apache...');
+    TThread.CreateAnonymousThread(
+      procedure
+      var
+        ApacheResult: TRuntimeActionResult;
+        ErrMsg: string;
+      begin
+        ErrMsg := '';
+        try
+          ApacheResult := FRuntime.StartApache;
+        except
+          on E: Exception do
+            ErrMsg := E.Message;
+        end;
+        
+        TThread.Queue(nil,
+          procedure
+          begin
+            HideBusyState();
+            if ErrMsg <> '' then
+              AppendStatus('Start all phase - Apache exception: ' + ErrMsg)
+            else
+              AppendStatus('Start all phase - Apache: ' + ApacheResult.Message);
+            
+            FConfig.Save(FPaths);
+            RefreshStatus;
+            LaunchDashboardIfHealthy;
+          end);
+      end).Start;
+  end
+  else
   begin
-    if StartedAnything and ((FConfig.ApacheRunning) or (FConfig.MariaDbRunning)) then
-      AppendStatus('Start all completed: at least one service is now running.')
-    else if StartedAnything then
-      AppendStatus('Start all completed: at least one service started, but health checks are not yet confirmed.')
-    else
-      AppendStatus('Start all completed with errors.');
-  end;
-
-  FConfig.Save(FPaths);
-  RefreshStatus;
-  if AttemptedAnything and StartedAnything then
+    AppendStatus('All services are already running.');
+    FConfig.Save(FPaths);
+    RefreshStatus;
     LaunchDashboardIfHealthy;
+  end;
 end;
 
 procedure TMainForm.StopButtonClick(Sender: TObject);
-var
-  ApacheResult: TRuntimeActionResult;
-  MariaResult: TRuntimeActionResult;
-  StoppedAnything: Boolean;
 begin
   FStatusRefreshTimer.Enabled := False;
-  try
   RefreshStatus;
-  StoppedAnything := False;
 
-  if FConfig.ApacheRunning then
+  if (not FConfig.ApacheRunning) and (not FConfig.MariaDbRunning) then
   begin
-    ApacheResult := FRuntime.StopApache;
-    AppendStatus('Stop all phase - Apache: ' + ApacheResult.Message);
-    StoppedAnything := True;
-  end;
-
-  if FConfig.MariaDbRunning then
-  begin
-    MariaResult := FRuntime.StopMariaDb;
-    AppendStatus('Stop all phase - MariaDB: ' + MariaResult.Message);
-    StoppedAnything := True;
-  end;
-
-  if not StoppedAnything then
     AppendStatus('All services are already stopped.');
-  if StoppedAnything then
-    AppendStatus('Stop all completed: requested services were stopped.');
-
-  FConfig.Save(FPaths);
-  RefreshStatus;
-  finally
     FStatusRefreshTimer.Enabled := True;
+    Exit;
   end;
+
+  ShowBusyState('Stopping all services...');
+  TThread.CreateAnonymousThread(
+    procedure
+    var
+      ApacheResult: TRuntimeActionResult;
+      MariaResult: TRuntimeActionResult;
+      WasApacheRunning, WasMariaDbRunning: Boolean;
+      ErrMsg: string;
+    begin
+      WasApacheRunning := FConfig.ApacheRunning;
+      WasMariaDbRunning := FConfig.MariaDbRunning;
+      ErrMsg := '';
+      
+      try
+        if WasApacheRunning then
+          ApacheResult := FRuntime.StopApache;
+        if WasMariaDbRunning then
+          MariaResult := FRuntime.StopMariaDb;
+      except
+        on E: Exception do
+          ErrMsg := E.Message;
+      end;
+        
+      TThread.Queue(nil,
+        procedure
+        begin
+          HideBusyState();
+          
+          if ErrMsg <> '' then
+            AppendStatus('Error during stop: ' + ErrMsg);
+            
+          if WasApacheRunning and (ErrMsg = '') then
+            AppendStatus('Stop all phase - Apache: ' + ApacheResult.Message);
+          if WasMariaDbRunning and (ErrMsg = '') then
+            AppendStatus('Stop all phase - MariaDB: ' + MariaResult.Message);
+            
+          AppendStatus('Stop all completed.');
+          FConfig.Save(FPaths);
+          RefreshStatus;
+          FStatusRefreshTimer.Enabled := True;
+        end);
+    end).Start;
 end;
 
 procedure TMainForm.LaunchSiteClick(Sender: TObject);
@@ -3355,7 +3504,8 @@ procedure TMainForm.LaunchTerminalClick(Sender: TObject);
 var
   ResultInfo: TRuntimeActionResult;
 begin
-  SaveUiIntoState;
+  if not SaveUiIntoState then
+    Exit;
   FConfig.Save(FPaths);
   ResultInfo := FRuntime.LaunchTerminal;
   AppendStatus(ResultInfo.Message);
@@ -3462,16 +3612,22 @@ var
   StagingDir: string;
   MetadataFileName: string;
   ResultInfo: TRuntimeActionResult;
+  PackageManager: TPackageManager;
 begin
   if not FUpdateManifestDialog.Execute then
     Exit;
-  if FRuntime.StageUpdateManifest(FUpdateManifestDialog.FileName, StagingDir, MetadataFileName, ResultInfo.Message) then
-  begin
-    AppendStatus('Update staged to ' + StagingDir);
-    AppendStatus('Staging metadata written to ' + MetadataFileName);
-  end
-  else
-    AppendStatus(ResultInfo.Message);
+  PackageManager := TPackageManager.Create(FPaths);
+  try
+    if PackageManager.StageUpdateManifest(FUpdateManifestDialog.FileName, StagingDir, MetadataFileName, ResultInfo.Message) then
+    begin
+      AppendStatus('Update staged to ' + StagingDir);
+      AppendStatus('Staging metadata written to ' + MetadataFileName);
+    end
+    else
+      AppendStatus(ResultInfo.Message);
+  finally
+    PackageManager.Free;
+  end;
 end;
 
 procedure TMainForm.CopyDiagnosticReportClick(Sender: TObject);
@@ -3501,7 +3657,8 @@ procedure TMainForm.GenerateSslClick(Sender: TObject);
 var
   ResultInfo: TRuntimeActionResult;
 begin
-  ResultInfo := FRuntime.GenerateSslCertificate;
+  var VHostManager := TServiceLocator.Instance.GetService<IVHostManager>;
+  ResultInfo := VHostManager.GenerateSslCertificate;
   AppendStatus(ResultInfo.Message);
 end;
 
@@ -3552,39 +3709,79 @@ end;
 procedure TMainForm.AddVHostClick(Sender: TObject);
 var
   DialogResult: TVHostDialogResult;
-  ResultInfo: TRuntimeActionResult;
-  RestartInfo: TRuntimeActionResult;
 begin
+  if FIsBusy then Exit;
+
   DialogResult := TVHostDialog.Execute(Self, FPaths.VHostsDir, '', '', '', EnableSslCheck.Checked);
   if not DialogResult.Accepted then
     Exit;
-  ResultInfo := FRuntime.AddVHost(DialogResult.ServerName, DialogResult.DocumentRoot,
-    DialogResult.ServerAliases, DialogResult.EnableSsl);
-  AppendStatus(ResultInfo.Message);
-  if ResultInfo.Success and FConfig.ApacheRunning then
-  begin
-    RestartInfo := FRuntime.RestartApache;
-    AppendStatus('Apache reload after VHost add: ' + RestartInfo.Message);
-  end;
-  FConfig.Save(FPaths);
-  RefreshStatus;
-  LoadStateIntoUi;
+
+  ShowBusyState('Adding Virtual Host, please wait...');
+
+  TThread.CreateAnonymousThread(
+    procedure
+    var
+      ResultInfo: TRuntimeActionResult;
+      RestartInfo: TRuntimeActionResult;
+      VHostManager: IVHostManager;
+      ApacheWasRunning: Boolean;
+    begin
+      VHostManager := TServiceLocator.Instance.GetService<IVHostManager>;
+      ApacheWasRunning := FConfig.ApacheRunning;
+
+      ResultInfo := VHostManager.AddVHost(
+        DialogResult.ServerName,
+        DialogResult.DocumentRoot,
+        DialogResult.ServerAliases,
+        DialogResult.EnableSsl);
+
+      if ResultInfo.Success and ApacheWasRunning then
+        RestartInfo := FRuntime.RestartApache;
+
+      TThread.Queue(nil,
+        procedure
+        begin
+          HideBusyState();
+          AppendStatus(ResultInfo.Message);
+          if ResultInfo.Success and ApacheWasRunning then
+            AppendStatus('Apache reload after VHost add: ' + RestartInfo.Message);
+          
+          FConfig.Save(FPaths);
+          RefreshStatus;
+          LoadStateIntoUi;
+        end);
+    end).Start;
 end;
 
 procedure TMainForm.SetMariaDbRootPasswordClick(Sender: TObject);
 var
   DialogResult: TPasswordDialogResult;
-  ResultInfo: TRuntimeActionResult;
 begin
+  if FIsBusy then Exit;
+
   DialogResult := TPasswordDialog.Execute(Self, 'Set MariaDB Root Password', 'New password');
   if not DialogResult.Accepted then
     Exit;
 
-  ResultInfo := FRuntime.SetMariaDbRootPassword(DialogResult.Password);
-  AppendStatus(ResultInfo.Message);
-  if ResultInfo.Success then
-    FConfig.Save(FPaths);
-  RefreshStatus;
+  ShowBusyState('Setting MariaDB root password...');
+
+  TThread.CreateAnonymousThread(
+    procedure
+    var
+      ResultInfo: TRuntimeActionResult;
+    begin
+      ResultInfo := FRuntime.SetMariaDbRootPassword(DialogResult.Password);
+      
+      TThread.Queue(nil,
+        procedure
+        begin
+          HideBusyState();
+          AppendStatus(ResultInfo.Message);
+          if ResultInfo.Success then
+            FConfig.Save(FPaths);
+          RefreshStatus;
+        end);
+    end).Start;
 end;
 
 procedure TMainForm.DeleteVHostClick(Sender: TObject);
@@ -3641,7 +3838,8 @@ begin
   if ServerName = '' then
     Exit;
 
-  ResultInfo := FRuntime.RefreshVHostSslCertificate(ServerName);
+  var VHostManager := TServiceLocator.Instance.GetService<IVHostManager>;
+  ResultInfo := VHostManager.RefreshVHostSslCertificate(ServerName);
   AppendStatus(ResultInfo.Message);
   if ResultInfo.Success and FConfig.ApacheRunning then
   begin
@@ -3724,7 +3922,12 @@ end;
 procedure TMainForm.FormCloseQuery(Sender: TObject; var CanClose: Boolean);
 begin
   FStatusRefreshTimer.Enabled := False;
-  SaveUiIntoState;
+  if not SaveUiIntoState then
+  begin
+    CanClose := False;
+    FStatusRefreshTimer.Enabled := True;
+    Exit;
+  end;
   try
     CanClose := TShutdownProgressForm.ExecuteShutdown(Self, FRuntime, FConfig, FPaths);
     RefreshStatus;

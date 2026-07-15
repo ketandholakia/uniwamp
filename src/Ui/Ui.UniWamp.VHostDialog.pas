@@ -3,12 +3,15 @@ unit Ui.UniWamp.VHostDialog;
 interface
 
 uses
+  Core.UniWamp.Security,
   System.Classes,
   System.SysUtils,
   System.IOUtils,
+  System.UITypes,
   Vcl.Controls,
   Vcl.Forms,
-  Vcl.StdCtrls;
+  Vcl.StdCtrls,
+  Vcl.Dialogs;
 
 type
   TVHostDialogResult = record
@@ -27,6 +30,7 @@ type
     FAliasesEdit: TEdit;
     FSslCheck: TCheckBox;
     procedure ServerNameChanged(Sender: TObject);
+    procedure OkClick(Sender: TObject);
   public
     constructor Create(AOwner: TComponent); override;
     class function Execute(AOwner: TComponent; const BaseVHostDir, DefaultServerName,
@@ -96,12 +100,12 @@ begin
 
   OkButton := TButton.Create(Self);
   OkButton.Parent := Self;
-  OkButton.ModalResult := mrOk;
   OkButton.Caption := 'OK';
   OkButton.Default := True;
   OkButton.Left := 360;
   OkButton.Top := 188;
   OkButton.Width := 80;
+  OkButton.OnClick := OkClick;
 
   CancelButton := TButton.Create(Self);
   CancelButton.Parent := Self;
@@ -122,6 +126,35 @@ begin
     Exit;
   if Trim(FDocumentRootEdit.Text) = '' then
     FDocumentRootEdit.Text := TPath.Combine(FBaseVHostDir, NormalizedName);
+end;
+
+procedure TVHostDialog.OkClick(Sender: TObject);
+var
+  ServerName: string;
+  DocumentRoot: string;
+  Aliases: string;
+  ErrorMessage: string;
+begin
+  if not ValidateServerName(FServerNameEdit.Text, ServerName, ErrorMessage) then
+  begin
+    MessageDlg(ErrorMessage, mtError, [mbOK], 0);
+    Exit;
+  end;
+  if not ValidateDocumentRoot(FDocumentRootEdit.Text, DocumentRoot, ErrorMessage) then
+  begin
+    MessageDlg(ErrorMessage, mtError, [mbOK], 0);
+    Exit;
+  end;
+  if not ValidateServerAliases(FAliasesEdit.Text, Aliases, ErrorMessage) then
+  begin
+    MessageDlg(ErrorMessage, mtError, [mbOK], 0);
+    Exit;
+  end;
+
+  FServerNameEdit.Text := ServerName;
+  FDocumentRootEdit.Text := DocumentRoot;
+  FAliasesEdit.Text := Aliases;
+  ModalResult := mrOk;
 end;
 
 class function TVHostDialog.Execute(AOwner: TComponent; const BaseVHostDir,

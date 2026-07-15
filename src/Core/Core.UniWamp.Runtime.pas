@@ -8,25 +8,22 @@ uses
   System.Zip,
   System.SysUtils,
   Core.UniWamp.Config,
+  Core.UniWamp.Types,
+  Core.UniWamp.Interfaces,
   Core.UniWamp.Paths;
 
 function ChoosePreferredTerminalExecutable(const CmderPath, WindowsTerminalPath: string): string;
 
 type
-  TRuntimeActionResult = record
-    Success: Boolean;
-    Message: string;
-  end;
 
-  TUniWampRuntime = class
+
+  TUniWampRuntime = class(TInterfacedObject, IRuntime)
   private
     FPaths: TAppPaths;
     FConfig: TUniWampConfig;
     function ApacheExe: string;
     function ApacheRuntimePid: Cardinal;
     function ApacheModuleForSelectedPhp: string;
-    procedure EnsureVHostStarterPage(const ServerName, DocumentRoot: string);
-    function HostsFilePath: string;
     function MariaDbExe: string;
     function MariaDbInstallDbExe: string;
     function MysqlAdminExe: string;
@@ -42,21 +39,14 @@ type
     function ShellExecuteInWorkingDir(const Executable, Parameters, WorkingDir: string): Boolean;
     function ShellExecuteCmdInWorkingDir(const WorkingDir, CommandLine: string): Boolean;
     function BundledEditorExecutable: string;
-    function RenderManagedHostsBlock: string;
+
     function ApacheModuleDir: string;
-    function RenderApacheModuleLines: string;
     function SelectedPhpDir: string;
     function SelectedPhpExe: string;
     function SelectedNodeDir: string;
-    function RenderPhpExtensionLines: string;
-    function EnsureDefaultSslCertificate(out ErrorMessage: string): Boolean;
+
     function ServiceStateLabel(const Running: Boolean): string;
-    procedure GenerateApacheConfig;
-    procedure GenerateMariaDbConfig;
-    procedure GeneratePhpConfig;
-    procedure GenerateVHostConfig;
-    function SyncHostsFile(out ErrorMessage: string): Boolean;
-    function RenderVHostBlocks: string;
+
     function ValidateApachePorts(out ErrorMessage: string): Boolean;
     function ValidateApacheConfiguration(out ErrorMessage: string): Boolean;
     function WaitForApacheStartup(const ProcessId: Cardinal; out ErrorMessage: string): Boolean;
@@ -72,7 +62,6 @@ type
     function ApacheProcessId: Cardinal;
     function TerminalExecutablePath: string;
     function PreferredTerminalExecutable: string;
-    procedure GenerateEnvBat(const WorkingDir: string);
     procedure GenerateAllConfigs;
     function StartApache: TRuntimeActionResult;
     function StopApache: TRuntimeActionResult;
@@ -80,7 +69,7 @@ type
     function StartMariaDb: TRuntimeActionResult;
     function StopMariaDb: TRuntimeActionResult;
     function RestartMariaDb: TRuntimeActionResult;
-    function GenerateSslCertificate: TRuntimeActionResult;
+
     function LaunchUrl(const Url: string): TRuntimeActionResult;
     function LaunchComposerInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function LaunchGitInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
@@ -95,29 +84,13 @@ type
     function LaunchEditor: TRuntimeActionResult;
     function PreferredTextEditorExecutable: string;
     function LaunchTextEditor(const FileName: string): TRuntimeActionResult;
-    function ComputeFileSha256Hex(const FileName: string): string;
-    function ValidatePackageSha256(const PackageFileName, ExpectedSha256: string; out ErrorMessage: string): Boolean;
-    function ValidateUpdateManifest(const ManifestFileName: string; out PackageFileName, ExpectedSha256, PackageVersion: string; out ErrorMessage: string): Boolean;
-    function WriteUpdateStagingMetadata(const StagingDir, PackageFileName, ExpectedSha256, PackageVersion: string; out MetadataFileName, ErrorMessage: string): Boolean;
-    function CleanupUpdateWorkspace(const WorkspaceDir: string; out ErrorMessage: string): Boolean;
-    function StageValidatedUpdatePackage(const ManifestFileName: string; out StagingDir, MetadataFileName, ErrorMessage: string): Boolean;
-    function PromoteStagedUpdate(const StagingDir, TargetDir: string; out BackupDir, ErrorMessage: string;
-      ForceFailureAfterBackup: Boolean = False): Boolean;
-    function StageUpdateManifest(const ManifestFileName: string; out StagingDir, MetadataFileName, ErrorMessage: string): Boolean;
-    function ValidateRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
-    function ImportRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
-    function ImportRuntimeZipArchiveInto(const ZipFileName, TargetDir: string; out ErrorMessage: string): Boolean;
-    function PrepareUpdateStagingArea(const PackageName: string; out StagingDir: string; out ErrorMessage: string): Boolean;
-    function CreateUpdateRollbackSnapshot(const StagingDir, SnapshotName: string; out SnapshotDir: string; out ErrorMessage: string): Boolean;
-    function RollbackUpdateStagingArea(const SnapshotDir, RestoreDir: string; out ErrorMessage: string): Boolean;
+
     function LaunchAdminer: TRuntimeActionResult;
     function LaunchTerminal: TRuntimeActionResult;
     function LaunchTerminalInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function AreWebToolsReady(out ErrorMessage: string): Boolean;
-    function GenerateSslCertificateFor(const CommonName, CertFile, KeyFile: string): TRuntimeActionResult;
-    function AddVHost(const ServerName, DocumentRoot, ServerAliases: string; EnableSsl: Boolean): TRuntimeActionResult;
-    function RefreshVHostSslCertificate(const ServerName: string): TRuntimeActionResult;
-    function DeleteVHost(const ServerName: string): TRuntimeActionResult;
+
+
     function SetMariaDbRootPassword(const NewPassword: string): TRuntimeActionResult;
     function DescribePortOwner(const Port: Integer): string;
     function BuildDiagnosticReport: string;
@@ -134,11 +107,13 @@ uses
   System.StrUtils,
   Core.UniWamp.PortUtils,
   Core.UniWamp.ProcessManager,
-  Core.UniWamp.TemplateRenderer;
+  Core.UniWamp.TemplateRenderer,
+  Core.UniWamp.ConfigGenerator,
+  Core.UniWamp.VHostManager,
+  Core.UniWamp.ServiceLocator,
+  Core.UniWamp.HostsFileService;
 
-const
-  ManagedHostsBeginMarker = '# BEGIN UniWamp Managed Hosts';
-  ManagedHostsEndMarker = '# END UniWamp Managed Hosts';
+
 
 procedure AppendTextToLogFile(const FileName, Text: string);
 var
@@ -151,10 +126,14 @@ begin
   if DirectoryName <> '' then
     EnsureDirectory(DirectoryName);
 
-  TFile.AppendAllText(
-    FileName,
-    FormatDateTime('hh:nn:ss', Now) + '  ' + Text + sLineBreak,
-    TEncoding.UTF8);
+  try
+    TFile.AppendAllText(
+      FileName,
+      FormatDateTime('hh:nn:ss', Now) + '  ' + Text + sLineBreak,
+      TEncoding.UTF8);
+  except
+    // Ignore file lock or I/O errors to prevent crashing the caller
+  end;
 end;
 
 function ChoosePreferredTerminalExecutable(const CmderPath, WindowsTerminalPath: string): string;
@@ -228,6 +207,9 @@ begin
   if not TryStrToUInt64(PidText, ParsedPid) then
     Exit;
   if ParsedPid > High(Cardinal) then
+    Exit;
+  
+  if not TProcessManager.IsProcessExecutable(Cardinal(ParsedPid), ApacheExe) then
     Result := 0
   else
     Result := Cardinal(ParsedPid);
@@ -284,115 +266,14 @@ end;
 
 function TUniWampRuntime.MariaDbIsRunning: Boolean;
 begin
-  Result := (FConfig.MariaDbPid <> 0) and TProcessManager.IsRunning(FConfig.MariaDbPid);
-  if not Result and (FConfig.MariaDbPid <> 0) and not TProcessManager.IsRunning(FConfig.MariaDbPid) then
+  Result := (FConfig.MariaDbPid <> 0) and 
+            TProcessManager.IsRunning(FConfig.MariaDbPid) and 
+            TProcessManager.IsProcessExecutable(FConfig.MariaDbPid, MariaDbExe);
+            
+  if not Result and (FConfig.MariaDbPid <> 0) then
   begin
     FConfig.MariaDbPid := 0;
     FConfig.MariaDbRunning := False;
-  end;
-end;
-
-function TUniWampRuntime.HostsFilePath: string;
-var
-  SystemRoot: string;
-  ConfiguredHostsFile: string;
-begin
-  ConfiguredHostsFile := GetEnvironmentVariable('UNIWAMP_HOSTS_FILE');
-  if Trim(ConfiguredHostsFile) <> '' then
-    Exit(ConfiguredHostsFile);
-
-  SystemRoot := GetEnvironmentVariable('SystemRoot');
-  if SystemRoot = '' then
-    SystemRoot := 'C:\Windows';
-  Result := TPath.Combine(SystemRoot, 'System32\drivers\etc\hosts');
-end;
-
-procedure TUniWampRuntime.EnsureVHostStarterPage(const ServerName, DocumentRoot: string);
-var
-  IndexFile: string;
-  Html: TStringList;
-begin
-  IndexFile := TPath.Combine(DocumentRoot, 'index.html');
-  if FileExists(IndexFile) then
-    Exit;
-
-  Html := TStringList.Create;
-  try
-    Html.Add('<!DOCTYPE html>');
-    Html.Add('<html lang="en">');
-    Html.Add('<head>');
-    Html.Add('  <meta charset="utf-8">');
-    Html.Add('  <meta name="viewport" content="width=device-width, initial-scale=1">');
-    Html.Add('  <title>' + ServerName + '</title>');
-    Html.Add('  <style>');
-    Html.Add('    :root {');
-    Html.Add('      --ink: #132238;');
-    Html.Add('      --muted: #5b6b7c;');
-    Html.Add('      --line: #d7e0ea;');
-    Html.Add('      --card: #ffffff;');
-    Html.Add('      --accent: #0f7b6c;');
-    Html.Add('      --accent-soft: #dff7f2;');
-    Html.Add('      --bg: linear-gradient(135deg, #edf6ff 0%, #f5fbf7 100%);');
-    Html.Add('    }');
-    Html.Add('    * { box-sizing: border-box; }');
-    Html.Add('    body {');
-    Html.Add('      margin: 0;');
-    Html.Add('      min-height: 100vh;');
-    Html.Add('      font-family: "Segoe UI", Arial, sans-serif;');
-    Html.Add('      background: var(--bg);');
-    Html.Add('      color: var(--ink);');
-    Html.Add('    }');
-    Html.Add('    main {');
-    Html.Add('      width: min(760px, calc(100vw - 32px));');
-    Html.Add('      margin: 10vh auto;');
-    Html.Add('      padding: 36px;');
-    Html.Add('      border-radius: 18px;');
-    Html.Add('      background: var(--card);');
-    Html.Add('      border: 1px solid var(--line);');
-    Html.Add('      box-shadow: 0 20px 50px rgba(18, 38, 63, 0.10);');
-    Html.Add('    }');
-    Html.Add('    .tag {');
-    Html.Add('      display: inline-block;');
-    Html.Add('      margin-bottom: 14px;');
-    Html.Add('      padding: 6px 10px;');
-    Html.Add('      border-radius: 999px;');
-    Html.Add('      background: var(--accent-soft);');
-    Html.Add('      color: var(--accent);');
-    Html.Add('      font-size: 12px;');
-    Html.Add('      font-weight: 700;');
-    Html.Add('      letter-spacing: 0.08em;');
-    Html.Add('      text-transform: uppercase;');
-    Html.Add('    }');
-    Html.Add('    h1 { margin: 0 0 12px; font-size: 38px; line-height: 1.1; }');
-    Html.Add('    p { margin: 0 0 12px; color: var(--muted); line-height: 1.65; }');
-    Html.Add('    .meta { margin-top: 24px; display: grid; gap: 12px; }');
-    Html.Add('    .row { padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: #fbfdff; }');
-    Html.Add('    .label { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }');
-    Html.Add('    code { font-family: Consolas, "Courier New", monospace; font-size: 14px; }');
-    Html.Add('  </style>');
-    Html.Add('</head>');
-    Html.Add('<body>');
-    Html.Add('  <main>');
-    Html.Add('    <span class="tag">UniWamp Virtual Host</span>');
-    Html.Add('    <h1>' + ServerName + ' is ready</h1>');
-    Html.Add('    <p>This starter page was generated automatically when the virtual host was created.</p>');
-    Html.Add('    <p>Replace <code>index.html</code> with your app entry point when you are ready.</p>');
-    Html.Add('    <section class="meta">');
-    Html.Add('      <div class="row">');
-    Html.Add('        <span class="label">Document Root</span>');
-    Html.Add('        <code>' + DocumentRoot + '</code>');
-    Html.Add('      </div>');
-    Html.Add('      <div class="row">');
-    Html.Add('        <span class="label">Expected URL</span>');
-    Html.Add('        <code>http://' + ServerName + ':' + FConfig.HttpPort.ToString + '/</code>');
-    Html.Add('      </div>');
-    Html.Add('    </section>');
-    Html.Add('  </main>');
-    Html.Add('</body>');
-    Html.Add('</html>');
-    Html.SaveToFile(IndexFile, TEncoding.UTF8);
-  finally
-    Html.Free;
   end;
 end;
 
@@ -436,299 +317,27 @@ begin
     Result := Buffer;
 end;
 
-function TUniWampRuntime.ComputeFileSha256Hex(const FileName: string): string;
-var
-  Stream: TFileStream;
-begin
-  Result := '';
-  if not FileExists(FileName) then
-    Exit;
-  Stream := TFileStream.Create(FileName, fmOpenRead or fmShareDenyWrite);
-  try
-    Result := THashSHA2.GetHashString(Stream);
-  finally
-    Stream.Free;
-  end;
-end;
 
-function TUniWampRuntime.ValidatePackageSha256(const PackageFileName, ExpectedSha256: string; out ErrorMessage: string): Boolean;
-var
-  ActualSha256: string;
-begin
-  Result := False;
-  ErrorMessage := '';
-  if Trim(PackageFileName) = '' then
-  begin
-    ErrorMessage := 'Package file name is required.';
-    Exit;
-  end;
-  if not FileExists(PackageFileName) then
-  begin
-    ErrorMessage := 'Package file not found: ' + PackageFileName;
-    Exit;
-  end;
-  ActualSha256 := ComputeFileSha256Hex(PackageFileName);
-  if ActualSha256 = '' then
-  begin
-    ErrorMessage := 'Package hash could not be calculated.';
-    Exit;
-  end;
-  if not SameText(ActualSha256, Trim(ExpectedSha256)) then
-  begin
-    ErrorMessage := 'Package hash mismatch.';
-    Exit;
-  end;
-  Result := True;
-end;
 
-function TUniWampRuntime.ValidateRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
-var
-  Zip: TZipFile;
-begin
-  Result := False;
-  ErrorMessage := '';
-  if not FileExists(ZipFileName) then
-  begin
-    ErrorMessage := 'Runtime archive not found: ' + ZipFileName;
-    Exit;
-  end;
-  if not SameText(TPath.GetExtension(ZipFileName), '.zip') then
-  begin
-    ErrorMessage := 'Runtime archive must be a ZIP file.';
-    Exit;
-  end;
 
-  Zip := TZipFile.Create;
-  try
-    try
-      Zip.Open(ZipFileName, zmRead);
-      if Zip.FileCount = 0 then
-      begin
-        ErrorMessage := 'Runtime archive is empty.';
-        Exit;
-      end;
-      Result := True;
-    except
-      on E: Exception do
-        ErrorMessage := 'Runtime archive validation failed: ' + E.Message;
-    end;
-  finally
-    Zip.Free;
-  end;
-end;
 
-function TUniWampRuntime.ValidateUpdateManifest(const ManifestFileName: string; out PackageFileName, ExpectedSha256, PackageVersion: string; out ErrorMessage: string): Boolean;
-var
-  JsonValue: TJSONValue;
-  JsonObject: TJSONObject;
-begin
-  Result := False;
-  ErrorMessage := '';
-  PackageFileName := '';
-  ExpectedSha256 := '';
-  PackageVersion := '';
-  if not FileExists(ManifestFileName) then
-  begin
-    ErrorMessage := 'Update manifest not found: ' + ManifestFileName;
-    Exit;
-  end;
-  JsonValue := TJSONObject.ParseJSONValue(TFile.ReadAllText(ManifestFileName, TEncoding.UTF8));
-  try
-    if not (JsonValue is TJSONObject) then
-    begin
-      ErrorMessage := 'Update manifest must be a JSON object.';
-      Exit;
-    end;
-    JsonObject := TJSONObject(JsonValue);
-    PackageFileName := JsonObject.GetValue<string>('packageFileName', '');
-    ExpectedSha256 := JsonObject.GetValue<string>('expectedSha256', '');
-    PackageVersion := JsonObject.GetValue<string>('packageVersion', '');
-    if Trim(PackageFileName) = '' then
-    begin
-      ErrorMessage := 'Update manifest is missing packageFileName.';
-      Exit;
-    end;
-    if Trim(ExpectedSha256) = '' then
-    begin
-      ErrorMessage := 'Update manifest is missing expectedSha256.';
-      Exit;
-    end;
-    if Trim(PackageVersion) = '' then
-    begin
-      ErrorMessage := 'Update manifest is missing packageVersion.';
-      Exit;
-    end;
-    Result := True;
-  finally
-    JsonValue.Free;
-  end;
-end;
 
-function TUniWampRuntime.WriteUpdateStagingMetadata(const StagingDir, PackageFileName, ExpectedSha256, PackageVersion: string; out MetadataFileName, ErrorMessage: string): Boolean;
-var
-  JsonObject: TJSONObject;
-begin
-  Result := False;
-  ErrorMessage := '';
-  MetadataFileName := '';
-  if not TDirectory.Exists(StagingDir) then
-  begin
-    ErrorMessage := 'Staging directory not found: ' + StagingDir;
-    Exit;
-  end;
-  MetadataFileName := TPath.Combine(StagingDir, 'update-staging.json');
-  JsonObject := TJSONObject.Create;
-  try
-    try
-      JsonObject.AddPair('packageFileName', PackageFileName);
-      JsonObject.AddPair('expectedSha256', ExpectedSha256);
-      JsonObject.AddPair('packageVersion', PackageVersion);
-      JsonObject.AddPair('stagingDir', StagingDir);
-      TFile.WriteAllText(MetadataFileName, JsonObject.Format, TEncoding.UTF8);
-      Result := True;
-    except
-      on E: Exception do
-        ErrorMessage := 'Update staging metadata could not be written: ' + E.Message;
-    end;
-  finally
-    JsonObject.Free;
-  end;
-end;
 
-function TUniWampRuntime.CleanupUpdateWorkspace(const WorkspaceDir: string; out ErrorMessage: string): Boolean;
-begin
-  Result := False;
-  ErrorMessage := '';
-  if Trim(WorkspaceDir) = '' then
-  begin
-    ErrorMessage := 'Workspace directory is required.';
-    Exit;
-  end;
-  if not TDirectory.Exists(WorkspaceDir) then
-  begin
-    Result := True;
-    Exit;
-  end;
-  try
-    TDirectory.Delete(WorkspaceDir, True);
-    Result := True;
-  except
-    on E: Exception do
-      ErrorMessage := 'Workspace cleanup failed: ' + E.Message;
-  end;
-end;
 
-function TUniWampRuntime.StageValidatedUpdatePackage(const ManifestFileName: string; out StagingDir, MetadataFileName, ErrorMessage: string): Boolean;
-var
-  PackageFileName: string;
-  ExpectedSha256: string;
-  PackageVersion: string;
-  PackagePath: string;
-begin
-  Result := False;
-  ErrorMessage := '';
-  StagingDir := '';
-  MetadataFileName := '';
 
-  if not ValidateUpdateManifest(ManifestFileName, PackageFileName, ExpectedSha256, PackageVersion, ErrorMessage) then
-    Exit;
 
-  PackagePath := TPath.Combine(ExtractFileDir(ManifestFileName), PackageFileName);
-  if not ValidatePackageSha256(PackagePath, ExpectedSha256, ErrorMessage) then
-    Exit;
-  if not ValidateRuntimeZipArchive(PackagePath, ErrorMessage) then
-    Exit;
-  if not PrepareUpdateStagingArea(PackageVersion, StagingDir, ErrorMessage) then
-    Exit;
-  if not ImportRuntimeZipArchiveInto(PackagePath, StagingDir, ErrorMessage) then
-    Exit;
-  if not WriteUpdateStagingMetadata(StagingDir, PackageFileName, ExpectedSha256, PackageVersion, MetadataFileName, ErrorMessage) then
-    Exit;
-  Result := True;
-end;
 
-function TUniWampRuntime.StageUpdateManifest(const ManifestFileName: string; out StagingDir, MetadataFileName, ErrorMessage: string): Boolean;
-begin
-  Result := StageValidatedUpdatePackage(ManifestFileName, StagingDir, MetadataFileName, ErrorMessage);
-end;
 
-function TUniWampRuntime.PromoteStagedUpdate(const StagingDir, TargetDir: string; out BackupDir, ErrorMessage: string;
-  ForceFailureAfterBackup: Boolean): Boolean;
-begin
-  Result := False;
-  ErrorMessage := '';
-  BackupDir := '';
-  if not TDirectory.Exists(StagingDir) then
-  begin
-    ErrorMessage := 'Staging directory not found: ' + StagingDir;
-    Exit;
-  end;
-  if Trim(TargetDir) = '' then
-  begin
-    ErrorMessage := 'Target directory is required.';
-    Exit;
-  end;
-  try
-    if TDirectory.Exists(TargetDir) then
-    begin
-      BackupDir := TPath.Combine(FPaths.UpdatesDir, 'backup\' + FormatDateTime('yyyymmddhhnnsszzz', Now));
-      TDirectory.CreateDirectory(TPath.GetDirectoryName(BackupDir));
-      TDirectory.Copy(TargetDir, BackupDir);
-      TDirectory.Delete(TargetDir, True);
-    end;
-    if ForceFailureAfterBackup then
-      raise Exception.Create('Injected promotion failure for rollback testing');
-    if TDirectory.Exists(TargetDir) then
-      TDirectory.Delete(TargetDir, True);
-    TDirectory.CreateDirectory(TPath.GetDirectoryName(TargetDir));
-    TDirectory.Copy(StagingDir, TargetDir);
-    Result := True;
-  except
-    on E: Exception do
-    begin
-      if (BackupDir <> '') and TDirectory.Exists(BackupDir) then
-      begin
-        try
-          if TDirectory.Exists(TargetDir) then
-            TDirectory.Delete(TargetDir, True);
-          TDirectory.Copy(BackupDir, TargetDir);
-        except
-          // Leave the original backup in place if restore fails.
-        end;
-      end;
-      ErrorMessage := 'Staged update promotion failed: ' + E.Message;
-    end;
-  end;
-end;
 
-function TUniWampRuntime.ImportRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
-begin
-  Result := ImportRuntimeZipArchiveInto(ZipFileName, FPaths.AppRoot, ErrorMessage);
-end;
 
-function TUniWampRuntime.ImportRuntimeZipArchiveInto(const ZipFileName, TargetDir: string; out ErrorMessage: string): Boolean;
-var
-  Zip: TZipFile;
-begin
-  Result := False;
-  ErrorMessage := '';
-  if not ValidateRuntimeZipArchive(ZipFileName, ErrorMessage) then
-    Exit;
 
-  Zip := TZipFile.Create;
-  try
-    try
-      Zip.Open(ZipFileName, zmRead);
-      Zip.ExtractAll(TargetDir);
-      Result := True;
-    except
-      on E: Exception do
-        ErrorMessage := 'Runtime archive import failed: ' + E.Message;
-    end;
-  finally
-    Zip.Free;
-  end;
-end;
+
+
+
+
+
+
+
 
 function TUniWampRuntime.LaunchComposerInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
 var
@@ -1108,86 +717,11 @@ begin
   Result := LaunchTextEditor(FPaths.AppRoot);
 end;
 
-function TUniWampRuntime.PrepareUpdateStagingArea(const PackageName: string; out StagingDir: string; out ErrorMessage: string): Boolean;
-var
-  CleanName: string;
-begin
-  Result := False;
-  ErrorMessage := '';
-  StagingDir := '';
-  CleanName := Trim(PackageName);
-  if CleanName = '' then
-  begin
-    ErrorMessage := 'Update package name is required.';
-    Exit;
-  end;
-  CleanName := StringReplace(CleanName, '\', '_', [rfReplaceAll]);
-  CleanName := StringReplace(CleanName, '/', '_', [rfReplaceAll]);
-  CleanName := StringReplace(CleanName, ':', '_', [rfReplaceAll]);
-  StagingDir := TPath.Combine(FPaths.UpdatesDir, CleanName);
-  try
-    EnsureDirectory(StagingDir);
-    Result := True;
-  except
-    on E: Exception do
-      ErrorMessage := 'Update staging area could not be prepared: ' + E.Message;
-  end;
-end;
 
-function TUniWampRuntime.CreateUpdateRollbackSnapshot(const StagingDir, SnapshotName: string; out SnapshotDir: string; out ErrorMessage: string): Boolean;
-var
-  CleanName: string;
-begin
-  Result := False;
-  ErrorMessage := '';
-  SnapshotDir := '';
-  if not TDirectory.Exists(StagingDir) then
-  begin
-    ErrorMessage := 'Staging directory not found: ' + StagingDir;
-    Exit;
-  end;
-  CleanName := Trim(SnapshotName);
-  if CleanName = '' then
-  begin
-    ErrorMessage := 'Snapshot name is required.';
-    Exit;
-  end;
-  CleanName := StringReplace(CleanName, '\', '_', [rfReplaceAll]);
-  CleanName := StringReplace(CleanName, '/', '_', [rfReplaceAll]);
-  CleanName := StringReplace(CleanName, ':', '_', [rfReplaceAll]);
-  SnapshotDir := TPath.Combine(FPaths.UpdatesDir, 'rollback\' + CleanName);
-  try
-    if TDirectory.Exists(SnapshotDir) then
-      TDirectory.Delete(SnapshotDir, True);
-    TDirectory.CreateDirectory(TPath.GetDirectoryName(SnapshotDir));
-    TDirectory.Copy(StagingDir, SnapshotDir);
-    Result := True;
-  except
-    on E: Exception do
-      ErrorMessage := 'Rollback snapshot could not be created: ' + E.Message;
-  end;
-end;
 
-function TUniWampRuntime.RollbackUpdateStagingArea(const SnapshotDir, RestoreDir: string; out ErrorMessage: string): Boolean;
-begin
-  Result := False;
-  ErrorMessage := '';
-  if not TDirectory.Exists(SnapshotDir) then
-  begin
-    ErrorMessage := 'Rollback snapshot not found: ' + SnapshotDir;
-    Exit;
-  end;
-  try
-    if TDirectory.Exists(RestoreDir) then
-      TDirectory.Delete(RestoreDir, True);
-    TDirectory.CreateDirectory(TPath.GetDirectoryName(RestoreDir));
-    TDirectory.Copy(SnapshotDir, RestoreDir);
-    Result := True;
-  except
-    on E: Exception do
-      ErrorMessage := 'Rollback restore failed: ' + E.Message;
-  end;
-end;
+
+
+
 
 function TUniWampRuntime.TerminalExecutablePath: string;
 begin
@@ -1204,30 +738,7 @@ begin
   Result := TPath.Combine(FPaths.ApacheDir, 'modules');
 end;
 
-function TUniWampRuntime.RenderApacheModuleLines: string;
-var
-  Lines: TStringList;
-  ModuleFileName: string;
-  ModuleSymbol: string;
-  ModulePath: string;
-begin
-  Lines := TStringList.Create;
-  try
-    for ModuleFileName in FConfig.ApacheModules do
-    begin
-      ModulePath := TPath.Combine(ApacheModuleDir, ModuleFileName);
-      if not FileExists(ModulePath) then
-        Continue;
-      ModuleSymbol := TPath.GetFileNameWithoutExtension(ModuleFileName);
-      if StartsText('mod_', ModuleSymbol) then
-        Delete(ModuleSymbol, 1, 4);
-      Lines.Add('LoadModule ' + ModuleSymbol + '_module "' + ModulePath + '"');
-    end;
-    Result := TrimRight(Lines.Text);
-  finally
-    Lines.Free;
-  end;
-end;
+
 
 function TUniWampRuntime.SelectedPhpDir: string;
 begin
@@ -1244,129 +755,11 @@ begin
   Result := TPath.Combine(FPaths.NodeDir, FConfig.SelectedNodeVersion);
 end;
 
-function TUniWampRuntime.RenderPhpExtensionLines: string;
-var
-  Block: TStringList;
-  Item: string;
-  ExtensionName: string;
-  ExtensionPath: string;
-  ExtensionDir: string;
-begin
-  Block := TStringList.Create;
-  try
-    ExtensionDir := TPath.Combine(SelectedPhpDir, 'ext');
-    for Item in FConfig.PhpExtensions do
-    begin
-      ExtensionName := Trim(Item);
-      if ExtensionName = '' then
-        Continue;
 
-      ExtensionPath := TPath.Combine(ExtensionDir, ExtensionName);
-      if not FileExists(ExtensionPath) then
-        Continue;
 
-      if SameText(ExtensionName, 'php_opcache.dll') then
-        Block.Add('zend_extension=' + ExtensionName)
-      else
-        Block.Add('extension=' + ExtensionName);
-    end;
-    Result := Block.Text;
-  finally
-    Block.Free;
-  end;
-end;
 
-function TUniWampRuntime.RenderManagedHostsBlock: string;
-var
-  Hosts: TStringList;
-  ManagedHosts: TStringList;
-  Entry: TVHostEntry;
-  ManagedHostEntry: string;
-  ManagedHostLine: string;
-begin
-  Hosts := TStringList.Create;
-  ManagedHosts := TStringList.Create;
-  try
-    for Entry in FConfig.VHosts do
-      if Trim(Entry.ServerName) <> '' then
-      begin
-        ManagedHostLine := '127.0.0.1 ' + Trim(Entry.ServerName);
-        if ManagedHosts.IndexOf(ManagedHostLine) < 0 then
-          ManagedHosts.Add(ManagedHostLine);
-      end;
-    ManagedHosts.Sort;
 
-    Hosts.Add(ManagedHostsBeginMarker);
-    Hosts.Add('127.0.0.1 ' + FConfig.HostName);
-    for ManagedHostEntry in ManagedHosts do
-      Hosts.Add(ManagedHostEntry);
-    Hosts.Add(ManagedHostsEndMarker);
-    Result := Hosts.Text;
-  finally
-    ManagedHosts.Free;
-    Hosts.Free;
-  end;
-end;
 
-function TUniWampRuntime.SyncHostsFile(out ErrorMessage: string): Boolean;
-var
-  HostsPath: string;
-  BackupPath: string;
-  HostsText: string;
-  StartPos: Integer;
-  EndPos: Integer;
-  ManagedBlock: string;
-  function IsAccessDenied(const E: Exception): Boolean;
-  begin
-    Result := (E is EOSError) and (EOSError(E).ErrorCode = ERROR_ACCESS_DENIED);
-  end;
-begin
-  Result := False;
-  ErrorMessage := '';
-  HostsPath := HostsFilePath;
-  BackupPath := HostsPath + '.bak';
-  ManagedBlock := RenderManagedHostsBlock;
-
-  try
-    if FileExists(HostsPath) then
-    begin
-      TFile.Copy(HostsPath, BackupPath, True);
-      HostsText := TFile.ReadAllText(HostsPath, TEncoding.ASCII)
-    end
-    else
-      HostsText := '';
-
-    StartPos := Pos(ManagedHostsBeginMarker, HostsText);
-    if StartPos > 0 then
-    begin
-      EndPos := PosEx(ManagedHostsEndMarker, HostsText, StartPos);
-      if (EndPos > 0) and (EndPos >= StartPos) then
-      begin
-        EndPos := EndPos + Length(ManagedHostsEndMarker);
-        while (EndPos <= Length(HostsText)) and CharInSet(HostsText[EndPos], [#13, #10]) do
-          Inc(EndPos);
-        Delete(HostsText, StartPos, EndPos - StartPos);
-      end;
-    end;
-
-    HostsText := TrimRight(HostsText);
-    if HostsText <> '' then
-      HostsText := HostsText + sLineBreak + sLineBreak;
-    HostsText := HostsText + ManagedBlock;
-    TFile.WriteAllText(HostsPath, HostsText, TEncoding.ASCII);
-    FConfig.LastHostsSyncStatus := 'Hosts synced';
-    Result := True;
-  except
-    on E: Exception do
-    begin
-      if IsAccessDenied(E) then
-        FConfig.LastHostsSyncStatus := 'Hosts update requires Administrator'
-      else
-        FConfig.LastHostsSyncStatus := 'Hosts update failed';
-      ErrorMessage := 'Hosts file update failed: ' + E.Message;
-    end;
-  end;
-end;
 
 function TUniWampRuntime.ApacheModuleForSelectedPhp: string;
 var
@@ -1381,25 +774,7 @@ begin
     Result := TPath.Combine(SelectedPhpDir, 'php7apache2_4.dll');
 end;
 
-function TUniWampRuntime.EnsureDefaultSslCertificate(out ErrorMessage: string): Boolean;
-var
-  CertFile: string;
-  KeyFile: string;
-  ResultInfo: TRuntimeActionResult;
-begin
-  Result := True;
-  ErrorMessage := '';
 
-  CertFile := TPath.Combine(FPaths.SslDir, 'server.crt');
-  KeyFile := TPath.Combine(FPaths.SslDir, 'server.key');
-  if FileExists(CertFile) and FileExists(KeyFile) then
-    Exit;
-
-  ResultInfo := GenerateSslCertificateFor(FConfig.HostName, CertFile, KeyFile);
-  Result := ResultInfo.Success;
-  if not Result then
-    ErrorMessage := ResultInfo.Message;
-end;
 
 function TUniWampRuntime.DescribePortOwner(const Port: Integer): string;
 var
@@ -1535,7 +910,12 @@ begin
     Lines.Add('Apache vhosts config: ' + FPaths.ApacheVHostsConfFile);
     Lines.Add('MariaDB config: ' + FPaths.MariaDbIniFile);
     Lines.Add('PHP config: ' + FPaths.ActivePhpIniFile);
-    Lines.Add('Hosts file: ' + HostsFilePath);
+    var HostsFileService := THostsFileService.Create(FPaths, FConfig);
+    try
+      Lines.Add('Hosts file: ' + HostsFileService.HostsFilePath);
+    finally
+      HostsFileService.Free;
+    end;
     Result := Lines.Text;
   finally
     Lines.Free;
@@ -1722,69 +1102,9 @@ begin
   end;
 end;
 
-procedure TUniWampRuntime.GenerateApacheConfig;
-var
-  Values: TDictionary<string, string>;
-begin
-  Values := TDictionary<string, string>.Create;
-  try
-    Values.Add('APACHE_DIR', FPaths.ApacheDir);
-    Values.Add('HTTP_PORT', FConfig.HttpPort.ToString);
-    Values.Add('HOST_NAME', FConfig.HostName);
-    Values.Add('DOCUMENT_ROOT', FConfig.DocumentRoot);
-    Values.Add('DASHBOARD_DIR', FPaths.DashboardDir);
-    Values.Add('ADMINER_DIR', FPaths.AdminerDir);
-    Values.Add('APACHE_MODULE_LINES', RenderApacheModuleLines);
-    Values.Add('PHP_MODULE', ApacheModuleForSelectedPhp);
-    Values.Add('GENERATED_DIR', FPaths.GeneratedConfigDir);
-    Values.Add('LOGS_DIR', FPaths.LogsDir);
-    if FConfig.EnableSsl then
-      Values.Add('SSL_INCLUDE', 'IncludeOptional "' + FPaths.ApacheSslConfFile + '"')
-    else
-      Values.Add('SSL_INCLUDE', '');
-    TTemplateRenderer.RenderToFile(FPaths.ApacheTemplateFile, FPaths.ApacheHttpdConfFile, Values);
 
-    if FConfig.EnableSsl then
-    begin
-      Values.Clear;
-      Values.Add('HTTPS_PORT', FConfig.HttpsPort.ToString);
-      Values.Add('DOCUMENT_ROOT', FConfig.DocumentRoot);
-      Values.Add('HOST_NAME', FConfig.HostName);
-      Values.Add('SSL_CERT_FILE', TPath.Combine(FPaths.SslDir, 'server.crt'));
-      Values.Add('SSL_KEY_FILE', TPath.Combine(FPaths.SslDir, 'server.key'));
-      Values.Add('LOGS_DIR', FPaths.LogsDir);
-      TTemplateRenderer.RenderToFile(FPaths.ApacheSslTemplateFile, FPaths.ApacheSslConfFile, Values);
-    end;
-  finally
-    Values.Free;
-  end;
-end;
 
-procedure TUniWampRuntime.GenerateMariaDbConfig;
-var
-  Values: TDictionary<string, string>;
-  MariaDbDir: string;
-  MariaDbDataDir: string;
-  TmpDir: string;
-  LogsDir: string;
-begin
-  EnsureDirectory(TPath.Combine(FPaths.MariaDbDir, 'data'));
-  MariaDbDir := StringReplace(FPaths.MariaDbDir, '\', '/', [rfReplaceAll]);
-  MariaDbDataDir := StringReplace(TPath.Combine(FPaths.MariaDbDir, 'data'), '\', '/', [rfReplaceAll]);
-  TmpDir := StringReplace(FPaths.TmpDir, '\', '/', [rfReplaceAll]);
-  LogsDir := StringReplace(FPaths.LogsDir, '\', '/', [rfReplaceAll]);
-  Values := TDictionary<string, string>.Create;
-  try
-    Values.Add('DB_PORT', FConfig.DatabasePort.ToString);
-    Values.Add('MARIADB_DIR', MariaDbDir);
-    Values.Add('MARIADB_DATA_DIR', MariaDbDataDir);
-    Values.Add('TMP_DIR', TmpDir);
-    Values.Add('LOGS_DIR', LogsDir);
-    TTemplateRenderer.RenderToFile(FPaths.MariaDbTemplateFile, FPaths.MariaDbIniFile, Values);
-  finally
-    Values.Free;
-  end;
-end;
+
 
 function TUniWampRuntime.EnsureMariaDbInitialized(out ErrorMessage: string): Boolean;
 const
@@ -1913,94 +1233,9 @@ begin
     [FConfig.DatabasePort, StartupTimeoutMs div 1000]);
 end;
 
-procedure TUniWampRuntime.GeneratePhpConfig;
-var
-  Values: TDictionary<string, string>;
-  DefaultDisplayErrors: string;
-begin
-  Values := TDictionary<string, string>.Create;
-  try
-    if SameText(FConfig.PhpProfile, 'production') then
-      DefaultDisplayErrors := 'Off'
-    else
-      DefaultDisplayErrors := 'On';
-    Values.Add('DISPLAY_ERRORS', FConfig.PhpSettingValue('display_errors', DefaultDisplayErrors));
-    Values.Add('ERROR_REPORTING', FConfig.PhpSettingValue('error_reporting', 'E_ALL'));
-    Values.Add('LOG_ERRORS', FConfig.PhpSettingValue('log_errors', 'On'));
-    Values.Add('SHORT_OPEN_TAG', FConfig.PhpSettingValue('short_open_tag', 'Off'));
-    Values.Add('EXPOSE_PHP', FConfig.PhpSettingValue('expose_php', 'Off'));
-    Values.Add('MEMORY_LIMIT', FConfig.PhpSettingValue('memory_limit', '256M'));
-    Values.Add('UPLOAD_MAX_FILESIZE', FConfig.PhpSettingValue('upload_max_filesize', '32M'));
-    Values.Add('POST_MAX_SIZE', FConfig.PhpSettingValue('post_max_size', '32M'));
-    Values.Add('MAX_EXECUTION_TIME', FConfig.PhpSettingValue('max_execution_time', '120'));
-    Values.Add('MAX_INPUT_VARS', FConfig.PhpSettingValue('max_input_vars', '3000'));
-    Values.Add('PHP_EXT_DIR', TPath.Combine(SelectedPhpDir, 'ext'));
-    Values.Add('PHP_EXTENSION_LINES', RenderPhpExtensionLines);
-    Values.Add('TMP_DIR', FPaths.TmpDir);
-    Values.Add('LOGS_DIR', FPaths.LogsDir);
-    TTemplateRenderer.RenderToFile(FPaths.PhpTemplateFile, FPaths.ActivePhpIniFile, Values);
-  finally
-    Values.Free;
-  end;
-end;
 
-function TUniWampRuntime.RenderVHostBlocks: string;
-var
-  Entry: TVHostEntry;
-  Block: TStringList;
-begin
-  Block := TStringList.Create;
-  try
-    Block.Add('<VirtualHost *:' + FConfig.HttpPort.ToString + '>');
-    Block.Add('  ServerName ' + FConfig.HostName);
-    Block.Add('  ServerAlias 127.0.0.1 localhost');
-    Block.Add('  DocumentRoot "' + FConfig.DocumentRoot + '"');
-    Block.Add('  <Directory "' + FConfig.DocumentRoot + '">');
-    Block.Add('    AllowOverride All');
-    Block.Add('    Require all granted');
-    Block.Add('  </Directory>');
-    Block.Add('</VirtualHost>');
-    Block.Add('');
 
-    for Entry in FConfig.VHosts do
-    begin
-      Block.Add('<VirtualHost *:' + FConfig.HttpPort.ToString + '>');
-      Block.Add('  ServerName ' + Entry.ServerName);
-      if Trim(Entry.ServerAliases) <> '' then
-        Block.Add('  ServerAlias ' + Trim(Entry.ServerAliases));
-      Block.Add('  DocumentRoot "' + Entry.DocumentRoot + '"');
-      Block.Add('  <Directory "' + Entry.DocumentRoot + '">');
-      Block.Add('    AllowOverride All');
-      Block.Add('    Require all granted');
-      Block.Add('  </Directory>');
-      Block.Add('</VirtualHost>');
-      Block.Add('');
 
-      if FConfig.EnableSsl and Entry.EnableSsl then
-      begin
-        Block.Add('<VirtualHost *:' + FConfig.HttpsPort.ToString + '>');
-        Block.Add('  ServerName ' + Entry.ServerName);
-        if Trim(Entry.ServerAliases) <> '' then
-          Block.Add('  ServerAlias ' + Trim(Entry.ServerAliases));
-        Block.Add('  DocumentRoot "' + Entry.DocumentRoot + '"');
-        Block.Add('  SSLEngine on');
-        if (Entry.SslCertFile <> '') and FileExists(Entry.SslCertFile) then
-          Block.Add('  SSLCertificateFile "' + Entry.SslCertFile + '"')
-        else
-          Block.Add('  SSLCertificateFile "' + TPath.Combine(FPaths.SslDir, 'server.crt') + '"');
-        if (Entry.SslKeyFile <> '') and FileExists(Entry.SslKeyFile) then
-          Block.Add('  SSLCertificateKeyFile "' + Entry.SslKeyFile + '"')
-        else
-          Block.Add('  SSLCertificateKeyFile "' + TPath.Combine(FPaths.SslDir, 'server.key') + '"');
-        Block.Add('</VirtualHost>');
-        Block.Add('');
-      end;
-    end;
-    Result := Block.Text;
-  finally
-    Block.Free;
-  end;
-end;
 
 function NormalizeServerAliases(const Aliases: string): string;
 var
@@ -2028,87 +1263,32 @@ begin
   end;
 end;
 
-procedure TUniWampRuntime.GenerateVHostConfig;
-var
-  Values: TDictionary<string, string>;
-begin
-  Values := TDictionary<string, string>.Create;
-  try
-    Values.Add('VHOSTS', RenderVHostBlocks);
-    TTemplateRenderer.RenderToFile(FPaths.ApacheVHostsTemplateFile, FPaths.ApacheVHostsConfFile, Values);
-  finally
-    Values.Free;
-  end;
-end;
 
-procedure TUniWampRuntime.GenerateEnvBat(const WorkingDir: string);
-var
-  Lines: TStringList;
-  PhpDir: string;
-  NodeDir: string;
-  ResolvedWorkingDir: string;
-begin
-  EnsureDirectory(FPaths.GeneratedConfigDir);
-  PhpDir := SelectedPhpDir;
-  NodeDir := SelectedNodeDir;
-  ResolvedWorkingDir := Trim(WorkingDir);
-  if ResolvedWorkingDir = '' then
-    ResolvedWorkingDir := FConfig.DocumentRoot;
-  Lines := TStringList.Create;
-  try
-    Lines.Add('@echo off');
-    Lines.Add('title UniWamp Cmder');
-    Lines.Add('color 0A');
-    Lines.Add('set "UNIWAMP_ROOT=' + FPaths.AppRoot + '"');
-    Lines.Add('set "UNIWAMP_DOCROOT=' + ResolvedWorkingDir + '"');
-    Lines.Add('set "UNIWAMP_MARIADB_BIN=' + FPaths.MariaDbBinDir + '"');
-    Lines.Add('set "UNIWAMP_PHP_VERSION=' + FConfig.SelectedPhpVersion + '"');
-    Lines.Add('set "UNIWAMP_NODE_VERSION=' + FConfig.SelectedNodeVersion + '"');
-    if FConfig.SelectedPhpVersion <> '' then
-    begin
-      Lines.Add('set "PHP_HOME=' + PhpDir + '"');
-      Lines.Add('set "PHP_BIN=' + PhpDir + '"');
-      Lines.Add('set "PATH=' + PhpDir + ';%PATH%"');
-    end;
-    if FConfig.SelectedNodeVersion <> '' then
-  begin
-    Lines.Add('set "NODE_HOME=' + NodeDir + '"');
-    Lines.Add('set "NODE_BIN=' + NodeDir + '"');
-    Lines.Add('set "PATH=' + NodeDir + ';%PATH%"');
-  end;
-    Lines.Add('set "PATH=' + FPaths.MariaDbBinDir + ';%PATH%"');
-    Lines.Add('echo  PHP: %UNIWAMP_PHP_VERSION%  -  %PHP_HOME%');
-    Lines.Add('if "%UNIWAMP_NODE_VERSION%"=="" (');
-      Lines.Add('  echo  Node: not selected');
-    Lines.Add(') else (');
-      Lines.Add('  echo  Node: %UNIWAMP_NODE_VERSION%  -  %NODE_HOME%');
-    Lines.Add(')');
-    Lines.Add('echo  Working path: %UNIWAMP_DOCROOT%');
-    Lines.Add('echo  MariaDB bin: %UNIWAMP_MARIADB_BIN%');
-    Lines.Add('echo.');
-    Lines.Add('cd /d "' + ResolvedWorkingDir + '"');
-    Lines.SaveToFile(FPaths.EnvBatFile, TEncoding.ASCII);
-  finally
-    Lines.Free;
-  end;
-end;
+
+
 
 procedure TUniWampRuntime.GenerateAllConfigs;
 var
   HostsError: string;
+  Generator: IConfigurationGenerator;
+  HostsFileService: IHostsFileService;
 begin
   TTemplateRenderer.EnsureDefaultTemplates(FPaths);
-  GeneratePhpConfig;
-  GenerateVHostConfig;
-  GenerateApacheConfig;
-  GenerateMariaDbConfig;
-  SyncHostsFile(HostsError);
+  Generator := TServiceLocator.Instance.GetService<IConfigurationGenerator>;
+  Generator.GeneratePhpConfig(SelectedPhpDir);
+  Generator.GenerateVHostConfig;
+  Generator.GenerateApacheConfig(ApacheModuleDir, ApacheModuleForSelectedPhp);
+  Generator.GenerateMariaDbConfig;
+
+  HostsFileService := TServiceLocator.Instance.GetService<IHostsFileService>;
+  HostsFileService.SyncHostsFile(HostsError);
 end;
 
 function TUniWampRuntime.StartApache: TRuntimeActionResult;
 var
   StartResult: TProcessStartResult;
   ErrorMessage: string;
+  VHostManager: IVHostManager;
 begin
   if FConfig.ApacheRunning and not ApacheIsRunning then
   begin
@@ -2150,7 +1330,8 @@ begin
 
   if FConfig.EnableSsl then
   begin
-    if not EnsureDefaultSslCertificate(ErrorMessage) then
+    VHostManager := TServiceLocator.Instance.GetService<IVHostManager>;
+    if not VHostManager.EnsureDefaultSslCertificate(ErrorMessage) then
     begin
       FConfig.LastApacheError := ErrorMessage;
       Result.Message := ErrorMessage;
@@ -2166,6 +1347,7 @@ begin
     Result.Message := ErrorMessage;
     Exit;
   end;
+  AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'apache-error.log'), 'Starting Apache: ' + ApacheExe);
   StartResult := TProcessManager.StartDetached(
     ApacheExe,
     '-f "' + FPaths.ApacheHttpdConfFile + '"',
@@ -2180,6 +1362,7 @@ begin
       FConfig.ApacheRunning := True;
       FConfig.LastApacheError := '';
       Result.Message := 'Apache started.';
+      AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'apache-error.log'), 'Apache successfully started with PID ' + StartResult.ProcessId.ToString);
     end
     else
     begin
@@ -2195,6 +1378,7 @@ begin
     FConfig.ApacheRunning := False;
     FConfig.LastApacheError := StartResult.ErrorMessage;
     Result.Message := StartResult.ErrorMessage;
+    AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'apache-error.log'), 'Apache failed to start: ' + StartResult.ErrorMessage);
   end;
 end;
 
@@ -2205,6 +1389,7 @@ var
   SystemRoot: string;
 begin
   Result.Success := True;
+  AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'apache-error.log'), 'Initiating Apache shutdown...');
   RuntimePid := ApacheRuntimePid;
   if FileExists(ApacheExe) then
   begin
@@ -2268,6 +1453,7 @@ begin
     Result.Message := 'Apache stopped.'
   else
     Result.Message := 'Failed to stop Apache cleanly.';
+  AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'apache-error.log'), Result.Message);
 end;
 
 function TUniWampRuntime.RestartApache: TRuntimeActionResult;
@@ -2324,7 +1510,13 @@ begin
     Exit;
   end;
 
-  GenerateMariaDbConfig;
+  with TConfigurationGenerator.Create(FPaths, FConfig) do
+  try
+    GenerateMariaDbConfig;
+  finally
+    Free;
+  end;
+  AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log'), 'Starting MariaDB: ' + MariaDbExe);
   StartResult := TProcessManager.StartDetached(
     MariaDbExe,
     '--defaults-file="' + FPaths.MariaDbIniFile + '" --console',
@@ -2339,6 +1531,7 @@ begin
       FConfig.MariaDbRunning := True;
       FConfig.LastMariaDbError := '';
       Result.Message := 'MariaDB started.';
+      AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log'), 'MariaDB successfully started with PID ' + StartResult.ProcessId.ToString);
     end
     else
     begin
@@ -2354,6 +1547,7 @@ begin
     FConfig.MariaDbRunning := False;
     FConfig.LastMariaDbError := StartResult.ErrorMessage;
     Result.Message := StartResult.ErrorMessage;
+    AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log'), 'MariaDB failed to start: ' + StartResult.ErrorMessage);
   end;
 end;
 
@@ -2362,6 +1556,7 @@ var
   StartResult: TProcessStartResult;
 begin
   Result.Success := True;
+  AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log'), 'Initiating MariaDB shutdown...');
   if FileExists(MysqlAdminExe) then
   begin
     StartResult := TProcessManager.StartDetached(
@@ -2382,6 +1577,7 @@ begin
     Result.Message := 'MariaDB stopped.'
   else
     Result.Message := 'Failed to stop MariaDB cleanly.';
+  AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log'), Result.Message);
 end;
 
 function TUniWampRuntime.RestartMariaDb: TRuntimeActionResult;
@@ -2401,55 +1597,9 @@ begin
   end;
 end;
 
-function TUniWampRuntime.GenerateSslCertificate: TRuntimeActionResult;
-begin
-  Result := GenerateSslCertificateFor(FConfig.HostName,
-    TPath.Combine(FPaths.SslDir, 'server.crt'),
-    TPath.Combine(FPaths.SslDir, 'server.key'));
-end;
 
-function TUniWampRuntime.GenerateSslCertificateFor(const CommonName, CertFile,
-  KeyFile: string): TRuntimeActionResult;
-var
-  OpenSslExe: string;
-  StartResult: TProcessStartResult;
-  CertDir: string;
-begin
-  OpenSslExe := TPath.Combine(FPaths.ApacheBinDir, 'openssl.exe');
-  if not FileExists(OpenSslExe) then
-  begin
-    Result.Success := False;
-    Result.Message := 'OpenSSL executable not found: ' + OpenSslExe;
-    Exit;
-  end;
 
-  CertDir := TPath.GetDirectoryName(CertFile);
-  if CertDir <> '' then
-    EnsureDirectory(CertDir);
 
-  StartResult := TProcessManager.StartDetached(
-    OpenSslExe,
-    'req -x509 -nodes -days 365 -newkey rsa:2048 ' +
-    '-subj "/CN=' + CommonName + '" ' +
-    '-keyout "' + KeyFile + '" ' +
-    '-out "' + CertFile + '"',
-    FPaths.SslDir);
-
-  Result.Success := StartResult.Success;
-  if Result.Success then
-  begin
-    TProcessManager.WaitForExit(StartResult.ProcessId, 120000);
-    if FileExists(CertFile) and FileExists(KeyFile) then
-      Result.Message := 'SSL certificate generated.'
-    else
-    begin
-      Result.Success := False;
-      Result.Message := 'SSL certificate generation did not produce the expected files.';
-    end;
-  end
-  else
-    Result.Message := StartResult.ErrorMessage;
-end;
 
 function TUniWampRuntime.SetMariaDbRootPassword(const NewPassword: string): TRuntimeActionResult;
 var
@@ -2616,7 +1766,12 @@ var
   TargetCmd: string;
   TerminalExe: string;
 begin
-  GenerateEnvBat(WorkingDir);
+  var Generator := TConfigurationGenerator.Create(FPaths, FConfig);
+  try
+    Generator.GenerateEnvBat(WorkingDir, SelectedPhpDir, SelectedNodeDir);
+  finally
+    Generator.Free;
+  end;
   TerminalExe := PreferredTerminalExecutable;
 
   if FileExists(TerminalExe) then
@@ -2651,137 +1806,11 @@ begin
   end;
 end;
 
-function TUniWampRuntime.AddVHost(const ServerName, DocumentRoot, ServerAliases: string;
-  EnableSsl: Boolean): TRuntimeActionResult;
-var
-  Entry: TVHostEntry;
-  HostsError: string;
-  SslDirName: string;
-begin
-  if (Trim(ServerName) = '') or (Trim(DocumentRoot) = '') then
-  begin
-    Result.Success := False;
-    Result.Message := 'Server name and document root are required.';
-    Exit;
-  end;
 
-  EnsureDirectory(DocumentRoot);
-  EnsureVHostStarterPage(ServerName, DocumentRoot);
-  Entry.ServerName := ServerName;
-  Entry.ServerAliases := NormalizeServerAliases(ServerAliases);
-  Entry.DocumentRoot := DocumentRoot;
-  Entry.EnableSsl := EnableSsl;
-  Entry.SslCertFile := '';
-  Entry.SslKeyFile := '';
-  if EnableSsl then
-  begin
-    SslDirName := ServerName;
-    SslDirName := StringReplace(SslDirName, ':', '_', [rfReplaceAll]);
-    SslDirName := StringReplace(SslDirName, '/', '_', [rfReplaceAll]);
-    SslDirName := StringReplace(SslDirName, '\', '_', [rfReplaceAll]);
-    Entry.SslCertFile := TPath.Combine(FPaths.SslDir, TPath.Combine('vhosts', TPath.Combine(SslDirName, 'server.crt')));
-    Entry.SslKeyFile := TPath.Combine(FPaths.SslDir, TPath.Combine('vhosts', TPath.Combine(SslDirName, 'server.key')));
-    Result := GenerateSslCertificateFor(ServerName, Entry.SslCertFile, Entry.SslKeyFile);
-    if not Result.Success then
-      Exit;
-  end;
-  FConfig.AddOrUpdateVHost(Entry);
-  GenerateVHostConfig;
-  if SyncHostsFile(HostsError) then
-    Result.Message := 'VHost saved: ' + ServerName
-  else
-    Result.Message := 'VHost saved: ' + ServerName + ' (' + HostsError + ')';
-  Result.Success := True;
-end;
 
-function TUniWampRuntime.RefreshVHostSslCertificate(const ServerName: string): TRuntimeActionResult;
-var
-  Entry: TVHostEntry;
-  Found: Boolean;
-  SslDirName: string;
-begin
-  Result.Success := False;
-  Result.Message := '';
-  Found := False;
-  for Entry in FConfig.VHosts do
-    if SameText(Entry.ServerName, ServerName) then
-    begin
-      Found := True;
-      Break;
-    end;
 
-  if not Found then
-  begin
-    Result.Message := 'VHost not found: ' + ServerName;
-    Exit;
-  end;
 
-  if not Entry.EnableSsl then
-  begin
-    Result.Message := 'SSL is not enabled for this vHost.';
-    Exit;
-  end;
 
-  if Entry.SslCertFile = '' then
-  begin
-    SslDirName := ServerName;
-    SslDirName := StringReplace(SslDirName, ':', '_', [rfReplaceAll]);
-    SslDirName := StringReplace(SslDirName, '/', '_', [rfReplaceAll]);
-    SslDirName := StringReplace(SslDirName, '\', '_', [rfReplaceAll]);
-    Entry.SslCertFile := TPath.Combine(FPaths.SslDir, TPath.Combine('vhosts', TPath.Combine(SslDirName, 'server.crt')));
-  end;
-  if Entry.SslKeyFile = '' then
-  begin
-    SslDirName := ServerName;
-    SslDirName := StringReplace(SslDirName, ':', '_', [rfReplaceAll]);
-    SslDirName := StringReplace(SslDirName, '/', '_', [rfReplaceAll]);
-    SslDirName := StringReplace(SslDirName, '\', '_', [rfReplaceAll]);
-    Entry.SslKeyFile := TPath.Combine(FPaths.SslDir, TPath.Combine('vhosts', TPath.Combine(SslDirName, 'server.key')));
-  end;
-
-  Result := GenerateSslCertificateFor(Entry.ServerName, Entry.SslCertFile, Entry.SslKeyFile);
-  if not Result.Success then
-    Exit;
-
-  FConfig.AddOrUpdateVHost(Entry);
-  GenerateVHostConfig;
-  Result.Message := 'SSL certificate refreshed for ' + ServerName;
-end;
-
-function TUniWampRuntime.DeleteVHost(const ServerName: string): TRuntimeActionResult;
-var
-  Entry: TVHostEntry;
-  VHost: TVHostEntry;
-  HostsError: string;
-begin
-  Entry.ServerName := '';
-  Entry.ServerAliases := '';
-  Entry.DocumentRoot := '';
-  Entry.EnableSsl := False;
-  Entry.SslCertFile := '';
-  Entry.SslKeyFile := '';
-  for VHost in FConfig.VHosts do
-    if SameText(VHost.ServerName, ServerName) then
-    begin
-      Entry := VHost;
-      Break;
-    end;
-
-  FConfig.DeleteVHost(ServerName);
-  GenerateVHostConfig;
-  if Entry.EnableSsl then
-  begin
-    if Entry.SslCertFile <> '' then
-      TFile.Delete(Entry.SslCertFile);
-    if Entry.SslKeyFile <> '' then
-      TFile.Delete(Entry.SslKeyFile);
-  end;
-  if SyncHostsFile(HostsError) then
-    Result.Message := 'VHost removed: ' + ServerName
-  else
-    Result.Message := 'VHost removed: ' + ServerName + ' (' + HostsError + ')';
-  Result.Success := True;
-end;
 
 function TUniWampRuntime.ServiceStateLabel(const Running: Boolean): string;
 begin

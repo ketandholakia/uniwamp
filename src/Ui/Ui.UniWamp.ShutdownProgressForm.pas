@@ -14,6 +14,7 @@ uses
   Vcl.Graphics,
   Vcl.StdCtrls,
   Core.UniWamp.Config,
+  Core.UniWamp.Types,
   Core.UniWamp.Diagnostics,
   Core.UniWamp.Paths,
   Core.UniWamp.Runtime;

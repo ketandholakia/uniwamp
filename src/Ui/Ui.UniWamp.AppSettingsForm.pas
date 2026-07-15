@@ -11,16 +11,13 @@ uses
   Vcl.Forms,
   Vcl.Graphics,
   Vcl.StdCtrls,
+  Core.UniWamp.Security,
   Core.UniWamp.Config,
   Core.UniWamp.Paths,
   Core.UniWamp.Runtime;
 
 type
   TAppSettingsForm = class(TForm)
-  private
-    FPaths: TAppPaths;
-    FConfig: TUniWampConfig;
-    FRuntime: TUniWampRuntime;
     FHostNameEdit: TEdit;
     FDocumentRootEdit: TEdit;
     FHttpPortEdit: TEdit;
@@ -29,26 +26,25 @@ type
     FTerminalPathEdit: TEdit;
     FEnableSslCheck: TCheckBox;
     FStartAllOnLaunchCheck: TCheckBox;
-    FApacheStatusValue: TLabel;
-    FMariaDbStatusValue: TLabel;
-    FLaunchStatusValue: TLabel;
     FPhpVersionCombo: TComboBox;
     FNodeVersionCombo: TComboBox;
     FPhpProfileCombo: TComboBox;
     FSaveButton: TButton;
     FCancelButton: TButton;
-    FLoadedOnce: Boolean;
+  private
+    FPaths: TAppPaths;
+    FConfig: TUniWampConfig;
+    FRuntime: TUniWampRuntime;
   protected
-    procedure LoadSettings;
     procedure Loaded; override;
   private
     procedure SaveClicked(Sender: TObject);
     procedure CancelClicked(Sender: TObject);
-    procedure UpdateStatusIndicators;
     procedure PopulateComboFromList(Combo: TComboBox; const Values: array of string;
       const SelectedValue: string; const AllowNoneItem: Boolean = False);
   public
     constructor Create(AOwner: TComponent); override;
+    procedure LoadSettings;
     class function Execute(const AOwner: TComponent; const Paths: TAppPaths;
       Config: TUniWampConfig; Runtime: TUniWampRuntime): Boolean;
   end;
@@ -81,10 +77,6 @@ begin
     FSaveButton.OnClick := SaveClicked;
   if Assigned(FCancelButton) then
     FCancelButton.OnClick := CancelClicked;
-  if FLoadedOnce then
-    Exit;
-  FLoadedOnce := True;
-  LoadSettings;
 end;
 
 procedure TAppSettingsForm.PopulateComboFromList(Combo: TComboBox; const Values: array of string;
@@ -138,76 +130,6 @@ begin
   PopulateComboFromList(FPhpVersionCombo, FConfig.PhpVersions, FConfig.SelectedPhpVersion, False);
   PopulateComboFromList(FNodeVersionCombo, FConfig.NodeVersions, FConfig.SelectedNodeVersion, True);
   PopulateComboFromList(FPhpProfileCombo, ['development', 'production'], FConfig.PhpProfile, False);
-  UpdateStatusIndicators;
-end;
-
-procedure TAppSettingsForm.UpdateStatusIndicators;
-var
-  ApacheRunning: Boolean;
-  MariaDbRunning: Boolean;
-  StatusText: string;
-begin
-  if not Assigned(FConfig) then
-    Exit;
-
-  if Assigned(FRuntime) then
-  begin
-    ApacheRunning := FRuntime.ApacheIsRunning;
-    MariaDbRunning := FRuntime.MariaDbIsRunning;
-  end
-  else
-  begin
-    ApacheRunning := FConfig.ApacheRunning;
-    MariaDbRunning := FConfig.MariaDbRunning;
-  end;
-
-  if Assigned(FApacheStatusValue) then
-  begin
-    if ApacheRunning then
-    begin
-      StatusText := 'Running';
-      if FConfig.ApachePid <> 0 then
-        StatusText := StatusText + Format(' (PID %d)', [FConfig.ApachePid]);
-      FApacheStatusValue.Font.Color := TColor($00008000);
-    end
-    else
-    begin
-      StatusText := 'Stopped';
-      FApacheStatusValue.Font.Color := TColor($000000C0);
-    end;
-    FApacheStatusValue.Caption := StatusText;
-  end;
-
-  if Assigned(FMariaDbStatusValue) then
-  begin
-    if MariaDbRunning then
-    begin
-      StatusText := 'Running';
-      if FConfig.MariaDbPid <> 0 then
-        StatusText := StatusText + Format(' (PID %d)', [FConfig.MariaDbPid]);
-      FMariaDbStatusValue.Font.Color := TColor($00008000);
-    end
-    else
-    begin
-      StatusText := 'Stopped';
-      FMariaDbStatusValue.Font.Color := TColor($000000C0);
-    end;
-    FMariaDbStatusValue.Caption := StatusText;
-  end;
-
-  if Assigned(FLaunchStatusValue) then
-  begin
-    if FConfig.StartAllOnLaunch then
-    begin
-      FLaunchStatusValue.Caption := 'Enabled';
-      FLaunchStatusValue.Font.Color := TColor($00008000);
-    end
-    else
-    begin
-      FLaunchStatusValue.Caption := 'Disabled';
-      FLaunchStatusValue.Font.Color := clGrayText;
-    end;
-  end;
 end;
 
 procedure TAppSettingsForm.SaveClicked(Sender: TObject);
@@ -215,6 +137,8 @@ var
   HttpPort: Integer;
   HttpsPort: Integer;
   DatabasePort: Integer;
+  NormalizedText: string;
+  ErrorMessage: string;
 begin
   if not TryStrToInt(Trim(FHttpPortEdit.Text), HttpPort) then
   begin
@@ -232,13 +156,23 @@ begin
     Exit;
   end;
 
-  FConfig.HostName := Trim(FHostNameEdit.Text);
-  if FConfig.HostName = '' then
-    FConfig.HostName := 'localhost';
+  if Trim(FHostNameEdit.Text) = '' then
+    NormalizedText := 'localhost'
+  else if not ValidateServerName(FHostNameEdit.Text, NormalizedText, ErrorMessage) then
+  begin
+    MessageDlg(ErrorMessage, mtError, [mbOK], 0);
+    Exit;
+  end;
+  FConfig.HostName := NormalizedText;
 
-  FConfig.DocumentRoot := Trim(FDocumentRootEdit.Text);
-  if FConfig.DocumentRoot = '' then
-    FConfig.DocumentRoot := FPaths.WwwDir;
+  if Trim(FDocumentRootEdit.Text) = '' then
+    NormalizedText := FPaths.WwwDir
+  else if not ValidateDocumentRoot(FDocumentRootEdit.Text, NormalizedText, ErrorMessage) then
+  begin
+    MessageDlg(ErrorMessage, mtError, [mbOK], 0);
+    Exit;
+  end;
+  FConfig.DocumentRoot := NormalizedText;
 
   FConfig.HttpPort := HttpPort;
   FConfig.HttpsPort := HttpsPort;
@@ -282,6 +216,7 @@ begin
     Form.FPaths := Paths;
     Form.FConfig := Config;
     Form.FRuntime := Runtime;
+    Form.LoadSettings;
     Result := Form.ShowModal = mrOk;
   finally
     Form.Free;

@@ -1,4 +1,4 @@
-Listen {{HTTPS_PORT}}
+﻿Listen 127.0.0.1:{{HTTPS_PORT}}
 <VirtualHost _default_:{{HTTPS_PORT}}>
   DocumentRoot "{{DOCUMENT_ROOT}}"
   ServerName {{HOST_NAME}}:{{HTTPS_PORT}}
