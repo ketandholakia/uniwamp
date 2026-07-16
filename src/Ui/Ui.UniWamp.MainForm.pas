@@ -3283,6 +3283,8 @@ begin
         procedure
         begin
           AppendStatus(ResultInfo.Message);
+          if ResultInfo.Success then
+            AppendStatus('Apache started.');
           FConfig.Save(FPaths);
           RefreshStatus;
           ApacheStartButton.Enabled := True;

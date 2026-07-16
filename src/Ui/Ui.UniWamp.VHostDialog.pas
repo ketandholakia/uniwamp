@@ -29,6 +29,7 @@ type
     FDocumentRootEdit: TEdit;
     FAliasesEdit: TEdit;
     FSslCheck: TCheckBox;
+    procedure FormShow(Sender: TObject);
     procedure ServerNameChanged(Sender: TObject);
     procedure OkClick(Sender: TObject);
   public
@@ -115,6 +116,14 @@ begin
   CancelButton.Left := 456;
   CancelButton.Top := 188;
   CancelButton.Width := 80;
+
+  OnShow := FormShow;
+end;
+
+procedure TVHostDialog.FormShow(Sender: TObject);
+begin
+  FServerNameEdit.SetFocus;
+  FServerNameEdit.SelectAll;
 end;
 
 procedure TVHostDialog.ServerNameChanged(Sender: TObject);
@@ -172,8 +181,6 @@ begin
       Dialog.FDocumentRootEdit.Text := TPath.Combine(BaseVHostDir, DefaultServerName);
     Dialog.FAliasesEdit.Text := DefaultAliases;
     Dialog.FSslCheck.Checked := DefaultEnableSsl;
-    Dialog.FServerNameEdit.SelectAll;
-    Dialog.FServerNameEdit.SetFocus;
     Result.Accepted := Dialog.ShowModal = mrOk;
     if Result.Accepted then
     begin

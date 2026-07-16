@@ -5,7 +5,7 @@
   "hostName": "localhost",
   "configVersion": 1,
   "documentRoot": "D:\\ketan\\github\\uniwamp\\www",
-  "selectedPhpVersion": "php83",
+  "selectedPhpVersion": "php84",
   "selectedNodeVersion": "node-v22.23.1-win-x64",
   "terminalExePath": "bin\\cmder\\Cmder.exe",
   "phpProfile": "development",

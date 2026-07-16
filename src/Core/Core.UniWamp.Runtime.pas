@@ -1561,6 +1561,7 @@ begin
       FConfig.ApacheRunning := True;
       FConfig.LastApacheError := '';
       Result.Message := 'Apache started.';
+      AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'activity.log'), 'Apache started.');
       AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'apache-error.log'), 'Apache successfully started with PID ' + StartResult.ProcessId.ToString);
     end
     else

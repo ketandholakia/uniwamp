@@ -8,7 +8,7 @@ $required = @(
   "logs",
   "tmp",
   "ssl",
-  "www\index.php",
+  "home\dashboard\overview.php",
   "home\adminer\index.php",
   "runtime\apache",
   "runtime\mariadb",
