@@ -62,15 +62,18 @@ begin
     'Alias /dashboard "{{DASHBOARD_DIR}}"' + sLineBreak +
     '<Directory "{{DASHBOARD_DIR}}">' + sLineBreak +
     '  AllowOverride All' + sLineBreak +
+    '  DirectoryIndex index.php index.html' + sLineBreak +
     '  Require ip 127.0.0.1 ::1' + sLineBreak +
     '</Directory>' + sLineBreak +
     'Alias /adminer "{{ADMINER_DIR}}"' + sLineBreak +
     '<Directory "{{ADMINER_DIR}}">' + sLineBreak +
     '  AllowOverride All' + sLineBreak +
+    '  DirectoryIndex index.php index.html' + sLineBreak +
     '  Require ip 127.0.0.1 ::1' + sLineBreak +
     '</Directory>' + sLineBreak +
     '{{APACHE_MODULE_LINES}}' + sLineBreak +
     'LoadModule php_module "{{PHP_MODULE}}"' + sLineBreak +
+    'AddType application/x-httpd-php .php' + sLineBreak +
     'PHPIniDir "{{GENERATED_DIR}}"' + sLineBreak +
     'ErrorLog "{{LOGS_DIR}}\apache-error.log"' + sLineBreak +
     'CustomLog "{{LOGS_DIR}}\apache-access.log" common' + sLineBreak +
@@ -121,6 +124,13 @@ begin
     TFile.WriteAllText(Paths.ApacheVHostsTemplateFile,
       '# Managed by UniWamp' + sLineBreak +
       '{{VHOSTS}}', TEncoding.UTF8);
+
+  if not FileExists(Paths.VHostIndexTemplateFile) then
+    TFile.WriteAllText(Paths.VHostIndexTemplateFile,
+      '<!doctype html>' + sLineBreak +
+      '<html><head><meta charset="utf-8"><title>{{ServerName}}</title></head>' + sLineBreak +
+      '<body><h1>{{ServerName}} is ready</h1><p>Document root: {{DocumentRoot}}</p><p>Created: {{Timestamp}}</p></body></html>',
+      TEncoding.UTF8);
 
   if not FileExists(Paths.MariaDbTemplateFile) then
     TFile.WriteAllText(Paths.MariaDbTemplateFile,

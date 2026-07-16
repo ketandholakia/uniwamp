@@ -128,11 +128,13 @@ begin
       ErrorMessage := 'Update manifest is missing expectedSha256.';
       Exit;
     end;
-    if Trim(PackageVersion) = '' then
+  if Trim(PackageVersion) = '' then
     begin
       ErrorMessage := 'Update manifest is missing packageVersion.';
       Exit;
     end;
+    if not ValidateUpdatePackageFileName(PackageFileName, ErrorMessage) then
+      Exit;
     Result := True;
   finally
     JsonValue.Free;
@@ -330,8 +332,9 @@ begin
   try
     try
       Zip.Open(ZipFileName, zmRead);
-      Zip.ExtractAll(TargetDir);
-      Result := True;
+      if not ValidateZipArchiveStructure(Zip, ErrorMessage) then
+        Exit;
+      Result := ExtractZipSafely(Zip, TargetDir, ErrorMessage);
     except
       on E: Exception do
         ErrorMessage := 'Runtime archive import failed: ' + E.Message;

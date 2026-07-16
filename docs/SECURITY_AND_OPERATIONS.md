@@ -27,6 +27,7 @@ Require explicit confirmation for database reset, vhost deletion, runtime remova
 
 For staged updates, validate the manifest and package hash before extraction, reject manifest package names that are not plain file names, promote only a verified workspace, and keep the previous target tree available in a backup directory until the replacement is confirmed.
 Manifest authenticity is out of scope unless a trusted distribution channel signs or otherwise authenticates the manifest before UniWamp reads it.
+Runtime ZIP extraction must reject traversal entries and extract only through the safe extractor.
 
 ## Hosts file
 
@@ -50,6 +51,8 @@ Hosts and Apache vHost content must be validated before they are written; do not
 - Never automatically delete or recreate an existing MariaDB data directory.
 - Treat generated files as disposable outputs and vendor runtime files as user-owned inputs.
 - External developer-tool launchers should remain PATH-based, local-only, and explicit about missing executables rather than attempting downloads.
+- Do not auto-download and execute `mkcert` or other tooling during certificate generation without a separate authenticated distribution path.
+- Keep MariaDB root passwords out of portable config and store them only in protected machine-local storage.
 
 ## Release checklist
 

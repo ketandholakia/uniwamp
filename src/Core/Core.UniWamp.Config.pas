@@ -40,6 +40,7 @@ type
     SelectedNodeVersion: string;
     TerminalExePath: string;
     PhpProfile: string;
+    ThemeStyleName: string;
     EnableSsl: Boolean;
     StartAllOnLaunch: Boolean;
     ApachePid: Cardinal;
@@ -78,7 +79,8 @@ uses
   System.Classes,
   System.IOUtils,
   System.StrUtils,
-  System.JSON;
+  System.JSON,
+  Core.UniWamp.Secrets;
 
 function NormalizePortablePath(const PathValue: string): string;
 begin
@@ -297,6 +299,7 @@ begin
   LastHostsSyncStatus := 'Hosts status unknown';
   LastMigrationMessage := '';
   MariaDbRootPassword := '';
+  ThemeStyleName := '';
   FVHosts.Clear;
   FApacheModules.Clear;
   for Item in DefaultApacheModules do
@@ -341,6 +344,8 @@ var
   OriginalValue: string;
   UpdatedValue: string;
   InvalidConfigFile: string;
+  SecretError: string;
+  LegacyPasswordValue: TJSONValue;
 begin
   LastMigrationMessage := '';
   SetDefaults(Paths);
@@ -387,6 +392,7 @@ begin
     SelectedNodeVersion := ReadStringOrDefault(Root, 'selectedNodeVersion', SelectedNodeVersion);
     TerminalExePath := ReadStringOrDefault(Root, 'terminalExePath', TerminalExePath);
     PhpProfile := ReadStringOrDefault(Root, 'phpProfile', PhpProfile);
+    ThemeStyleName := ReadStringOrDefault(Root, 'themeStyleName', ThemeStyleName);
     EnableSsl := ReadBooleanOrDefault(Root, 'enableSsl', EnableSsl);
     StartAllOnLaunch := ReadBooleanOrDefault(Root, 'startAllOnLaunch', StartAllOnLaunch);
     ApachePid := ReadIntegerOrDefault(Root, 'apachePid', ApachePid);
@@ -397,6 +403,7 @@ begin
     LastMariaDbError := ReadStringOrDefault(Root, 'lastMariaDbError', '');
     LastHostsSyncStatus := ReadStringOrDefault(Root, 'lastHostsSyncStatus', LastHostsSyncStatus);
     MariaDbRootPassword := ReadStringOrDefault(Root, 'mariaDbRootPassword', MariaDbRootPassword);
+    LegacyPasswordValue := Root.GetValue('mariaDbRootPassword');
 
   var ApacheModulesArray := ReadArrayOrNil(Root, 'apacheEnabledModules');
     if Assigned(ApacheModulesArray) then
@@ -451,6 +458,11 @@ begin
     MigratedCount := 0;
 
     if ReadConfigVersionOrDefault(Root, 0) <> CurrentConfigVersion then
+    begin
+      Inc(MigratedCount);
+      Migrated := True;
+    end;
+    if Assigned(LegacyPasswordValue) then
     begin
       Inc(MigratedCount);
       Migrated := True;
@@ -618,7 +630,18 @@ begin
           [Paths.AppRoot]);
       Save(Paths);
     end;
-    Result := True;
+    if Assigned(LegacyPasswordValue) and (MariaDbRootPassword <> '') then
+    begin
+      if SaveMariaDbRootPassword(Paths, MariaDbRootPassword, SecretError) then
+      begin
+        MariaDbRootPassword := '';
+        LastMigrationMessage := 'Migrated MariaDB root password into protected local storage.';
+        Save(Paths);
+      end;
+    end;
+    if MariaDbRootPassword = '' then
+      MariaDbRootPassword := LoadMariaDbRootPassword(Paths);
+    Result := Migrated;
   finally
     Root.Free;
   end;
@@ -650,6 +673,7 @@ begin
     Root.AddPair('selectedNodeVersion', SelectedNodeVersion);
     Root.AddPair('terminalExePath', TerminalExePath);
     Root.AddPair('phpProfile', PhpProfile);
+    Root.AddPair('themeStyleName', ThemeStyleName);
     Root.AddPair('enableSsl', TJSONBool.Create(EnableSsl));
     Root.AddPair('startAllOnLaunch', TJSONBool.Create(StartAllOnLaunch));
     Root.AddPair('apachePid', TJSONNumber.Create(ApachePid));
@@ -659,7 +683,6 @@ begin
     Root.AddPair('lastApacheError', LastApacheError);
     Root.AddPair('lastMariaDbError', LastMariaDbError);
     Root.AddPair('lastHostsSyncStatus', LastHostsSyncStatus);
-    Root.AddPair('mariaDbRootPassword', MariaDbRootPassword);
 
   var ApacheModulesArray := TJSONArray.Create;
     for Item in FApacheModules do
@@ -700,7 +723,11 @@ begin
     BackupFile := Paths.AppConfigFile + '.bak';
     TFile.WriteAllText(TempFile, JsonText, TEncoding.UTF8);
     if FileExists(Paths.AppConfigFile) then
-      TFile.Replace(TempFile, Paths.AppConfigFile, BackupFile, True)
+    begin
+      TFile.Copy(Paths.AppConfigFile, BackupFile, True);
+      TFile.Delete(Paths.AppConfigFile);
+      TFile.Move(TempFile, Paths.AppConfigFile);
+    end
     else
       TFile.Move(TempFile, Paths.AppConfigFile);
   finally

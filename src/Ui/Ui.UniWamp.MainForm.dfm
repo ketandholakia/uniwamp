@@ -93,8 +93,8 @@ object MainForm: TMainForm
         object EditPhpIniButton: TPanel
           Left = 17
           Top = 579
-          Width = 80
-          Height = 24
+          Width = 250
+          Height = 32
           Cursor = crHandPoint
           BevelOuter = bvNone
           Caption = 'php.ini'
@@ -109,10 +109,10 @@ object MainForm: TMainForm
           TabOrder = 0
         end
         object EditHttpdConfButton: TPanel
-          Left = 99
-          Top = 579
-          Width = 80
-          Height = 24
+          Left = 17
+          Top = 619
+          Width = 250
+          Height = 32
           Cursor = crHandPoint
           BevelOuter = bvNone
           Caption = 'httpd.conf'
@@ -127,10 +127,10 @@ object MainForm: TMainForm
           TabOrder = 1
         end
         object EditMariaDbIniButton: TPanel
-          Left = 187
-          Top = 579
-          Width = 80
-          Height = 24
+          Left = 17
+          Top = 659
+          Width = 250
+          Height = 32
           Cursor = crHandPoint
           BevelOuter = bvNone
           Caption = 'mariadb.ini'
@@ -724,7 +724,7 @@ object MainForm: TMainForm
           Width = 768
           Height = 421
           Align = alClient
-          ColCount = 4
+          ColCount = 5
           DefaultRowHeight = 28
           FixedCols = 0
           RowCount = 2

@@ -147,6 +147,24 @@ object AppSettingsForm: TAppSettingsForm
           Caption = 'Start all services when UniWamp launches'
           TabOrder = 4
         end
+        object FThemeStyleLabel: TLabel
+          Left = 18
+          Top = 294
+          Width = 66
+          Height = 15
+          Caption = 'Theme style'
+          Font.Height = -11
+          Font.Style = [fsBold]
+          ParentFont = False
+        end
+        object FThemeStyleCombo: TComboBox
+          Left = 18
+          Top = 314
+          Width = 210
+          Height = 23
+          Style = csDropDownList
+          TabOrder = 5
+        end
       end
       object FPortCard: TPanel
         Left = 550

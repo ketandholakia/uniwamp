@@ -11,6 +11,7 @@ uses
   Vcl.Forms,
   Vcl.Graphics,
   Vcl.StdCtrls,
+  Vcl.Themes,
   Core.UniWamp.Security,
   Core.UniWamp.Config,
   Core.UniWamp.Paths,
@@ -29,6 +30,7 @@ type
     FPhpVersionCombo: TComboBox;
     FNodeVersionCombo: TComboBox;
     FPhpProfileCombo: TComboBox;
+    FThemeStyleCombo: TComboBox;
     FSaveButton: TButton;
     FCancelButton: TButton;
   private
@@ -42,6 +44,9 @@ type
     procedure CancelClicked(Sender: TObject);
     procedure PopulateComboFromList(Combo: TComboBox; const Values: array of string;
       const SelectedValue: string; const AllowNoneItem: Boolean = False);
+    function ValidateSelectedPhpVersion(const Version: string; out ErrorMessage: string): Boolean;
+    function ValidateSelectedNodeVersion(const Version: string; out ErrorMessage: string): Boolean;
+    procedure PopulateThemeStyles;
   public
     constructor Create(AOwner: TComponent); override;
     procedure LoadSettings;
@@ -55,6 +60,7 @@ implementation
 
 uses
   System.UITypes,
+  System.IOUtils,
   Vcl.Dialogs;
 
 const
@@ -107,6 +113,71 @@ begin
   Combo.ItemIndex := SelectedIndex;
 end;
 
+function TAppSettingsForm.ValidateSelectedPhpVersion(const Version: string; out ErrorMessage: string): Boolean;
+var
+  PhpDir: string;
+  PhpExe: string;
+  ModuleCandidates: TArray<string>;
+begin
+  Result := False;
+  ErrorMessage := '';
+  if Trim(Version) = '' then
+  begin
+    ErrorMessage := 'Select a PHP runtime version before saving settings.';
+    Exit;
+  end;
+
+  PhpDir := TPath.Combine(FPaths.PhpDir, Version);
+  if not TDirectory.Exists(PhpDir) then
+  begin
+    ErrorMessage := 'Selected PHP runtime was not found: ' + PhpDir;
+    Exit;
+  end;
+
+  PhpExe := TPath.Combine(PhpDir, 'php.exe');
+  if not FileExists(PhpExe) then
+  begin
+    ErrorMessage := 'Selected PHP runtime is missing php.exe: ' + PhpExe;
+    Exit;
+  end;
+
+  ModuleCandidates := TDirectory.GetFiles(PhpDir, 'php*apache2_4.dll');
+  if Length(ModuleCandidates) = 0 then
+  begin
+    ErrorMessage := 'Selected PHP runtime is missing the Apache module for ' + Version + '.';
+    Exit;
+  end;
+
+  Result := True;
+end;
+
+function TAppSettingsForm.ValidateSelectedNodeVersion(const Version: string; out ErrorMessage: string): Boolean;
+var
+  NodeDir: string;
+  NodeExe: string;
+begin
+  Result := False;
+  ErrorMessage := '';
+  if Trim(Version) = '' then
+    Exit(True);
+
+  NodeDir := TPath.Combine(FPaths.NodeDir, Version);
+  if not TDirectory.Exists(NodeDir) then
+  begin
+    ErrorMessage := 'Selected Node.js runtime was not found: ' + NodeDir;
+    Exit;
+  end;
+
+  NodeExe := TPath.Combine(NodeDir, 'node.exe');
+  if not FileExists(NodeExe) then
+  begin
+    ErrorMessage := 'Selected Node.js runtime is missing node.exe: ' + NodeExe;
+    Exit;
+  end;
+
+  Result := True;
+end;
+
 procedure TAppSettingsForm.LoadSettings;
 begin
   if not Assigned(FConfig) then
@@ -130,6 +201,34 @@ begin
   PopulateComboFromList(FPhpVersionCombo, FConfig.PhpVersions, FConfig.SelectedPhpVersion, False);
   PopulateComboFromList(FNodeVersionCombo, FConfig.NodeVersions, FConfig.SelectedNodeVersion, True);
   PopulateComboFromList(FPhpProfileCombo, ['development', 'production'], FConfig.PhpProfile, False);
+  PopulateThemeStyles;
+  if Assigned(FThemeStyleCombo) then
+  begin
+    if Trim(FConfig.ThemeStyleName) <> '' then
+      FThemeStyleCombo.ItemIndex := FThemeStyleCombo.Items.IndexOf(FConfig.ThemeStyleName)
+    else
+      FThemeStyleCombo.ItemIndex := FThemeStyleCombo.Items.IndexOf(TStyleManager.ActiveStyle.Name);
+    if FThemeStyleCombo.ItemIndex < 0 then
+      FThemeStyleCombo.ItemIndex := 0;
+  end;
+end;
+
+procedure TAppSettingsForm.PopulateThemeStyles;
+var
+  StyleName: string;
+begin
+  if not Assigned(FThemeStyleCombo) then
+    Exit;
+  FThemeStyleCombo.Items.BeginUpdate;
+  try
+    FThemeStyleCombo.Items.Clear;
+    FThemeStyleCombo.Items.Add('Windows');
+    for StyleName in TStyleManager.StyleNames do
+      if SameText(StyleName, 'Windows') = False then
+        FThemeStyleCombo.Items.Add(StyleName);
+  finally
+    FThemeStyleCombo.Items.EndUpdate;
+  end;
 end;
 
 procedure TAppSettingsForm.SaveClicked(Sender: TObject);
@@ -139,6 +238,10 @@ var
   DatabasePort: Integer;
   NormalizedText: string;
   ErrorMessage: string;
+  SelectedPhpVersion: string;
+  SelectedNodeVersion: string;
+  SelectedPhpProfile: string;
+  SelectedThemeStyle: string;
 begin
   if not TryStrToInt(Trim(FHttpPortEdit.Text), HttpPort) then
   begin
@@ -183,17 +286,44 @@ begin
   FConfig.EnableSsl := FEnableSslCheck.Checked;
   FConfig.StartAllOnLaunch := FStartAllOnLaunchCheck.Checked;
 
+  SelectedPhpVersion := FConfig.SelectedPhpVersion;
   if FPhpVersionCombo.ItemIndex >= 0 then
-    FConfig.SelectedPhpVersion := FPhpVersionCombo.Items[FPhpVersionCombo.ItemIndex];
+    SelectedPhpVersion := FPhpVersionCombo.Items[FPhpVersionCombo.ItemIndex];
+  if not ValidateSelectedPhpVersion(SelectedPhpVersion, ErrorMessage) then
+  begin
+    MessageDlg(ErrorMessage, mtError, [mbOK], 0);
+    Exit;
+  end;
+
+  SelectedNodeVersion := FConfig.SelectedNodeVersion;
   if FNodeVersionCombo.ItemIndex >= 0 then
   begin
     if SameText(FNodeVersionCombo.Items[FNodeVersionCombo.ItemIndex], '(none)') then
-      FConfig.SelectedNodeVersion := ''
+      SelectedNodeVersion := ''
     else
-      FConfig.SelectedNodeVersion := FNodeVersionCombo.Items[FNodeVersionCombo.ItemIndex];
+      SelectedNodeVersion := FNodeVersionCombo.Items[FNodeVersionCombo.ItemIndex];
   end;
+  if not ValidateSelectedNodeVersion(SelectedNodeVersion, ErrorMessage) then
+  begin
+    MessageDlg(ErrorMessage, mtError, [mbOK], 0);
+    Exit;
+  end;
+
+  SelectedPhpProfile := FConfig.PhpProfile;
   if FPhpProfileCombo.ItemIndex >= 0 then
-    FConfig.PhpProfile := FPhpProfileCombo.Items[FPhpProfileCombo.ItemIndex];
+    SelectedPhpProfile := FPhpProfileCombo.Items[FPhpProfileCombo.ItemIndex];
+  SelectedThemeStyle := FConfig.ThemeStyleName;
+  if Assigned(FThemeStyleCombo) and (FThemeStyleCombo.ItemIndex >= 0) then
+    SelectedThemeStyle := FThemeStyleCombo.Items[FThemeStyleCombo.ItemIndex];
+
+  FConfig.SelectedPhpVersion := SelectedPhpVersion;
+  FConfig.SelectedNodeVersion := SelectedNodeVersion;
+  FConfig.PhpProfile := SelectedPhpProfile;
+  FConfig.ThemeStyleName := SelectedThemeStyle;
+  if Trim(SelectedThemeStyle) = '' then
+    TStyleManager.SetStyle('Windows')
+  else
+    TStyleManager.TrySetStyle(SelectedThemeStyle);
 
   FConfig.Save(FPaths);
   if Assigned(FRuntime) then

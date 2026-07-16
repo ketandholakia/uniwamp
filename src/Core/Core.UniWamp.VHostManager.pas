@@ -25,7 +25,6 @@ type
     FConfig: TUniWampConfig;
   private
     procedure EnsureVHostStarterPage(const ServerName, DocumentRoot: string);
-    function NormalizeServerAliases(const Aliases: string): string;
   public
     constructor Create(const Paths: TAppPaths; Config: TUniWampConfig);
     function AddVHost(const ServerName, DocumentRoot, ServerAliases: string; EnableSsl: Boolean): TRuntimeActionResult;
@@ -58,32 +57,6 @@ begin
   end;
 end;
 
-function TVHostManager.NormalizeServerAliases(const Aliases: string): string;
-var
-  Parts: TStringList;
-  Item, NormalizedItem: string;
-begin
-  Result := '';
-  Parts := TStringList.Create;
-  try
-    Parts.Delimiter := ',';
-    Parts.StrictDelimiter := False;
-    Parts.DelimitedText := Aliases;
-    for Item in Parts do
-    begin
-      NormalizedItem := Trim(Item);
-      if NormalizedItem = '' then
-        Continue;
-      if Result <> '' then
-        Result := Result + ' ';
-      Result := Result + NormalizedItem;
-    end;
-  finally
-    Parts.Free;
-  end;
-end;
-
-
 constructor TVHostManager.Create(const Paths: TAppPaths; Config: TUniWampConfig);
 begin
   inherited Create;
@@ -99,31 +72,49 @@ var
   SslDirName: string;
   ConfigGenerator: TConfigurationGenerator;
   HostsFileService: THostsFileService;
+  NormalizedServerName: string;
+  NormalizedDocumentRoot: string;
+  NormalizedAliases: string;
+  ErrorMessage: string;
 begin
-  if (Trim(ServerName) = '') or (Trim(DocumentRoot) = '') then
+  if not ValidateServerName(ServerName, NormalizedServerName, ErrorMessage) then
   begin
     Result.Success := False;
-    Result.Message := 'Server name and document root are required.';
+    Result.Message := ErrorMessage;
     Exit;
   end;
 
-  EnsureDirectory(DocumentRoot);
-  EnsureVHostStarterPage(ServerName, DocumentRoot);
-  Entry.ServerName := ServerName;
-  Entry.ServerAliases := NormalizeServerAliases(ServerAliases);
-  Entry.DocumentRoot := DocumentRoot;
+  if not ValidateDocumentRoot(DocumentRoot, NormalizedDocumentRoot, ErrorMessage) then
+  begin
+    Result.Success := False;
+    Result.Message := ErrorMessage;
+    Exit;
+  end;
+
+  if not ValidateServerAliases(ServerAliases, NormalizedAliases, ErrorMessage) then
+  begin
+    Result.Success := False;
+    Result.Message := ErrorMessage;
+    Exit;
+  end;
+
+  EnsureDirectory(NormalizedDocumentRoot);
+  EnsureVHostStarterPage(NormalizedServerName, NormalizedDocumentRoot);
+  Entry.ServerName := NormalizedServerName;
+  Entry.ServerAliases := NormalizedAliases;
+  Entry.DocumentRoot := NormalizedDocumentRoot;
   Entry.EnableSsl := EnableSsl;
   Entry.SslCertFile := '';
   Entry.SslKeyFile := '';
   if EnableSsl then
   begin
-    SslDirName := ServerName;
+    SslDirName := NormalizedServerName;
     SslDirName := StringReplace(SslDirName, ':', '_', [rfReplaceAll]);
     SslDirName := StringReplace(SslDirName, '/', '_', [rfReplaceAll]);
     SslDirName := StringReplace(SslDirName, '\', '_', [rfReplaceAll]);
     Entry.SslCertFile := TPath.Combine(FPaths.SslDir, TPath.Combine('vhosts', TPath.Combine(SslDirName, 'server.crt')));
     Entry.SslKeyFile := TPath.Combine(FPaths.SslDir, TPath.Combine('vhosts', TPath.Combine(SslDirName, 'server.key')));
-    Result := GenerateSslCertificateFor(ServerName, Entry.SslCertFile, Entry.SslKeyFile);
+    Result := GenerateSslCertificateFor(NormalizedServerName, Entry.SslCertFile, Entry.SslKeyFile);
     if not Result.Success then
       Exit;
   end;
@@ -137,9 +128,9 @@ begin
   HostsFileService := THostsFileService.Create(FPaths, FConfig);
   try
     if HostsFileService.SyncHostsFile(HostsError) then
-      Result.Message := 'VHost saved: ' + ServerName
+      Result.Message := 'VHost saved: ' + NormalizedServerName
     else
-      Result.Message := 'VHost saved: ' + ServerName + ' (' + HostsError + ')';
+      Result.Message := 'VHost saved: ' + NormalizedServerName + ' (' + HostsError + ')';
   finally
     HostsFileService.Free;
   end;
@@ -206,24 +197,11 @@ var
   OpenSslExe: string;
   StartResult: TProcessStartResult;
   CertDir: string;
-  PackageManager: TPackageManager;
   MkcertOutput: string;
-  MkcertError: string;
 begin
   CertDir := TPath.GetDirectoryName(CertFile);
   if CertDir <> '' then
     EnsureDirectory(CertDir);
-
-  // 1. Try to use mkcert for trusted local HTTPS
-  if not FileExists(FPaths.MkcertExe) then
-  begin
-    PackageManager := TPackageManager.Create(FPaths);
-    try
-      PackageManager.DownloadFile('https://dl.filippo.io/mkcert/latest?for=windows/amd64', FPaths.MkcertExe, MkcertError);
-    finally
-      PackageManager.Free;
-    end;
-  end;
 
   if FileExists(FPaths.MkcertExe) then
   begin
@@ -252,7 +230,7 @@ begin
   if not FileExists(OpenSslExe) then
   begin
     Result.Success := False;
-    Result.Message := 'OpenSSL and mkcert executables not found.';
+    Result.Message := 'OpenSSL executable not found.';
     Exit;
   end;
 

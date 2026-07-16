@@ -31,6 +31,8 @@ uses
   Core.UniWamp.ScriptEngine in 'Core\Core.UniWamp.ScriptEngine.pas',
   Core.UniWamp.Interfaces in 'Core\Core.UniWamp.Interfaces.pas',
   Core.UniWamp.ServiceLocator in 'Core\Core.UniWamp.ServiceLocator.pas',
+  Core.UniWamp.Secrets in 'Core\Core.UniWamp.Secrets.pas',
+  Core.UniWamp.ServiceSupervisor in 'Core\Core.UniWamp.ServiceSupervisor.pas',
   Core.UniWamp.Types in 'Core\Core.UniWamp.Types.pas';
 
 {$R *.res}

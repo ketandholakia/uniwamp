@@ -15,9 +15,12 @@ uses
   Core.UniWamp.Diagnostics,
   Core.UniWamp.Paths,
   Core.UniWamp.PortUtils,
+  Core.UniWamp.PackageManager,
   Core.UniWamp.TemplateRenderer,
   Core.UniWamp.Runtime,
   Core.UniWamp.ProcessManager,
+  Core.UniWamp.Secrets,
+  Core.UniWamp.Types,
   Ui.UniWamp.MainForm;
 
 procedure Fail(const MessageText: string);
@@ -86,6 +89,8 @@ begin
   Result.MailpitDir := TPath.Combine(Result.ToolsDir, 'mailpit');
   Result.RedisDir := TPath.Combine(Result.ToolsDir, 'redis');
   Result.MemcachedDir := TPath.Combine(Result.ToolsDir, 'memcached');
+  Result.MkcertDir := TPath.Combine(Result.ToolsDir, 'mkcert');
+  Result.MkcertExe := TPath.Combine(Result.MkcertDir, 'mkcert.exe');
   Result.ApacheDir := TPath.Combine(Result.RuntimeDir, 'apache');
   Result.ApacheBinDir := TPath.Combine(Result.ApacheDir, 'bin');
   Result.ApacheConfDir := TPath.Combine(Result.ApacheDir, 'conf');
@@ -108,6 +113,7 @@ begin
   Result.ApacheTemplateFile := TPath.Combine(Result.TemplatesDir, 'httpd.conf.tpl');
   Result.ApacheSslTemplateFile := TPath.Combine(Result.TemplatesDir, 'httpd-ssl.conf.tpl');
   Result.ApacheVHostsTemplateFile := TPath.Combine(Result.TemplatesDir, 'httpd-vhosts.conf.tpl');
+  Result.VHostIndexTemplateFile := TPath.Combine(Result.TemplatesDir, 'vhost-index.html.tpl');
   Result.MariaDbTemplateFile := TPath.Combine(Result.TemplatesDir, 'mariadb.ini.tpl');
   Result.PhpTemplateFile := TPath.Combine(Result.TemplatesDir, 'php.ini.tpl');
   Result.ApacheHttpdConfFile := TPath.Combine(Result.GeneratedConfigDir, 'httpd.conf');
@@ -236,8 +242,8 @@ var
   Config: TUniWampConfig;
   Runtime: TUniWampRuntime;
   StartResult: TProcessStartResult;
-  CmdExe: string;
   PidFile: string;
+  FakeApacheExe: string;
 begin
   RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-live-' + TGuid.NewGuid.ToString);
   TDirectory.CreateDirectory(RootDir);
@@ -247,8 +253,9 @@ begin
     Config := TUniWampConfig.Create;
     try
       Config.SetDefaults(Paths);
-      CmdExe := 'C:\Windows\System32\cmd.exe';
-      StartResult := TProcessManager.StartDetached(CmdExe, '/c "ping 127.0.0.1 -n 30 >nul"', ExtractFileDir(CmdExe));
+      FakeApacheExe := TPath.Combine(Paths.ApacheBinDir, 'httpd.exe');
+      TFile.Copy('C:\Windows\System32\cmd.exe', FakeApacheExe, True);
+      StartResult := TProcessManager.StartDetached(FakeApacheExe, '/c "ping 127.0.0.1 -n 30 >nul"', Paths.ApacheBinDir);
       AssertTrue(StartResult.Success, 'Test helper process should start');
       PidFile := TPath.Combine(Paths.LogsDir, 'httpd.pid');
       TFile.WriteAllText(PidFile, StartResult.ProcessId.ToString, TEncoding.UTF8);
@@ -281,8 +288,8 @@ var
   Config: TUniWampConfig;
   Runtime: TUniWampRuntime;
   StartResult: TProcessStartResult;
-  CmdExe: string;
   PidFile: string;
+  FakeMariaDbExe: string;
 begin
   RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-mariadb-live-' + TGuid.NewGuid.ToString);
   TDirectory.CreateDirectory(RootDir);
@@ -292,8 +299,9 @@ begin
     Config := TUniWampConfig.Create;
     try
       Config.SetDefaults(Paths);
-      CmdExe := 'C:\Windows\System32\cmd.exe';
-      StartResult := TProcessManager.StartDetached(CmdExe, '/c "ping 127.0.0.1 -n 30 >nul"', ExtractFileDir(CmdExe));
+      FakeMariaDbExe := TPath.Combine(Paths.MariaDbBinDir, 'mariadbd.exe');
+      TFile.Copy('C:\Windows\System32\cmd.exe', FakeMariaDbExe, True);
+      StartResult := TProcessManager.StartDetached(FakeMariaDbExe, '/c "ping 127.0.0.1 -n 30 >nul"', Paths.MariaDbBinDir);
       AssertTrue(StartResult.Success, 'Test helper process should start');
       PidFile := TPath.Combine(Paths.LogsDir, 'mariadb.pid');
       TFile.WriteAllText(PidFile, StartResult.ProcessId.ToString, TEncoding.UTF8);
@@ -326,9 +334,9 @@ var
   Config: TUniWampConfig;
   Runtime: TUniWampRuntime;
   StartResult: TProcessStartResult;
-  CmdExe: string;
   PidFile: string;
   ResultInfo: TRuntimeActionResult;
+  FakeApacheExe: string;
 begin
   RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-duplicate-start-' + TGuid.NewGuid.ToString);
   TDirectory.CreateDirectory(RootDir);
@@ -340,8 +348,9 @@ begin
     TFile.WriteAllText(TPath.Combine(Paths.PhpDir, 'php85\php.exe'), '', TEncoding.ASCII);
     TFile.WriteAllText(TPath.Combine(Paths.PhpDir, 'php85\php85apache2_4.dll'), '', TEncoding.ASCII);
     TFile.WriteAllText(Paths.ApacheHttpdConfFile, 'ServerName localhost', TEncoding.UTF8);
-    CmdExe := 'C:\Windows\System32\cmd.exe';
-    StartResult := TProcessManager.StartDetached(CmdExe, '/c "ping 127.0.0.1 -n 30 >nul"', ExtractFileDir(CmdExe));
+    FakeApacheExe := TPath.Combine(Paths.ApacheBinDir, 'httpd.exe');
+    TFile.Copy('C:\Windows\System32\cmd.exe', FakeApacheExe, True);
+    StartResult := TProcessManager.StartDetached(FakeApacheExe, '/c "ping 127.0.0.1 -n 30 >nul"', Paths.ApacheBinDir);
     AssertTrue(StartResult.Success, 'Test helper process should start');
     PidFile := TPath.Combine(Paths.LogsDir, 'httpd.pid');
     TFile.WriteAllText(PidFile, StartResult.ProcessId.ToString, TEncoding.UTF8);
@@ -380,22 +389,24 @@ var
   Config: TUniWampConfig;
   Runtime: TUniWampRuntime;
   StartResult: TProcessStartResult;
-  CmdExe: string;
   PidFile: string;
   ResultInfo: TRuntimeActionResult;
+  FakeMariaDbExe: string;
 begin
   RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-mariadb-duplicate-start-' + TGuid.NewGuid.ToString);
   TDirectory.CreateDirectory(RootDir);
   try
     Paths := BuildPaths(RootDir);
     EnsurePortableLayout(Paths);
+    TTemplateRenderer.EnsureDefaultTemplates(Paths);
     TDirectory.CreateDirectory(Paths.MariaDbBinDir);
     TFile.WriteAllText(TPath.Combine(Paths.MariaDbBinDir, 'mariadbd.exe'), '', TEncoding.ASCII);
     TFile.WriteAllText(TPath.Combine(Paths.MariaDbBinDir, 'mariadb-install-db.exe'), '', TEncoding.ASCII);
     TFile.WriteAllText(TPath.Combine(Paths.MariaDbBinDir, 'mysqladmin.exe'), '', TEncoding.ASCII);
     TFile.WriteAllText(TPath.Combine(Paths.GeneratedConfigDir, 'mariadb.ini'), 'port=3307', TEncoding.UTF8);
-    CmdExe := 'C:\Windows\System32\cmd.exe';
-    StartResult := TProcessManager.StartDetached(CmdExe, '/c "ping 127.0.0.1 -n 30 >nul"', ExtractFileDir(CmdExe));
+    FakeMariaDbExe := TPath.Combine(Paths.MariaDbBinDir, 'mariadbd.exe');
+    TFile.Copy('C:\Windows\System32\cmd.exe', FakeMariaDbExe, True);
+    StartResult := TProcessManager.StartDetached(FakeMariaDbExe, '/c "ping 127.0.0.1 -n 30 >nul"', Paths.MariaDbBinDir);
     AssertTrue(StartResult.Success, 'Test helper process should start');
     PidFile := TPath.Combine(Paths.LogsDir, 'mariadb.pid');
     TFile.WriteAllText(PidFile, StartResult.ProcessId.ToString, TEncoding.UTF8);
@@ -587,6 +598,100 @@ begin
   end;
 end;
 
+procedure TestDeleteVHostPreservesUnmanagedHostsEntries;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  HostsFile: string;
+  HostsText: string;
+  ResultInfo: TRuntimeActionResult;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-hosts-delete-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    TTemplateRenderer.EnsureDefaultTemplates(Paths);
+    HostsFile := TPath.Combine(RootDir, 'hosts');
+    TFile.WriteAllText(HostsFile,
+      '127.0.0.1 localhost' + sLineBreak +
+      '10.0.0.10 external.example' + sLineBreak,
+      TEncoding.ASCII);
+    SetEnvironmentVariable('UNIWAMP_HOSTS_FILE', PChar(HostsFile));
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        ResultInfo := Runtime.AddVHost('example.test', TPath.Combine(RootDir, 'site'), '', False);
+        AssertTrue(ResultInfo.Success, 'VHost add should succeed before delete');
+        ResultInfo := Runtime.DeleteVHost('example.test');
+        AssertTrue(ResultInfo.Success, 'VHost delete should succeed');
+        HostsText := TFile.ReadAllText(HostsFile, TEncoding.ASCII);
+        AssertContains(HostsText, '10.0.0.10 external.example', 'Unmanaged hosts entries should be preserved');
+        AssertTrue(Pos('example.test', HostsText) = 0, 'Deleted managed host should be removed from the hosts file');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+      SetEnvironmentVariable('UNIWAMP_HOSTS_FILE', nil);
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TestDeleteSslVHostRemovesCertificateFiles;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  Entry: TVHostEntry;
+  CertFile: string;
+  KeyFile: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-ssl-delete-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    TTemplateRenderer.EnsureDefaultTemplates(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      Entry.ServerName := 'secure.test';
+      Entry.ServerAliases := '';
+      Entry.DocumentRoot := TPath.Combine(RootDir, 'site');
+      Entry.EnableSsl := True;
+      CertFile := TPath.Combine(Paths.SslDir, TPath.Combine('vhosts', TPath.Combine('secure.test', 'server.crt')));
+      KeyFile := TPath.Combine(Paths.SslDir, TPath.Combine('vhosts', TPath.Combine('secure.test', 'server.key')));
+      Entry.SslCertFile := CertFile;
+      Entry.SslKeyFile := KeyFile;
+      Config.AddOrUpdateVHost(Entry);
+      EnsureDirectory(ExtractFileDir(CertFile));
+      TFile.WriteAllText(CertFile, 'cert', TEncoding.ASCII);
+      TFile.WriteAllText(KeyFile, 'key', TEncoding.ASCII);
+
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        AssertTrue(Runtime.DeleteVHost('secure.test').Success, 'SSL vHost delete should succeed');
+        AssertTrue(not TFile.Exists(CertFile), 'SSL certificate should be removed when the vHost is deleted');
+        AssertTrue(not TFile.Exists(KeyFile), 'SSL key should be removed when the vHost is deleted');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestMariaDbStartReportsPortConflict;
 var
   RootDir: string;
@@ -615,6 +720,7 @@ begin
         AssertContains(ResultInfo.Message, 'Database port 3307 is already in use', 'MariaDB port conflict should be reported');
         AssertTrue(Config.MariaDbPid = 0, 'MariaDB pid should remain cleared on port conflict');
         AssertTrue(not Config.MariaDbRunning, 'MariaDB running flag should remain false on port conflict');
+        AssertContains(Config.LastMariaDbError, 'Database port 3307 is already in use', 'MariaDB port conflict should persist in the error state');
       finally
         Runtime.Free;
       end;
@@ -623,6 +729,96 @@ begin
     end;
 
     ReleaseTcpPort(PortSocket);
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TestApacheStartReportsPortConflictOwner;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  ResultInfo: TRuntimeActionResult;
+  PortSocket: TSocket;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-apache-port-conflict-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  PortSocket := INVALID_SOCKET;
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    TTemplateRenderer.EnsureDefaultTemplates(Paths);
+    AssertTrue(ReserveTcpPort(8080, PortSocket), 'HTTP port should be occupied for Apache conflict test');
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      TDirectory.CreateDirectory(TPath.Combine(Paths.PhpDir, 'php85'));
+      TFile.WriteAllText(TPath.Combine(Paths.PhpDir, 'php85\php.exe'), '', TEncoding.ASCII);
+      TFile.WriteAllText(TPath.Combine(Paths.PhpDir, 'php85\php85apache2_4.dll'), '', TEncoding.ASCII);
+      Config.SelectedPhpVersion := 'php85';
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        ResultInfo := Runtime.StartApache;
+        AssertTrue(not ResultInfo.Success, 'Apache should fail when the HTTP port is occupied');
+        AssertContains(ResultInfo.Message, 'HTTP port 8080 is already in use', 'Apache port conflict should be reported');
+        AssertContains(ResultInfo.Message, 'by ', 'Apache port conflict should include the owning process when available');
+        AssertContains(Config.LastApacheError, 'HTTP port 8080 is already in use', 'Apache port conflict should persist in the error state');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    ReleaseTcpPort(PortSocket);
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TestGenerateAllConfigsStaysInGeneratedConfigDir;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  ApacheConfigText: string;
+  MariaDbConfigText: string;
+  PhpConfigText: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-generated-configs-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    TTemplateRenderer.EnsureDefaultTemplates(Paths);
+    TDirectory.CreateDirectory(TPath.Combine(Paths.PhpDir, 'php85'));
+    TFile.WriteAllText(TPath.Combine(Paths.PhpDir, 'php85\php.exe'), '', TEncoding.ASCII);
+    TFile.WriteAllText(TPath.Combine(Paths.PhpDir, 'php85\php85apache2_4.dll'), '', TEncoding.ASCII);
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      Config.SelectedPhpVersion := 'php85';
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        Runtime.GenerateAllConfigs;
+        AssertTrue(TFile.Exists(Paths.ApacheHttpdConfFile), 'Apache config should be generated under config\generated');
+        AssertTrue(TFile.Exists(Paths.MariaDbIniFile), 'MariaDB config should be generated under config\generated');
+        AssertTrue(TFile.Exists(Paths.ActivePhpIniFile), 'PHP config should be generated under config\generated');
+        ApacheConfigText := TFile.ReadAllText(Paths.ApacheHttpdConfFile, TEncoding.UTF8);
+        MariaDbConfigText := TFile.ReadAllText(Paths.MariaDbIniFile, TEncoding.UTF8);
+        PhpConfigText := TFile.ReadAllText(Paths.ActivePhpIniFile, TEncoding.UTF8);
+        AssertContains(ApacheConfigText, Paths.GeneratedConfigDir, 'Apache config should reference the generated config directory');
+        AssertContains(PhpConfigText, TPath.Combine(Paths.PhpDir, 'php85'), 'PHP config should reference the selected runtime');
+        AssertTrue(not TFile.Exists(TPath.Combine(Paths.ApacheDir, 'httpd.conf')), 'Vendor Apache tree should not receive generated config files');
+        AssertTrue(not TFile.Exists(TPath.Combine(Paths.MariaDbDir, 'mariadb.ini')), 'Vendor MariaDB tree should not receive generated config files');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
   finally
     TDirectory.Delete(RootDir, True);
   end;
@@ -645,6 +841,7 @@ begin
   try
     Paths := BuildPaths(RootDir);
     EnsurePortableLayout(Paths);
+    TTemplateRenderer.EnsureDefaultTemplates(Paths);
     TDirectory.CreateDirectory(Paths.MariaDbBinDir);
     HelperExe := TPath.Combine(Paths.MariaDbBinDir, 'mariadb-install-db.exe');
     TFile.Copy('C:\Windows\System32\cmd.exe', HelperExe, True);
@@ -663,6 +860,7 @@ begin
         ExistingBackups := TDirectory.GetDirectories(Paths.MariaDbDir, 'data.bak-*');
         AssertTrue(Length(ExistingBackups) > 0, 'Dirty MariaDB data directory should be backed up');
         AssertContains(ResultInfo.Message, 'MariaDB initialization', 'MariaDB init failure should be reported');
+        AssertContains(ResultInfo.Message, 'dirty data directory was backed up', 'MariaDB init failure should mention the backup recovery');
       finally
         Runtime.Free;
       end;
@@ -711,6 +909,46 @@ begin
         AssertTrue(Length(Config.VHosts) = 1, 'VHost should be stored in the config');
         AssertTrue(SameText(Config.VHosts[0].ServerAliases, 'alias1.test alias2.test'),
           'Stored aliases should be normalized');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TestAddVHostRejectsInvalidInputs;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  ResultInfo: TRuntimeActionResult;
+  SiteDir: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-vhost-invalid-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    TTemplateRenderer.EnsureDefaultTemplates(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        SiteDir := TPath.Combine(RootDir, 'site');
+        ResultInfo := Runtime.AddVHost('bad host name', SiteDir, 'alias1.test, alias2.test', False);
+        AssertTrue(not ResultInfo.Success, 'Invalid vHost server name should be rejected');
+        AssertContains(ResultInfo.Message, 'Server name must be a simple local host name', 'Invalid server name should be reported');
+        AssertTrue(not TDirectory.Exists(SiteDir), 'Rejected vHost should not create the site directory');
+
+        ResultInfo := Runtime.AddVHost('example.test', 'bad<root>', '', False);
+        AssertTrue(not ResultInfo.Success, 'Invalid vHost document root should be rejected');
+        AssertContains(ResultInfo.Message, 'Document root contains invalid path characters', 'Invalid document root should be reported');
       finally
         Runtime.Free;
       end;
@@ -797,6 +1035,80 @@ begin
   end;
 end;
 
+procedure TestSyncPhpVersionsPrefersCompatibleRuntime;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-php-sync-compatible-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    TDirectory.CreateDirectory(TPath.Combine(Paths.PhpDir, 'php81'));
+    TDirectory.CreateDirectory(TPath.Combine(Paths.PhpDir, 'php83'));
+    TFile.WriteAllText(TPath.Combine(Paths.PhpDir, 'php81\php.exe'), '', TEncoding.ASCII);
+    TFile.WriteAllText(TPath.Combine(Paths.PhpDir, 'php83\php.exe'), '', TEncoding.ASCII);
+    TFile.WriteAllText(TPath.Combine(Paths.PhpDir, 'php83\php83apache2_4.dll'), '', TEncoding.ASCII);
+
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      Config.SelectedPhpVersion := 'php81';
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        Runtime.SyncPhpVersions;
+        AssertTrue(Config.SelectedPhpVersion = 'php83', 'PHP sync should prefer a version with an Apache module');
+        AssertTrue(Length(Config.PhpVersions) = 2, 'PHP sync should still capture detected versions');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TestSyncNodeVersionsPrefersExecutableRuntime;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-node-sync-compatible-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    TDirectory.CreateDirectory(TPath.Combine(Paths.NodeDir, 'node-a'));
+    TDirectory.CreateDirectory(TPath.Combine(Paths.NodeDir, 'node-b'));
+    TFile.WriteAllText(TPath.Combine(Paths.NodeDir, 'node-a\node.exe'), '', TEncoding.ASCII);
+
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      Config.SelectedNodeVersion := 'node-b';
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        Runtime.SyncNodeVersions;
+        AssertTrue(Config.SelectedNodeVersion = 'node-a', 'Node sync should prefer a runtime with node.exe');
+        AssertTrue(Length(Config.NodeVersions) = 2, 'Node sync should still capture detected versions');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestStopPathsAreIdempotentWhenAlreadyStopped;
 var
   RootDir: string;
@@ -837,6 +1149,59 @@ begin
       Config.Free;
     end;
   finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TestStopApacheDoesNotKillUnrelatedHttpdProcesses;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  ResultInfo: TRuntimeActionResult;
+  StartResult: TProcessStartResult;
+  PortSocket: TSocket;
+  FakeApacheDir: string;
+  FakeApacheExe: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-stop-unrelated-httpd-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  PortSocket := INVALID_SOCKET;
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    AssertTrue(ReserveTcpPort(8080, PortSocket), 'The HTTP port should be occupied for the unrelated httpd test');
+    FakeApacheDir := TPath.Combine(RootDir, 'foreign-apache');
+    TDirectory.CreateDirectory(FakeApacheDir);
+    FakeApacheExe := TPath.Combine(FakeApacheDir, 'httpd.exe');
+    TFile.Copy('C:\Windows\System32\cmd.exe', FakeApacheExe, True);
+    StartResult := TProcessManager.StartDetached(FakeApacheExe, '/c "ping 127.0.0.1 -n 30 >nul"', FakeApacheDir);
+    AssertTrue(StartResult.Success, 'The unrelated httpd.exe helper should start');
+
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      Config.ApacheRunning := True;
+      Config.ApachePid := 0;
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        ResultInfo := Runtime.StopApache;
+        AssertTrue(ResultInfo.Success, 'StopApache should be idempotent when UniWamp does not own the service');
+        AssertContains(ResultInfo.Message, 'Apache stopped', 'StopApache should report the no-op stop result');
+        AssertTrue(TProcessManager.IsRunning(StartResult.ProcessId), 'StopApache should not kill an unrelated httpd.exe process');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+
+    TProcessManager.StopProcess(StartResult.ProcessId);
+  finally
+    ReleaseTcpPort(PortSocket);
+    if TProcessManager.IsRunning(StartResult.ProcessId) then
+      TProcessManager.StopProcess(StartResult.ProcessId);
     TDirectory.Delete(RootDir, True);
   end;
 end;
@@ -882,6 +1247,7 @@ begin
         AssertContains(ResultInfo.Message, 'Process exited with code', 'Apache validation failure should surface process output');
         AssertTrue(Config.ApachePid = 0, 'Apache pid should remain cleared on validation failure');
         AssertTrue(not Config.ApacheRunning, 'Apache running flag should remain false on validation failure');
+        AssertContains(Config.LastApacheError, 'Process exited with code', 'Apache validation failure should persist in the error state');
       finally
         Runtime.Free;
       end;
@@ -1020,6 +1386,7 @@ var
   Config: TUniWampConfig;
   Runtime: TUniWampRuntime;
   ReportText: string;
+  ErrorMessage: string;
 begin
   RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-report-redact-' + TGuid.NewGuid.ToString);
   TDirectory.CreateDirectory(RootDir);
@@ -1029,7 +1396,7 @@ begin
     Config := TUniWampConfig.Create;
     try
       Config.SetDefaults(Paths);
-      Config.MariaDbRootPassword := 'supersecret';
+      AssertTrue(SaveMariaDbRootPassword(Paths, 'supersecret', ErrorMessage), ErrorMessage);
       Runtime := TUniWampRuntime.Create(Paths, Config);
       try
         ReportText := Runtime.BuildDiagnosticReport;
@@ -1039,6 +1406,7 @@ begin
         Runtime.Free;
       end;
     finally
+      DeleteMariaDbRootPassword(Paths, ErrorMessage);
       Config.Free;
     end;
   finally
@@ -1100,6 +1468,41 @@ begin
   end;
 end;
 
+procedure TestDiagnosticReportReflectsHostsFileOverride;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  ReportText: string;
+  HostsFile: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-report-hosts-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    HostsFile := TPath.Combine(RootDir, 'hosts');
+    SetEnvironmentVariable('UNIWAMP_HOSTS_FILE', PChar(HostsFile));
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        ReportText := Runtime.BuildDiagnosticReport;
+        AssertContains(ReportText, HostsFile, 'Diagnostic report should reflect the overridden hosts file path');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+      SetEnvironmentVariable('UNIWAMP_HOSTS_FILE', nil);
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestActivityLogClipboardSelectionPrefersLogFileThenMemo;
 begin
   AssertTrue(ChooseActivityLogClipboardText('log line 1', 'memo line 1') = 'log line 1',
@@ -1116,6 +1519,8 @@ procedure TestVHostEmptyStateCaptionReflectsFilter;
 begin
   AssertContains(BuildVHostEmptyStateCaption(''), 'No projects or vHosts found.',
     'Empty state should show the default message');
+  AssertContains(BuildVHostEmptyStateCaption(''), 'Press Ctrl+F to search or Add to create your first project.',
+    'Empty state should point to search and add actions');
   AssertContains(BuildVHostEmptyStateCaption('api'), 'No vHosts match the current filter.',
     'Filtered empty state should mention the active filter');
   AssertContains(BuildVHostEmptyStateCaption('api'), 'Clear the filter or create a new project.',
@@ -1164,6 +1569,22 @@ begin
     BuildToolPanelHint('Copy the vHost URL', 'Copies the selected local site address to the clipboard.') =
       'Copy the vHost URL' + sLineBreak + 'Copies the selected local site address to the clipboard.',
     'VHost copy hint should describe the clipboard action');
+end;
+
+procedure TestVHostGridKeyboardActionHelperMapsCommonShortcuts;
+begin
+  AssertTrue(DescribeVHostGridKeyboardAction(VK_RETURN, []) = 'open',
+    'Enter should open the selected vHost');
+  AssertTrue(DescribeVHostGridKeyboardAction(Ord('O'), [ssCtrl]) = 'folder',
+    'Ctrl+O should open the project folder');
+  AssertTrue(DescribeVHostGridKeyboardAction(Ord('T'), [ssCtrl]) = 'terminal',
+    'Ctrl+T should open the project terminal');
+  AssertTrue(DescribeVHostGridKeyboardAction(Ord('C'), [ssCtrl, ssShift]) = 'copy',
+    'Ctrl+Shift+C should copy the vHost URL');
+  AssertTrue(DescribeVHostGridKeyboardAction(VK_DELETE, []) = 'delete',
+    'Delete should remove the selected vHost');
+  AssertTrue(DescribeVHostGridKeyboardAction(Ord('X'), []) = '',
+    'Unmapped keys should not trigger a grid action');
 end;
 
 procedure TestLogToolPanelHintsDescribeTheUnderlyingAction;
@@ -1222,8 +1643,12 @@ procedure TestStatusBarHintExplainsMariaDbAttention;
 begin
   AssertTrue(
     BuildStatusBarHint('MariaDB stopped unexpectedly') =
-      'Status summary' + sLineBreak + 'MariaDB requires attention: MariaDB stopped unexpectedly',
+      'Status summary' + sLineBreak + 'Service requires attention: MariaDB stopped unexpectedly',
     'Status bar hint should explain when MariaDB needs attention');
+  AssertTrue(
+    BuildStatusBarHint('Apache failed to start') =
+      'Status summary' + sLineBreak + 'Service requires attention: Apache failed to start',
+    'Status bar hint should apply to Apache errors too');
   AssertTrue(
     BuildStatusBarHint('') = 'Status summary',
     'Status bar hint should stay short when there is no error');
@@ -1258,6 +1683,70 @@ begin
     BuildHeaderTitleHint =
       'UniWamp' + sLineBreak + 'Portable WAMP dashboard for local development.',
     'Header title hint should stay on brand');
+end;
+
+procedure TestApacheTemplateExposesDirectoryIndexForDashboardAndAdminer;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  HttpdText: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-template-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        Runtime.GenerateAllConfigs;
+        HttpdText := TFile.ReadAllText(Paths.ApacheHttpdConfFile, TEncoding.UTF8);
+        AssertContains(HttpdText, 'DirectoryIndex index.php index.html',
+          'Generated Apache config should declare an index for dashboard and Adminer aliases');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TestApacheTemplateExposesPhpHandlerMapping;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  HttpdText: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-php-handler-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        Runtime.GenerateAllConfigs;
+        HttpdText := TFile.ReadAllText(Paths.ApacheHttpdConfFile, TEncoding.UTF8);
+        AssertContains(HttpdText, 'AddType application/x-httpd-php .php',
+          'Generated Apache config should map PHP files to the PHP handler');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
 end;
 
 procedure TestHeaderOverviewHintDescribesTheDashboardSummary;
@@ -1309,17 +1798,41 @@ begin
 end;
 
 procedure TestPreferredTerminalExecutableChoosesCmderThenWtThenCmd;
+var
+  RootDir: string;
+  CmderPath: string;
+  WindowsTerminalPath: string;
 begin
-  AssertTrue(
-    ChoosePreferredTerminalExecutable('C:\Tools\cmder\Cmder.exe', '') = 'C:\Tools\cmder\Cmder.exe',
-    'Cmder should win when present');
-  AssertTrue(
-    ChoosePreferredTerminalExecutable('C:\missing\Cmder.exe', 'C:\Program Files\WindowsApps\wt.exe') =
-      'C:\Program Files\WindowsApps\wt.exe',
-    'Windows Terminal should win when Cmder is missing');
-  AssertTrue(
-    ChoosePreferredTerminalExecutable('C:\missing\Cmder.exe', '') = 'cmd.exe',
-    'cmd.exe should be the final fallback');
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-terminal-choice-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    CmderPath := TPath.Combine(RootDir, 'Cmder.exe');
+    WindowsTerminalPath := TPath.Combine(RootDir, 'wt.exe');
+    TFile.WriteAllText(CmderPath, '', TEncoding.ASCII);
+    TFile.WriteAllText(WindowsTerminalPath, '', TEncoding.ASCII);
+    AssertTrue(
+      ChoosePreferredTerminalExecutable(CmderPath, '') = CmderPath,
+      'Cmder should win when present');
+    AssertTrue(
+      ChoosePreferredTerminalExecutable(TPath.Combine(RootDir, 'missing-Cmder.exe'), WindowsTerminalPath) =
+        WindowsTerminalPath,
+      'Windows Terminal should win when Cmder is missing');
+    AssertTrue(
+      ChoosePreferredTerminalExecutable(TPath.Combine(RootDir, 'missing-Cmder.exe'), '') = 'cmd.exe',
+      'cmd.exe should be the final fallback');
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TestDescribeTerminalLaunchModeMapsExecutableNames;
+begin
+  AssertTrue(DescribeTerminalLaunchMode('C:\Tools\wt.exe') = 'windows-terminal',
+    'wt.exe should map to the Windows Terminal launch mode');
+  AssertTrue(DescribeTerminalLaunchMode('C:\Windows\System32\cmd.exe') = 'cmd',
+    'cmd.exe should map to the CMD launch mode');
+  AssertTrue(DescribeTerminalLaunchMode('C:\Tools\cmder\Cmder.exe') = 'cmder',
+    'Cmder should map to the Cmder launch mode');
 end;
 
 procedure TestSha256HelperReturnsTheExpectedDigest;
@@ -1389,6 +1902,40 @@ begin
   end;
 end;
 
+procedure TestValidatePackageSha256RejectsMismatchedDigest;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  SampleFile: string;
+  ErrorMessage: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-package-hash-mismatch-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        SampleFile := TPath.Combine(RootDir, 'package.zip');
+        TFile.WriteAllText(SampleFile, 'abc', TEncoding.ASCII);
+        AssertTrue(not Runtime.ValidatePackageSha256(SampleFile, '0000000000000000000000000000000000000000000000000000000000000000', ErrorMessage),
+          'Mismatched hashes should be rejected');
+        AssertContains(ErrorMessage, 'hash mismatch', 'Mismatched hashes should report a hash mismatch');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestValidateUpdateManifestReadsTheExpectedFields;
 var
   RootDir: string;
@@ -1423,6 +1970,39 @@ begin
       end;
     finally
       Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TestValidateUpdateManifestRejectsPathTraversalPackageNames;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  PackageManager: TPackageManager;
+  ManifestPath: string;
+  PackageFileName: string;
+  ExpectedSha256: string;
+  PackageVersion: string;
+  ErrorMessage: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-manifest-invalid-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    PackageManager := TPackageManager.Create(Paths);
+    try
+      ManifestPath := TPath.Combine(RootDir, 'update.json');
+      TFile.WriteAllText(ManifestPath,
+        '{"packageFileName":"..\\runtime.zip","expectedSha256":"abc","packageVersion":"1.0.0"}',
+        TEncoding.UTF8);
+      AssertTrue(not PackageManager.ValidateUpdateManifest(ManifestPath, PackageFileName, ExpectedSha256, PackageVersion, ErrorMessage),
+        'Manifest should reject traversal package names');
+      AssertContains(ErrorMessage, 'plain file name', 'Traversal package names should be rejected explicitly');
+    finally
+      PackageManager.Free;
     end;
   finally
     TDirectory.Delete(RootDir, True);
@@ -1498,6 +2078,38 @@ begin
         TFile.WriteAllText(TPath.Combine(WorkspaceDir, 'marker.txt'), 'marker', TEncoding.ASCII);
         AssertTrue(Runtime.CleanupUpdateWorkspace(WorkspaceDir, ErrorMessage), ErrorMessage);
         AssertTrue(not TDirectory.Exists(WorkspaceDir), 'Workspace cleanup should remove the directory');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TestCleanupUpdateWorkspaceAcceptsMissingDirectory;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  WorkspaceDir: string;
+  ErrorMessage: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-workspace-cleanup-missing-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        WorkspaceDir := TPath.Combine(Paths.UpdatesDir, 'missing-cleanup');
+        AssertTrue(Runtime.CleanupUpdateWorkspace(WorkspaceDir, ErrorMessage), ErrorMessage);
+        AssertTrue(not TDirectory.Exists(WorkspaceDir), 'Missing workspace cleanup should remain a no-op');
       finally
         Runtime.Free;
       end;
@@ -1701,6 +2313,40 @@ begin
   end;
 end;
 
+procedure TestRuntimeZipValidationRejectsEmptyZipArchives;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  ZipPath: string;
+  ErrorMessage: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-zip-empty-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        ZipPath := TPath.Combine(RootDir, 'runtime.zip');
+        TFile.WriteAllBytes(ZipPath, nil);
+        AssertTrue(not Runtime.ValidateRuntimeZipArchive(ZipPath, ErrorMessage),
+          'Empty ZIP archives should be rejected');
+        AssertContains(ErrorMessage, 'validation failed', 'Empty ZIP archives should report a validation failure');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestRuntimeZipImportExtractsArchiveContents;
 var
   RootDir: string;
@@ -1747,6 +2393,45 @@ begin
   end;
 end;
 
+procedure TestRuntimeZipImportRejectsTraversalEntries;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  PackageManager: TPackageManager;
+  ZipPath: string;
+  PayloadPath: string;
+  ErrorMessage: string;
+  Zip: TZipFile;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-zip-traversal-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    PackageManager := TPackageManager.Create(Paths);
+    try
+      PayloadPath := TPath.Combine(RootDir, 'payload.txt');
+      TFile.WriteAllText(PayloadPath, 'payload', TEncoding.ASCII);
+      ZipPath := TPath.Combine(RootDir, 'runtime.zip');
+      Zip := TZipFile.Create;
+      try
+        Zip.Open(ZipPath, zmWrite);
+        Zip.Add(PayloadPath, '..\payload.txt');
+        Zip.Close;
+      finally
+        Zip.Free;
+      end;
+      AssertTrue(not PackageManager.ImportRuntimeZipArchiveInto(ZipPath, Paths.AppRoot, ErrorMessage),
+        'ZIP import should reject traversal entries');
+      AssertContains(ErrorMessage, 'traversal entry', 'ZIP traversal should report the rejection reason');
+    finally
+      PackageManager.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestUpdateStagingAreaCreatesPortableWorkspace;
 var
   RootDir: string;
@@ -1769,6 +2454,38 @@ begin
         AssertTrue(TDirectory.Exists(StagingDir), 'Update staging area should be created under tmp\updates');
         AssertTrue(StartsText(Paths.UpdatesDir, StagingDir),
           'Staging area should stay inside the portable updates directory');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TestPrepareUpdateStagingAreaRejectsEmptyPackageName;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  StagingDir: string;
+  ErrorMessage: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-staging-empty-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        AssertTrue(not Runtime.PrepareUpdateStagingArea('', StagingDir, ErrorMessage),
+          'Empty package names should be rejected');
+        AssertContains(ErrorMessage, 'Update package name is required', 'Empty package names should report the reason');
       finally
         Runtime.Free;
       end;
@@ -1820,6 +2537,73 @@ begin
   end;
 end;
 
+procedure TestCreateUpdateRollbackSnapshotRejectsMissingStagingDir;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  SnapshotDir: string;
+  ErrorMessage: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-rollback-missing-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        AssertTrue(not Runtime.CreateUpdateRollbackSnapshot(TPath.Combine(Paths.UpdatesDir, 'missing'), 'UniWamp-1.0.0', SnapshotDir, ErrorMessage),
+          'Missing staging directories should be rejected');
+        AssertContains(ErrorMessage, 'Staging directory not found', 'Missing staging directories should report the reason');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TestCreateUpdateRollbackSnapshotRejectsEmptySnapshotName;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  StagingDir: string;
+  SnapshotDir: string;
+  ErrorMessage: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-rollback-empty-name-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    Config := TUniWampConfig.Create;
+    try
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        StagingDir := TPath.Combine(Paths.UpdatesDir, 'staging');
+        TDirectory.CreateDirectory(StagingDir);
+        AssertTrue(not Runtime.CreateUpdateRollbackSnapshot(StagingDir, '', SnapshotDir, ErrorMessage),
+          'Empty snapshot names should be rejected');
+        AssertContains(ErrorMessage, 'Snapshot name is required', 'Empty snapshot names should report the reason');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestVHostFilterHintMakesTheClearActionExplicit;
 begin
   AssertTrue(
@@ -1831,9 +2615,19 @@ end;
 procedure TestVHostFilterSearchHintDescribesSearchFields;
 begin
   AssertTrue(
-    BuildToolPanelHint('Filter vHosts', 'Search by site name, document root, or aliases.') =
-      'Filter vHosts' + sLineBreak + 'Search by site name, document root, or aliases.',
+    BuildToolPanelHint('Filter vHosts', 'Search by site name, document root, or aliases. Press Esc to clear.') =
+      'Filter vHosts' + sLineBreak + 'Search by site name, document root, or aliases. Press Esc to clear.',
     'Filter search hint should describe the searchable fields');
+end;
+
+procedure TestVHostFilterKeyActionHelperDistinguishesClearAndExit;
+begin
+  AssertTrue(DescribeVHostFilterKeyAction(VK_ESCAPE, 'api') = 'clear',
+    'Escape should clear a non-empty vHost filter');
+  AssertTrue(DescribeVHostFilterKeyAction(VK_ESCAPE, '') = 'exit',
+    'Escape should exit the filter when it is already empty');
+  AssertTrue(DescribeVHostFilterKeyAction(VK_RETURN, 'api') = '',
+    'Non-Escape keys should not map to filter actions');
 end;
 
 procedure TestDiagnosticReportUsesConsistentServiceStateLabels;
@@ -2030,12 +2824,19 @@ begin
     TestRestartFailureMessages;
     TestMissingRuntimeDependencies;
     TestMariaDbStartReportsPortConflict;
-    TestMariaDbInitializationBacksUpDirtyDataDirectory;
-    TestAddVHostNormalizesAliasesAndGeneratesConfig;
+    TestApacheStartReportsPortConflictOwner;
+  TestGenerateAllConfigsStaysInGeneratedConfigDir;
+  TestMariaDbInitializationBacksUpDirtyDataDirectory;
+  TestAddVHostNormalizesAliasesAndGeneratesConfig;
     TestManagedHostsSyncReportsReadOnlyFailure;
+    TestDeleteVHostPreservesUnmanagedHostsEntries;
+    TestDeleteSslVHostRemovesCertificateFiles;
     TestGenerateSslCertificateReportsMissingOpenSsl;
     TestApacheStartSyncsPhpVersionSelection;
+    TestSyncPhpVersionsPrefersCompatibleRuntime;
+    TestSyncNodeVersionsPrefersExecutableRuntime;
     TestStopPathsAreIdempotentWhenAlreadyStopped;
+    TestStopApacheDoesNotKillUnrelatedHttpdProcesses;
     TestApacheStartStopsOnConfigValidationFailure;
     TestManagedHostsSyncUsesOverride;
     TestRotatedLogAppendsAndTrims;
@@ -2044,39 +2845,55 @@ begin
     TestDiagnosticReportIncludesState;
     TestDiagnosticReportOmitsSensitiveValues;
     TestDiagnosticReportIncludesPortOwnersForOccupiedPorts;
-  TestActivityLogClipboardSelectionPrefersLogFileThenMemo;
+    TestDiagnosticReportReflectsHostsFileOverride;
+    TestActivityLogClipboardSelectionPrefersLogFileThenMemo;
   TestVHostEmptyStateCaptionReflectsFilter;
   TestProjectTypeDetectionPrefersKnownFrameworkMarkers;
   TestToolPanelHintHelperBuildsMultilineHints;
   TestVHostToolPanelHintTextStaysActionFocused;
+  TestVHostGridKeyboardActionHelperMapsCommonShortcuts;
   TestLogToolPanelHintsDescribeTheUnderlyingAction;
   TestPrimaryActionHintsCoverSaveAndSslActions;
   TestConfigEditorHintsDescribeGeneratedConfigTargets;
   TestCopyActionHintsUseConsistentClipboardLanguage;
   TestStatusBarHintExplainsMariaDbAttention;
+  TestPreferredTerminalExecutableChoosesCmderThenWtThenCmd;
+  TestDescribeTerminalLaunchModeMapsExecutableNames;
   TestVHostFilterHintMakesTheClearActionExplicit;
   TestVHostFilterSearchHintDescribesSearchFields;
+  TestVHostFilterKeyActionHelperDistinguishesClearAndExit;
   TestHeaderSubtitleHintDescribesTheStackOverview;
   TestHeaderCardHintSummarizesStatusAndPorts;
   TestHeaderTitleHintStaysOnBrand;
-  TestHeaderOverviewHintDescribesTheDashboardSummary;
-  TestHeaderPanelHintDescribesTheOverviewRegion;
-  TestDiagnosticReportUsesConsistentServiceStateLabels;
+  TestApacheTemplateExposesDirectoryIndexForDashboardAndAdminer;
+  TestApacheTemplateExposesPhpHandlerMapping;
+    TestHeaderOverviewHintDescribesTheDashboardSummary;
+    TestHeaderPanelHintDescribesTheOverviewRegion;
+    TestAddVHostRejectsInvalidInputs;
+    TestDiagnosticReportUsesConsistentServiceStateLabels;
   TestGeneratedEnvBatDoesNotStartWithUtf8Bom;
   TestTerminalExecutablePathResolvesRelativeConfigValues;
   TestWebToolsRequireHealthyApacheMariaDbAndPhp;
   TestSha256HelperReturnsTheExpectedDigest;
   TestValidatePackageSha256ChecksTheExpectedDigest;
+  TestValidatePackageSha256RejectsMismatchedDigest;
   TestValidateUpdateManifestReadsTheExpectedFields;
+  TestValidateUpdateManifestRejectsPathTraversalPackageNames;
   TestWriteUpdateStagingMetadataCreatesTheExpectedJson;
   TestCleanupUpdateWorkspaceRemovesExistingDirectory;
+  TestCleanupUpdateWorkspaceAcceptsMissingDirectory;
   TestStageValidatedUpdatePackageBuildsTheWorkspace;
+  TestPrepareUpdateStagingAreaRejectsEmptyPackageName;
   TestPromoteStagedUpdateCopiesWorkspaceIntoTarget;
   TestPromoteStagedUpdateRestoresTargetWhenReplacementFails;
   TestRuntimeZipValidationAcceptsNonEmptyZipArchives;
+  TestRuntimeZipValidationRejectsEmptyZipArchives;
   TestRuntimeZipImportExtractsArchiveContents;
+  TestRuntimeZipImportRejectsTraversalEntries;
   TestUpdateStagingAreaCreatesPortableWorkspace;
   TestRollbackUpdateStagingAreaRestoresRollbackSnapshot;
+  TestCreateUpdateRollbackSnapshotRejectsMissingStagingDir;
+  TestCreateUpdateRollbackSnapshotRejectsEmptySnapshotName;
   TestMariaDbRootPasswordRequiresRunningService;
   Writeln('Process harness passed.');
   except

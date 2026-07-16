@@ -8,7 +8,8 @@ uses
   System.SysUtils,
   System.JSON,
   Core.UniWamp.Config,
-  Core.UniWamp.Paths;
+  Core.UniWamp.Paths,
+  Core.UniWamp.Secrets;
 
 procedure Fail(const MessageText: string);
 begin
@@ -73,6 +74,8 @@ begin
   Result.MailpitDir := TPath.Combine(Result.ToolsDir, 'mailpit');
   Result.RedisDir := TPath.Combine(Result.ToolsDir, 'redis');
   Result.MemcachedDir := TPath.Combine(Result.ToolsDir, 'memcached');
+  Result.MkcertDir := TPath.Combine(Result.ToolsDir, 'mkcert');
+  Result.MkcertExe := TPath.Combine(Result.MkcertDir, 'mkcert.exe');
   Result.ApacheDir := TPath.Combine(Result.RuntimeDir, 'apache');
   Result.ApacheBinDir := TPath.Combine(Result.ApacheDir, 'bin');
   Result.ApacheConfDir := TPath.Combine(Result.ApacheDir, 'conf');
@@ -95,6 +98,7 @@ begin
   Result.ApacheTemplateFile := TPath.Combine(Result.TemplatesDir, 'httpd.conf.tpl');
   Result.ApacheSslTemplateFile := TPath.Combine(Result.TemplatesDir, 'httpd-ssl.conf.tpl');
   Result.ApacheVHostsTemplateFile := TPath.Combine(Result.TemplatesDir, 'httpd-vhosts.conf.tpl');
+  Result.VHostIndexTemplateFile := TPath.Combine(Result.TemplatesDir, 'vhost-index.html.tpl');
   Result.MariaDbTemplateFile := TPath.Combine(Result.TemplatesDir, 'mariadb.ini.tpl');
   Result.PhpTemplateFile := TPath.Combine(Result.TemplatesDir, 'php.ini.tpl');
   Result.ApacheHttpdConfFile := TPath.Combine(Result.GeneratedConfigDir, 'httpd.conf');
@@ -165,6 +169,7 @@ begin
       '"selectedNodeVersion":"node",' +
       '"terminalExePath":"bin\\cmder\\cmder.exe",' +
       '"phpProfile":"development",' +
+      '"themeStyleName":"Windows",' +
       '"enableSsl":false,' +
       '"apachePid":0,' +
       '"mariaDbPid":0,' +
@@ -173,7 +178,6 @@ begin
       '"lastApacheError":"",' +
       '"lastMariaDbError":"",' +
       '"lastHostsSyncStatus":"",' +
-      '"mariaDbRootPassword":"",' +
       '"apacheEnabledModules":[],' +
       '"phpVersions":[],' +
       '"phpEnabledExtensions":[],' +
@@ -250,6 +254,7 @@ begin
     Config := TUniWampConfig.Create;
     try
       Config.SetDefaults(Paths);
+      Config.ThemeStyleName := 'Windows';
       Paths.ConfigDir := TPath.Combine(RootDir, 'missing-config-dir');
       Paths.AppConfigFile := TPath.Combine(Paths.ConfigDir, 'uniwamp.json');
       SaveFailed := False;
@@ -295,6 +300,7 @@ begin
       '"selectedNodeVersion":"node-v22",' +
       '"terminalExePath":"bin\\cmder\\cmder.exe",' +
       '"phpProfile":"development",' +
+      '"themeStyleName":"Windows",' +
       '"enableSsl":false,' +
       '"apachePid":0,' +
       '"mariaDbPid":0,' +
@@ -303,7 +309,6 @@ begin
       '"lastApacheError":"",' +
       '"lastMariaDbError":"",' +
       '"lastHostsSyncStatus":"",' +
-      '"mariaDbRootPassword":"",' +
       '"apacheEnabledModules":[],' +
       '"phpVersions":["php85"],' +
       '"phpEnabledExtensions":[],' +
@@ -320,6 +325,63 @@ begin
       SavedText := TFile.ReadAllText(Paths.AppConfigFile, TEncoding.UTF8);
       AssertTrue(Pos('"configVersion":1', SavedText) > 0, 'Current config should remain versioned');
       AssertTrue(Pos('"httpPort":8080', SavedText) > 0, 'Current config should preserve the HTTP port');
+      AssertTrue(Pos('"themeStyleName":"Windows"', SavedText) > 0, 'Current config should preserve the theme style');
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TestUnknownThemeStylePersistsWithoutMigration;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  JsonText: string;
+  SavedText: string;
+begin
+  RootDir := CreateTempRoot('theme-style');
+  try
+    Paths := BuildPaths(RootDir);
+    EnsureTestLayout(Paths);
+    JsonText :=
+      '{' +
+      '"configVersion":1,' +
+      '"httpPort":8080,' +
+      '"httpsPort":8443,' +
+      '"databasePort":3307,' +
+      '"hostName":"localhost",' +
+      '"documentRoot":"' + StringReplace(Paths.WwwDir, '\', '\\', [rfReplaceAll]) + '",' +
+      '"selectedPhpVersion":"php85",' +
+      '"selectedNodeVersion":"node-v22",' +
+      '"terminalExePath":"bin\\cmder\\cmder.exe",' +
+      '"phpProfile":"development",' +
+      '"themeStyleName":"MissingStyle",' +
+      '"enableSsl":false,' +
+      '"apachePid":0,' +
+      '"mariaDbPid":0,' +
+      '"apacheRunning":false,' +
+      '"mariaDbRunning":false,' +
+      '"lastApacheError":"",' +
+      '"lastMariaDbError":"",' +
+      '"lastHostsSyncStatus":"",' +
+      '"apacheEnabledModules":[],' +
+      '"phpVersions":["php85"],' +
+      '"phpEnabledExtensions":[],' +
+      '"phpSettings":{},' +
+      '"nodeVersions":["node-v22"],' +
+      '"vhosts":[]' +
+      '}';
+    WriteTextFile(Paths.AppConfigFile, JsonText);
+
+    Config := TUniWampConfig.Create;
+    try
+      AssertTrue(not Config.LoadOrCreate(Paths), 'Unknown theme styles should not trigger migration');
+      AssertEquals('MissingStyle', Config.ThemeStyleName, 'Unknown theme style should still round-trip through config');
+      SavedText := TFile.ReadAllText(Paths.AppConfigFile, TEncoding.UTF8);
+      AssertTrue(Pos('"themeStyleName":"MissingStyle"', SavedText) > 0, 'Unknown theme style should remain in the saved config');
     finally
       Config.Free;
     end;
@@ -359,7 +421,6 @@ begin
       '"lastApacheError":"",' +
       '"lastMariaDbError":"",' +
       '"lastHostsSyncStatus":"",' +
-      '"mariaDbRootPassword":"",' +
       '"apacheEnabledModules":[],' +
       '"phpVersions":[],' +
       '"phpEnabledExtensions":[],' +
@@ -393,13 +454,73 @@ begin
   end;
 end;
 
+procedure TestLegacyMariaDbPasswordMigratesToProtectedStorage;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  JsonText: string;
+  SavedText: string;
+  ErrorMessage: string;
+begin
+  RootDir := CreateTempRoot('legacy-secret');
+  try
+    Paths := BuildPaths(RootDir);
+    EnsureTestLayout(Paths);
+    JsonText :=
+      '{' +
+      '"configVersion":1,' +
+      '"httpPort":8080,' +
+      '"httpsPort":8443,' +
+      '"databasePort":3307,' +
+      '"hostName":"localhost",' +
+      '"documentRoot":"' + StringReplace(Paths.WwwDir, '\', '\\', [rfReplaceAll]) + '",' +
+      '"selectedPhpVersion":"php85",' +
+      '"selectedNodeVersion":"node-v22",' +
+      '"terminalExePath":"bin\\cmder\\cmder.exe",' +
+      '"phpProfile":"development",' +
+      '"enableSsl":false,' +
+      '"apachePid":0,' +
+      '"mariaDbPid":0,' +
+      '"apacheRunning":false,' +
+      '"mariaDbRunning":false,' +
+      '"lastApacheError":"",' +
+      '"lastMariaDbError":"",' +
+      '"lastHostsSyncStatus":"",' +
+      '"mariaDbRootPassword":"legacy-secret",' +
+      '"apacheEnabledModules":[],' +
+      '"phpVersions":["php85"],' +
+      '"phpEnabledExtensions":[],' +
+      '"phpSettings":{},' +
+      '"nodeVersions":["node-v22"],' +
+      '"vhosts":[]' +
+      '}';
+    WriteTextFile(Paths.AppConfigFile, JsonText);
+
+    Config := TUniWampConfig.Create;
+    try
+      AssertTrue(Config.LoadOrCreate(Paths), 'Legacy MariaDB password should trigger migration');
+      AssertEquals('legacy-secret', LoadMariaDbRootPassword(Paths), 'Legacy password should be moved into protected storage');
+      SavedText := TFile.ReadAllText(Paths.AppConfigFile, TEncoding.UTF8);
+      AssertTrue(Pos('mariaDbRootPassword', SavedText) = 0, 'Migrated config should not persist the MariaDB password field');
+    finally
+      Config.Free;
+    end;
+  finally
+    DeleteMariaDbRootPassword(Paths, ErrorMessage);
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 begin
   try
     TestMalformedConfigRecovery;
-    TestCurrentConfigDoesNotMigrate;
-    TestRelativePathMigration;
+  TestCurrentConfigDoesNotMigrate;
+  TestUnknownThemeStylePersistsWithoutMigration;
+  TestRelativePathMigration;
     TestInvalidPortsAndDefaults;
     TestPartiallyValidConfigMigratesOnlyInvalidValues;
+    TestLegacyMariaDbPasswordMigratesToProtectedStorage;
     TestAtomicSaveFailure;
     Writeln('Config harness passed.');
   except

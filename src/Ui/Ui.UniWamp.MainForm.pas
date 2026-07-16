@@ -22,6 +22,7 @@ uses
   Vcl.ComCtrls,
   Vcl.Dialogs,
   Vcl.Clipbrd,
+  Vcl.Themes,
   Ui.UniWamp.AboutForm,
   Ui.UniWamp.AppSettingsForm,
   Ui.UniWamp.ScriptManagerForm,
@@ -31,6 +32,7 @@ uses
   Core.UniWamp.Paths,
   Core.UniWamp.Security,
   Core.UniWamp.PackageManager,
+  Core.UniWamp.PortUtils,
   Core.UniWamp.VHostManager,
   Core.UniWamp.ConfigGenerator,
   Core.UniWamp.HostsFileService,
@@ -250,6 +252,8 @@ type
     procedure RefreshActivityLogView;
     procedure VHostFilterChanged(Sender: TObject);
     procedure VHostFilterClearClick(Sender: TObject);
+    procedure VHostGridEnter(Sender: TObject);
+    procedure VHostGridExit(Sender: TObject);
     function TryGetVHostEntry(const ServerName: string; out Entry: TVHostEntry): Boolean;
     procedure ToggleMainWindow;
     function VHostUrl(const ServerName: string): string;
@@ -260,6 +264,7 @@ type
     procedure OpenVHostUrl(const ServerName: string);
     procedure VHostGridDrawCell(Sender: TObject; ACol, ARow: Integer; CellRect: TRect; State: TGridDrawState);
     procedure VHostGridMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+    procedure VHostGridKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure ApacheStartClick(Sender: TObject);
     procedure ApacheStopClick(Sender: TObject);
     procedure ApacheRestartClick(Sender: TObject);
@@ -332,6 +337,9 @@ function BuildHeaderSubtitleHint: string;
 function BuildHeaderCardHint(const TitleText, PrimaryText, SecondaryText: string): string;
 function BuildHeaderTitleHint: string;
 function BuildHeaderOverviewHint: string;
+function DescribeVHostGridKeyboardAction(Key: Word; Shift: TShiftState): string;
+function DescribeVHostFilterKeyAction(Key: Word; FilterText: string): string;
+procedure ApplyConfiguredTheme(const StyleName: string);
 
 var
   MainForm: TMainForm;
@@ -448,7 +456,7 @@ begin
   if Trim(FilterText) <> '' then
     Result := 'No vHosts match the current filter.' + sLineBreak + 'Clear the filter or create a new project.'
   else
-    Result := 'No projects or vHosts found.' + sLineBreak + 'Use Add to create your first project.';
+    Result := 'No projects or vHosts found.' + sLineBreak + 'Press Ctrl+F to search or Add to create your first project.';
 end;
 
 function DetectProjectTypeLabel(const DocumentRoot: string): string;
@@ -475,7 +483,7 @@ function BuildStatusBarHint(const ErrorMessage: string): string;
 begin
   Result := 'Status summary';
   if Trim(ErrorMessage) <> '' then
-    Result := Result + sLineBreak + 'MariaDB requires attention: ' + Trim(ErrorMessage);
+    Result := Result + sLineBreak + 'Service requires attention: ' + Trim(ErrorMessage);
 end;
 
 function BuildHeaderSubtitleHint: string;
@@ -500,6 +508,62 @@ end;
 function BuildHeaderOverviewHint: string;
 begin
   Result := 'Header overview' + sLineBreak + 'Shows Apache, PHP, and MariaDB status at a glance.';
+end;
+
+procedure ApplyConfiguredTheme(const StyleName: string);
+begin
+  if Trim(StyleName) = '' then
+    TStyleManager.SetStyle('Windows')
+  else
+  begin
+    try
+      TStyleManager.TrySetStyle(StyleName);
+    except
+      TStyleManager.SetStyle('Windows');
+    end;
+  end;
+end;
+
+function DescribeVHostGridKeyboardAction(Key: Word; Shift: TShiftState): string;
+begin
+  Result := '';
+  if Key = VK_RETURN then
+  begin
+    Result := 'open';
+    Exit;
+  end;
+  if (Key = Ord('O')) and (ssCtrl in Shift) then
+  begin
+    Result := 'folder';
+    Exit;
+  end;
+  if (Key = Ord('T')) and (ssCtrl in Shift) then
+  begin
+    Result := 'terminal';
+    Exit;
+  end;
+  if (Key = Ord('C')) and (ssCtrl in Shift) and (ssShift in Shift) then
+  begin
+    Result := 'copy';
+    Exit;
+  end;
+  if Key = VK_DELETE then
+  begin
+    Result := 'delete';
+    Exit;
+  end;
+end;
+
+function DescribeVHostFilterKeyAction(Key: Word; FilterText: string): string;
+begin
+  Result := '';
+  if Key = VK_ESCAPE then
+  begin
+    if Trim(FilterText) <> '' then
+      Result := 'clear'
+    else
+      Result := 'exit';
+  end;
 end;
 
 function IsDarkColor(const AColor: TColor): Boolean;
@@ -870,6 +934,7 @@ begin
   FUpdateManifestDialog.Title := 'Select update manifest';
   FUpdateManifestDialog.Options := [ofFileMustExist, ofPathMustExist, ofEnableSizing, ofHideReadOnly];
   PathsMigrated := FConfig.LoadOrCreate(FPaths);
+  ApplyConfiguredTheme(FConfig.ThemeStyleName);
 
   TServiceLocator.Instance.RegisterService<IConfigurationGenerator>(TConfigurationGenerator.Create(FPaths, FConfig));
   TServiceLocator.Instance.RegisterService<IHostsFileService>(THostsFileService.Create(FPaths, FConfig));
@@ -942,10 +1007,10 @@ begin
   FVHostEmptyLabel.Transparent := True;
   FVHostEmptyLabel.Font.Name := 'Segoe UI';
   FVHostEmptyLabel.Font.Size := 11;
-  FVHostEmptyLabel.Font.Color := clBlue;
-  FVHostEmptyLabel.Font.Style := [fsUnderline];
+  FVHostEmptyLabel.Font.Color := clGrayText;
+  FVHostEmptyLabel.Font.Style := [fsBold];
   FVHostEmptyLabel.Caption := 'No projects or vHosts found.' + sLineBreak + 'Use Add to create your first project.';
-  FVHostEmptyLabel.Hint := 'Click Add to create a new project or vHost.';
+  FVHostEmptyLabel.Hint := 'Click Add to create a new project or vHost. Press Ctrl+F to search existing projects.';
   FVHostEmptyLabel.ShowHint := True;
   FVHostEmptyLabel.Cursor := crHandPoint;
   FVHostEmptyLabel.OnClick := VHostEmptyLabelClick;
@@ -968,9 +1033,9 @@ begin
   FVHostFilterLabel.Transparent := True;
   FVHostFilterEdit := TEdit.Create(Self);
   FVHostFilterEdit.Parent := Label11;
-  FVHostFilterEdit.TextHint := 'Type a site name or document path';
+  FVHostFilterEdit.TextHint := 'Search site, path, or alias';
   FVHostFilterEdit.Hint := BuildToolPanelHint('Filter vHosts',
-    'Search by site name, document root, or aliases.');
+    'Search by site name, document root, or aliases. Press Esc to clear.');
   FVHostFilterEdit.ShowHint := True;
   FVHostFilterEdit.OnChange := VHostFilterChanged;
   FVHostFilterEdit.OnKeyDown := VHostFilterKeyDown;
@@ -1427,13 +1492,13 @@ begin
   AddVHostButton.TabStop := True;
   AddVHostButton.TabOrder := 12;
   DeleteVHostButton.OnClick := DeleteVHostClick;
-  DeleteVHostButton.Hint := BuildToolPanelHint('Delete the selected vHost',
+  DeleteVHostButton.Hint := BuildToolPanelHint('Delete the selected project',
     'Removes the selected project entry and its generated configuration.');
   DeleteVHostButton.ShowHint := True;
   DeleteVHostButton.TabStop := True;
   DeleteVHostButton.TabOrder := 13;
   OpenVHostButton.OnClick := OpenVHostClick;
-  OpenVHostButton.Hint := BuildToolPanelHint('Open the selected site',
+  OpenVHostButton.Hint := BuildToolPanelHint('Open the selected project',
     'Launches the selected vHost in the browser when Apache is running.');
   OpenVHostButton.ShowHint := True;
   OpenVHostButton.TabStop := True;
@@ -1445,7 +1510,7 @@ begin
   OpenVHostFolderButton.TabStop := True;
   OpenVHostFolderButton.TabOrder := 15;
   OpenVHostTerminalButton.OnClick := OpenVHostTerminalClick;
-  OpenVHostTerminalButton.Hint := BuildToolPanelHint('Open a terminal in the project folder',
+  OpenVHostTerminalButton.Hint := BuildToolPanelHint('Open terminal in the project folder',
     'Launches the configured terminal in the selected vHost document root.');
   OpenVHostTerminalButton.ShowHint := True;
   OpenVHostTerminalButton.TabStop := True;
@@ -1557,10 +1622,10 @@ begin
   SetButtonCaption(OpenApacheModulesButton, 'Apache Modules');
   SetButtonCaption(AddVHostButton, 'Add');
   SetButtonCaption(OpenVHostButton, 'Open Selected');
-  SetButtonCaption(OpenVHostFolderButton, 'Open Root');
+  SetButtonCaption(OpenVHostFolderButton, 'Open Folder');
   SetButtonCaption(OpenVHostTerminalButton, 'Terminal');
   SetButtonCaption(CopyVHostUrlButton, 'Copy URL');
-  SetButtonCaption(DeleteVHostButton, 'Delete Selected');
+  SetButtonCaption(DeleteVHostButton, 'Delete Project');
   SetButtonCaption(EditPhpIniButton, 'php.ini');
   SetButtonCaption(EditHttpdConfButton, 'httpd.conf');
   SetButtonCaption(EditMariaDbIniButton, 'mariadb.ini');
@@ -1615,24 +1680,32 @@ begin
   if HandleAllocated then
     DrawMenuBar(Handle);
   VHostGrid.DefaultDrawing := False;
+  VHostGrid.Options := VHostGrid.Options + [goRowSelect];
   VHostGrid.OnDrawCell := VHostGridDrawCell;
   VHostGrid.OnMouseUp := VHostGridMouseUp;
+  VHostGrid.OnKeyDown := VHostGridKeyDown;
+  VHostGrid.OnEnter := VHostGridEnter;
+  VHostGrid.OnExit := VHostGridExit;
   VHostGrid.Font.Name := 'Segoe UI';
   VHostGrid.Font.Size := 9;
   VHostGrid.FixedColor := GridHeaderColor;
   VHostGrid.Color := clWhite;
-  VHostGrid.ColCount := 4;
+  VHostGrid.TabStop := True;
+  VHostGrid.TabOrder := 18;
+  VHostGrid.ColCount := 5;
   VHostGrid.FixedRows := 1;
   VHostGrid.RowCount := 2;
   VHostGrid.DefaultRowHeight := 30;
   VHostGrid.Cells[0, 0] := 'Site Name';
   VHostGrid.Cells[1, 0] := 'Document Path';
-  VHostGrid.Cells[2, 0] := 'URL';
-  VHostGrid.Cells[3, 0] := 'Actions';
+  VHostGrid.Cells[2, 0] := 'Type';
+  VHostGrid.Cells[3, 0] := 'URL';
+  VHostGrid.Cells[4, 0] := 'Actions';
   VHostGrid.ColWidths[0] := 110;
   VHostGrid.ColWidths[1] := 262;
-  VHostGrid.ColWidths[2] := 152;
-  VHostGrid.ColWidths[3] := 206;
+  VHostGrid.ColWidths[2] := 132;
+  VHostGrid.ColWidths[3] := 152;
+  VHostGrid.ColWidths[4] := 206;
   LoadStateIntoUi;
   LayoutDashboard;
   RefreshStatus;
@@ -1710,14 +1783,15 @@ begin
 
   GridWidth := VHostGrid.ClientWidth;
   VHostGrid.ColWidths[0] := 110;
-  VHostGrid.ColWidths[2] := 160;
-  VHostGrid.ColWidths[3] := 206;
-  AvailableGridColumns := GridWidth - VHostGrid.ColWidths[0] - VHostGrid.ColWidths[2] - VHostGrid.ColWidths[3];
+  VHostGrid.ColWidths[2] := 132;
+  VHostGrid.ColWidths[3] := 152;
+  VHostGrid.ColWidths[4] := 206;
+  AvailableGridColumns := GridWidth - VHostGrid.ColWidths[0] - VHostGrid.ColWidths[2] - VHostGrid.ColWidths[3] - VHostGrid.ColWidths[4];
   if AvailableGridColumns < 250 then
     AvailableGridColumns := 250;
   VHostGrid.ColWidths[1] := AvailableGridColumns;
-  if VHostGrid.ColWidths[1] + VHostGrid.ColWidths[0] + VHostGrid.ColWidths[2] + VHostGrid.ColWidths[3] > GridWidth then
-    VHostGrid.ColWidths[1] := GridWidth - VHostGrid.ColWidths[0] - VHostGrid.ColWidths[2] - VHostGrid.ColWidths[3];
+  if VHostGrid.ColWidths[1] + VHostGrid.ColWidths[0] + VHostGrid.ColWidths[2] + VHostGrid.ColWidths[3] + VHostGrid.ColWidths[4] > GridWidth then
+    VHostGrid.ColWidths[1] := GridWidth - VHostGrid.ColWidths[0] - VHostGrid.ColWidths[2] - VHostGrid.ColWidths[3] - VHostGrid.ColWidths[4];
   if VHostGrid.ColWidths[1] < 1 then
     VHostGrid.ColWidths[1] := 1;
 
@@ -1987,7 +2061,7 @@ begin
   Item.ShortCut := ShortCut(Ord('N'), [ssCtrl]);
   Item := AddItem(MenuItem, '&Open Selected', OpenVHostClick);
   Item.ShortCut := ShortCut(Ord('O'), [ssCtrl]);
-  Item := AddItem(MenuItem, 'Open &Root', OpenVHostFolderClick);
+  Item := AddItem(MenuItem, 'Open &Folder', OpenVHostFolderClick);
   Item.ShortCut := ShortCut(Ord('R'), [ssCtrl]);
   Item := AddItem(MenuItem, 'Open &Terminal', OpenVHostTerminalClick);
   Item.ShortCut := ShortCut(Ord('T'), [ssCtrl, ssShift]);
@@ -1996,7 +2070,7 @@ begin
   Item := AddItem(MenuItem, '&Copy URL', CopyVHostUrlClick);
   Item.ShortCut := ShortCut(Ord('C'), [ssCtrl, ssShift]);
   AddItem(MenuItem, '-');
-  Item := AddItem(MenuItem, '&Delete Selected', DeleteVHostClick);
+  Item := AddItem(MenuItem, '&Delete Project', DeleteVHostClick);
   Item.ShortCut := ShortCut(VK_DELETE, []);
 
   MenuItem := AddItem(FMainMenu.Items, '&Tools');
@@ -2122,6 +2196,7 @@ var
   VHosts: TArray<TVHostEntry>;
   FilterText: string;
   RowIndex: Integer;
+  ProjectTypeText: string;
 begin
   HostNameEdit.Text := FConfig.HostName;
   HttpPortEdit.Text := FConfig.HttpPort.ToString;
@@ -2170,8 +2245,9 @@ begin
     VHostGrid.RowCount := 2;
   VHostGrid.Cells[0, 0] := 'Site Name';
   VHostGrid.Cells[1, 0] := 'Document Path';
-  VHostGrid.Cells[2, 0] := 'URL';
-  VHostGrid.Cells[3, 0] := 'Actions';
+  VHostGrid.Cells[2, 0] := 'Type';
+  VHostGrid.Cells[3, 0] := 'URL';
+  VHostGrid.Cells[4, 0] := 'Actions';
   VHostGrid.RowHeights[0] := 30;
   for RowIndex := 1 to VHostGrid.RowCount - 1 do
   begin
@@ -2179,13 +2255,16 @@ begin
     VHostGrid.Cells[1, RowIndex] := '';
     VHostGrid.Cells[2, RowIndex] := '';
     VHostGrid.Cells[3, RowIndex] := '';
+    VHostGrid.Cells[4, RowIndex] := '';
   end;
   for RowIndex := 0 to High(VHosts) do
   begin
     Entry := VHosts[RowIndex];
     VHostGrid.Cells[0, RowIndex + 1] := Entry.ServerName;
     VHostGrid.Cells[1, RowIndex + 1] := Entry.DocumentRoot;
-    VHostGrid.Cells[2, RowIndex + 1] := VHostUrl(Entry.ServerName);
+    ProjectTypeText := DetectProjectTypeLabel(Entry.DocumentRoot);
+    VHostGrid.Cells[2, RowIndex + 1] := ProjectTypeText;
+    VHostGrid.Cells[3, RowIndex + 1] := VHostUrl(Entry.ServerName);
   end;
   UpdateVHostEmptyState;
 end;
@@ -2331,7 +2410,6 @@ var
   ApachePidBefore: Cardinal;
   MariaDbRunningBefore: Boolean;
   MariaDbPidBefore: Cardinal;
-  MariaDbInitialized: Boolean;
 begin
   if FStatusRefreshBusy then
     Exit;
@@ -2342,21 +2420,11 @@ begin
   ApachePidBefore := FConfig.ApachePid;
   MariaDbRunningBefore := FConfig.MariaDbRunning;
   MariaDbPidBefore := FConfig.MariaDbPid;
-  MariaDbInitialized := TDirectory.Exists(TPath.Combine(TPath.Combine(FPaths.MariaDbDir, 'data'), 'mysql'));
-  FConfig.ApacheRunning := FRuntime.ApacheIsRunning or
-    ((FConfig.ApachePid <> 0) and TProcessManager.IsRunning(FConfig.ApachePid));
-  if FConfig.ApacheRunning then
-    FConfig.ApachePid := FRuntime.ApacheProcessId
-  else
-    FConfig.ApachePid := 0;
+  FConfig.ApacheRunning := FRuntime.ApacheIsRunning;
+  FConfig.ApachePid := FRuntime.ApacheProcessId;
 
-  FConfig.MariaDbRunning := FRuntime.MariaDbIsRunning or
-    ((FConfig.MariaDbPid <> 0) and TProcessManager.IsRunning(FConfig.MariaDbPid));
-  if not FConfig.MariaDbRunning then
-    FConfig.MariaDbPid := 0;
+  FConfig.MariaDbRunning := FRuntime.MariaDbIsRunning;
   if FConfig.MariaDbRunning then
-    FConfig.LastMariaDbError := '';
-  if MariaDbInitialized and (Pos('init', LowerCase(FConfig.LastMariaDbError)) > 0) then
     FConfig.LastMariaDbError := '';
 
   UpdateHeaderStateColors;
@@ -2391,7 +2459,7 @@ begin
   Port := StrToIntDef(Trim(HttpPortEdit.Text), FConfig.HttpPort);
   if (Port <> FLastHttpPortChecked) or (FHttpPortOwnerLabel.Caption = '') then
   begin
-    OwnerInfo := FRuntime.DescribePortOwner(Port);
+    OwnerInfo := DescribeTcpPortOwner(Port);
     if OwnerInfo = '' then
     begin
       CaptionText := Format('HTTP %d: available', [Port]);
@@ -2410,7 +2478,7 @@ begin
   Port := StrToIntDef(Trim(HttpsPortEdit.Text), FConfig.HttpsPort);
   if (Port <> FLastHttpsPortChecked) or (FHttpsPortOwnerLabel.Caption = '') then
   begin
-    OwnerInfo := FRuntime.DescribePortOwner(Port);
+    OwnerInfo := DescribeTcpPortOwner(Port);
     if OwnerInfo = '' then
     begin
       CaptionText := Format('HTTPS %d: available', [Port]);
@@ -2429,7 +2497,7 @@ begin
   Port := StrToIntDef(Trim(DbPortEdit.Text), FConfig.DatabasePort);
   if (Port <> FLastDbPortChecked) or (FDbPortOwnerLabel.Caption = '') then
   begin
-    OwnerInfo := FRuntime.DescribePortOwner(Port);
+    OwnerInfo := DescribeTcpPortOwner(Port);
     if OwnerInfo = '' then
     begin
       CaptionText := Format('DB %d: available', [Port]);
@@ -2489,7 +2557,7 @@ begin
   begin
     FHeaderCards[0].Dot.Brush.Color := RGB(189, 197, 209);
     ApacheText := 'HTTP ' + IntToStr(FConfig.HttpPort);
-    FHeaderCards[0].Detail2.Caption := 'HTTPS ' + IntToStr(FConfig.HttpsPort);
+    FHeaderCards[0].Detail2.Caption := 'Stopped';
   end;
   FHeaderCards[0].Detail1.Caption := ApacheText;
 
@@ -2505,7 +2573,10 @@ begin
     FHeaderCards[2].Dot.Brush.Color := RGB(180, 225, 48)
   else
     FHeaderCards[2].Dot.Brush.Color := RGB(189, 197, 209);
-  FHeaderCards[2].Detail1.Caption := 'Port ' + IntToStr(FConfig.DatabasePort);
+  if FConfig.MariaDbRunning then
+    FHeaderCards[2].Detail1.Caption := 'Port ' + IntToStr(FConfig.DatabasePort)
+  else
+    FHeaderCards[2].Detail1.Caption := 'Stopped';
   if FConfig.MariaDbRunning then
     MariaText := 'Running'
   else
@@ -2535,6 +2606,7 @@ procedure TMainForm.UpdateDashboardLabels;
 var
   StatusText: string;
   MariaDbSummary: string;
+  StatusError: string;
 begin
   StatusText := Format(
     'Apache %s PID %d | MariaDB %s PID %d | HTTP %d | PHP %s / %s | Node %s | Hosts %s',
@@ -2565,8 +2637,11 @@ begin
       []);
   end;
 
+  StatusError := Trim(FConfig.LastApacheError);
+  if StatusError = '' then
+    StatusError := Trim(FConfig.LastMariaDbError);
   StatusBar.ShowHint := True;
-  StatusBar.Hint := BuildStatusBarHint(FConfig.LastMariaDbError);
+  StatusBar.Hint := BuildStatusBarHint(StatusError);
 
   StatusBar.SimpleText := StatusText;
 end;
@@ -2660,6 +2735,16 @@ begin
   end;
   if Assigned(FVHostFilterClearLabel) then
     FVHostFilterClearLabel.Visible := Assigned(FVHostFilterEdit) and (Trim(FVHostFilterEdit.Text) <> '');
+end;
+
+procedure TMainForm.VHostGridEnter(Sender: TObject);
+begin
+  VHostGrid.Invalidate;
+end;
+
+procedure TMainForm.VHostGridExit(Sender: TObject);
+begin
+  VHostGrid.Invalidate;
 end;
 
 procedure TMainForm.VHostFilterChanged(Sender: TObject);
@@ -2986,6 +3071,8 @@ var
   HasVHostEntry: Boolean;
 begin
   Grid := Sender as TStringGrid;
+  if (ACol < 0) or (ARow < 0) or (ACol >= Grid.ColCount) or (ARow >= Grid.RowCount) then
+    Exit;
   if ARow = 0 then
     Grid.Canvas.Brush.Color := GridHeaderColor
   else if Odd(ARow) then
@@ -3005,14 +3092,22 @@ begin
 
   if gdSelected in State then
   begin
-    if not ((ACol = 3) and not FConfig.ApacheRunning) then
+    if not ((ACol = 4) and not FConfig.ApacheRunning) then
     begin
       Grid.Canvas.Brush.Color := GridSelectionColor;
       Grid.Canvas.FillRect(CellRect);
     end;
   end;
+  if (ACol = Grid.Col) and (ARow = Grid.Row) and (Grid.Focused or (gdFocused in State)) then
+  begin
+    Grid.Canvas.Pen.Color := GridSelectionColor;
+    Grid.Canvas.Pen.Width := 1;
+    Grid.Canvas.Brush.Style := bsClear;
+    Grid.Canvas.Rectangle(CellRect);
+    Grid.Canvas.Brush.Style := bsSolid;
+  end;
 
-  if ACol < 3 then
+  if ACol < 4 then
   begin
     Grid.Canvas.Font.Style := [];
     Grid.Canvas.Font.Color := clWindowText;
@@ -3098,7 +3193,9 @@ var
 begin
   Grid := Sender as TStringGrid;
   GridCoord := Grid.MouseCoord(X, Y);
-  if (GridCoord.Y <= 0) or (GridCoord.X <> 3) then
+  if (GridCoord.X < 0) or (GridCoord.Y < 0) or (GridCoord.X >= Grid.ColCount) or (GridCoord.Y >= Grid.RowCount) then
+    Exit;
+  if (GridCoord.Y <= 0) or (GridCoord.X <> 4) then
     Exit;
 
   Grid.Row := GridCoord.Y;
@@ -3135,6 +3232,27 @@ begin
     RefreshVHostSslClick(Sender)
   else
     Exit;
+end;
+
+procedure TMainForm.VHostGridKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+var
+  ActionName: string;
+begin
+  ActionName := DescribeVHostGridKeyboardAction(Key, Shift);
+  if ActionName = '' then
+    Exit;
+
+  if ActionName = 'open' then
+    OpenVHostClick(Sender)
+  else if ActionName = 'folder' then
+    OpenVHostFolderClick(Sender)
+  else if ActionName = 'terminal' then
+    OpenVHostTerminalClick(Sender)
+  else if ActionName = 'copy' then
+    CopyVHostUrlClick(Sender)
+  else if ActionName = 'delete' then
+    DeleteVHostClick(Sender);
+  Key := 0;
 end;
 
 procedure TMainForm.SaveConfigClick(Sender: TObject);
@@ -3303,7 +3421,7 @@ begin
             ErrMsg := E.Message;
         end;
         
-        TThread.Queue(nil,
+        TThread.Queue(nil, TThreadProcedure(
           procedure
           begin
             HideBusyState();
@@ -3315,7 +3433,7 @@ begin
             FConfig.Save(FPaths);
             RefreshStatus;
             LaunchDashboardIfHealthy;
-          end);
+          end));
       end).Start;
   end
   else
@@ -3362,7 +3480,7 @@ begin
           ErrMsg := E.Message;
       end;
         
-      TThread.Queue(nil,
+      TThread.Queue(nil, TThreadProcedure(
         procedure
         begin
           HideBusyState();
@@ -3379,7 +3497,7 @@ begin
           FConfig.Save(FPaths);
           RefreshStatus;
           FStatusRefreshTimer.Enabled := True;
-        end);
+        end));
     end).Start;
 end;
 
@@ -3738,7 +3856,7 @@ begin
       if ResultInfo.Success and ApacheWasRunning then
         RestartInfo := FRuntime.RestartApache;
 
-      TThread.Queue(nil,
+      TThread.Queue(nil, TThreadProcedure(
         procedure
         begin
           HideBusyState();
@@ -3749,7 +3867,7 @@ begin
           FConfig.Save(FPaths);
           RefreshStatus;
           LoadStateIntoUi;
-        end);
+        end));
     end).Start;
 end;
 
@@ -3772,7 +3890,7 @@ begin
     begin
       ResultInfo := FRuntime.SetMariaDbRootPassword(DialogResult.Password);
       
-      TThread.Queue(nil,
+      TThread.Queue(nil, TThreadProcedure(
         procedure
         begin
           HideBusyState();
@@ -3780,7 +3898,7 @@ begin
           if ResultInfo.Success then
             FConfig.Save(FPaths);
           RefreshStatus;
-        end);
+        end));
     end).Start;
 end;
 
@@ -3885,13 +4003,16 @@ end;
 
 procedure TMainForm.VHostFilterKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
 begin
-  if Key = VK_ESCAPE then
+  if DescribeVHostFilterKeyAction(Key, FVHostFilterEdit.Text) = 'clear' then
   begin
     Key := 0;
-    if Trim(FVHostFilterEdit.Text) <> '' then
-      FVHostFilterEdit.Clear
-    else
-      ActiveControl := nil;
+    FVHostFilterEdit.Clear;
+    Exit;
+  end;
+  if DescribeVHostFilterKeyAction(Key, FVHostFilterEdit.Text) = 'exit' then
+  begin
+    Key := 0;
+    ActiveControl := nil;
   end;
 end;
 

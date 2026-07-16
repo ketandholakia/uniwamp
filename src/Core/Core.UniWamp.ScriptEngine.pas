@@ -44,6 +44,7 @@ implementation
 uses
   Core.UniWamp.ProcessManager,
   Core.UniWamp.Security,
+  Core.UniWamp.Secrets,
   System.Classes,
   System.JSON,
   System.IOUtils,
@@ -175,25 +176,8 @@ begin
 end;
 
 function TScriptEngine.MariaDbRootPassword: string;
-var
-  ConfigFile: string;
-  JsonValue: TJSONValue;
-  JsonObject: TJSONObject;
 begin
-  Result := '';
-  ConfigFile := TPath.Combine(FPaths.ConfigDir, 'uniwamp.json');
-  if not TFile.Exists(ConfigFile) then
-    Exit;
-  JsonValue := TJSONObject.ParseJSONValue(TFile.ReadAllText(ConfigFile, TEncoding.UTF8));
-  if not Assigned(JsonValue) then
-    Exit;
-  try
-    JsonObject := JsonValue as TJSONObject;
-    if Assigned(JsonObject) then
-      Result := JsonObject.GetValue<string>('mariaDbRootPassword');
-  finally
-    JsonValue.Free;
-  end;
+  Result := LoadMariaDbRootPassword(FPaths);
 end;
 
 function TScriptEngine.CreateDatabase(const DatabaseName: string; out Output: string): Boolean;

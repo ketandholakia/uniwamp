@@ -57,6 +57,9 @@ Completed:
 - Added focused config harness coverage for malformed, partially valid, and already-current `config/uniwamp.json` cases.
 - Verified `LoadOrCreate` only reports migration when data actually changes.
 - Kept the repository-level verification script green after the config coverage update.
+- Removed plaintext `mariaDbRootPassword` persistence from `config/uniwamp.json`.
+- Added protected local MariaDB secret storage through `Core.UniWamp.Secrets`.
+- Added config harness coverage for migrating a legacy plaintext MariaDB root password into protected local storage.
 
 ## Phase 2: Process and service lifecycle reliability
 
@@ -71,6 +74,11 @@ Tests: stale PID, PID reuse, duplicate start, timeout, failed executable, gracef
 
 Completed:
 
+- Added `Core.UniWamp.ServiceSupervisor` as a first supervision boundary for owned-process resolution and stop behavior.
+- Switched Apache and MariaDB runtime state checks to use supervisor-owned process resolution instead of mixed ad hoc PID checks.
+- Simplified main-form status refresh so the UI now trusts runtime-derived service state instead of re-deriving it from stale config values.
+- Moved owner-aware TCP port inspection into `Core.UniWamp.PortUtils` so startup validation and diagnostics share one conflict-inspection path.
+- Switched Apache and MariaDB port-conflict reporting to use the shared port-owner utility instead of runtime-local `netstat` parsing.
 - Added process harness coverage for Apache start blocking when configuration validation fails.
 - Verified the start path reports the real validation failure output and does not leave Apache state marked as running.
 - Added process harness coverage for idempotent stop behavior when Apache and MariaDB are already stopped.
@@ -83,6 +91,10 @@ Completed:
 - Verified the process manager terminates a running helper process and clears the running state afterward.
 - Added process harness coverage for MariaDB port-conflict reporting before startup.
 - Verified the MariaDB start path reports the occupied port and leaves runtime state cleared.
+- Removed the `taskkill /IM httpd.exe /T /F` fallback from Apache shutdown.
+- Added process harness coverage proving `StopApache` does not kill an unrelated `httpd.exe` process.
+- Centralized service-state application and cleared stale service flags through runtime helpers.
+- Made Apache and MariaDB stop paths explicitly idempotent when the supervisor boundary reports no owned process.
 
 ## Phase 3: Runtime-specific correctness
 
@@ -98,6 +110,26 @@ Completed:
 - Verified the runtime updates `SelectedPhpVersion` to the installed PHP directory before continuing Apache startup validation.
 - Added process harness coverage for MariaDB first-run initialization backing up a dirty data directory.
 - Verified the initialization path preserves the stale data in a timestamped backup before retrying startup.
+- Added settings-form validation that refuses to save a PHP version unless `php.exe` and an Apache module exist.
+- Kept the current config unchanged when the selected PHP runtime is not actually installed.
+- Taught PHP runtime sync to prefer a version with both `php.exe` and an Apache module instead of a bare folder.
+- Added process harness coverage for PHP sync skipping incomplete runtimes in favor of a compatible one.
+- Added settings-form validation that refuses to save a Node.js version unless `node.exe` exists.
+- Taught Node runtime sync to prefer an installed runtime with `node.exe` instead of a bare folder.
+- Added process harness coverage for Node sync skipping incomplete runtimes in favor of a compatible one.
+- Stopped the status refresh path from clearing MariaDB init errors just because the data directory exists.
+- Centralized Apache and MariaDB start-path failure recording through shared runtime helpers.
+- MariaDB bootstrap failures now mention when a dirty data directory was backed up before retrying initialization.
+- Added process harness coverage for Apache port-conflict reporting with an owner process line when the port is occupied.
+- Added process harness coverage proving generated Apache, PHP, and MariaDB config files stay under `config\generated`.
+- Added runtime vHost validation so invalid server names and document roots are rejected before any file writes.
+- Added process harness coverage for invalid vHost input rejection.
+- Added a runtime wrapper for vHost deletion and process harness coverage for preserving unmanaged hosts entries.
+- Added process harness coverage for removing SSL certificate and key files when an SSL vHost is deleted.
+- Added process harness coverage for diagnostic reports reflecting an overridden hosts-file path.
+- Made the status-bar hint wording service-neutral instead of hardcoding MariaDB.
+- Added process harness coverage for the shared status-bar hint wording on both Apache and MariaDB failures.
+- Made the dashboard status hint prefer Apache errors when Apache is the active failure source.
 
 ## Phase 4: Virtual hosts, hosts file, and HTTPS
 
@@ -115,6 +147,7 @@ Completed:
 - Verified vHost creation keeps the saved project state even when hosts sync cannot complete.
 - Added process harness coverage for SSL certificate generation failure when OpenSSL is unavailable.
 - Verified the certificate workflow reports the missing executable and remains separate from hosts trust handling.
+- Removed implicit `mkcert` download-and-execute behavior from the SSL generation path.
 
 ## Phase 5: Diagnostics, logging, and recovery
 
@@ -161,6 +194,7 @@ Completed:
 - Generated terminal environment scripts without a UTF-8 BOM so `cmd.exe` and Cmder can consume them reliably.
 - Added process harness coverage that verifies `env.bat` begins with plain ASCII `@echo off`.
 - Added process harness coverage that verifies relative terminal executable paths resolve against the app root.
+- Added process harness coverage for preferred terminal executable selection using real Cmder and Windows Terminal files.
 - Added process harness coverage for multiline tool-panel hints on dashboard, Adminer, PHP, and terminal actions.
 - Added process harness coverage for vHost action hints on add, delete, open, folder, and copy actions.
 - Added process harness coverage for log action hints on open and clear operations.
@@ -169,6 +203,7 @@ Completed:
 - Added process harness coverage for copy action hints on diagnostic report and activity log actions.
 - Added process harness coverage for the MariaDB status-bar hint wording.
 - Reworked the tool-panel layout so sidebar actions are stacked and grouped by purpose.
+- Stacked the php.ini, httpd.conf, and mariadb.ini sidebar controls with a wider, taller layout so the captions no longer clip.
 - Refined the sidebar styling with centered labels, icon-free action buttons, and distinct section colors.
 - Tightened sidebar spacing so more actions fit in the right rail with less vertical waste.
 - Moved log actions into the right sidebar and expanded the activity area to use the freed bottom space.
@@ -189,6 +224,26 @@ Completed:
 - Reverted the vHost header strip change and kept the filter on the grid card.
 - Increased sidebar header label height while keeping the sidebar buttons slightly shorter.
 - Moved the vHost filter controls to the right side of the `Virtual hosts` header and enlarged sidebar button height to prevent terminal overlap.
+- Added a dedicated `Type` column to the vHost grid so project classification is visible alongside each document root.
+- Updated vHost grid hit testing and rendering for the five-column layout and verified both harnesses still pass.
+- Added vHost grid keyboard shortcuts for open, folder, terminal, copy, and delete actions.
+- Added process harness coverage for the vHost grid keyboard shortcut helper.
+- Added focus-state invalidation and focus ring feedback for the vHost grid.
+- Made the vHost grid reachable through tab order so keyboard navigation can enter the selection list.
+- Set the vHost grid to row-select mode so keyboard navigation tracks whole projects instead of individual cells.
+- Added persisted VCL style selection to application settings and applied it at startup.
+- Added config harness coverage for the persisted theme style setting.
+- Added config harness coverage for unknown theme styles surviving a config round-trip.
+- Added a startup fallback to the default VCL style when a saved style cannot be applied.
+- Clarified the vHost filter search hint and escape-to-clear guidance.
+- Added process harness coverage for the updated vHost filter search hint.
+- Added process harness coverage for the vHost filter Escape key behavior.
+- Improved the vHost empty state with a keyboard-oriented search/add prompt and higher-contrast styling.
+- Renamed the vHost folder action from `Open Root` to `Open Folder` for clearer intent.
+- Renamed the vHost delete action to `Delete Project` to match the actual removal behavior.
+- Aligned the remaining vHost action wording so the browser and terminal actions also speak in project terms.
+- Made the Apache status card show `Stopped` when the service is not running.
+- Made the MariaDB status card show `Stopped` when the service is not running.
 - Removed the duplicate repo-terminal sidebar control and kept the streamed DFM control only once.
 - Widened the vHost action buttons so captions like `Open Selected` and `Delete Selected` render without clipping.
 - Reduced the right-sidebar button height slightly to keep the rail compact.
@@ -212,10 +267,18 @@ Completed:
 - Added a repo-root terminal shortcut in the tool panel for Git and maintenance workflows.
 - Added a SHA-256 file digest helper to support future runtime archive integrity checks.
 - Added ZIP archive validation coverage for the future local runtime import flow.
+- Added process harness coverage for rejecting empty runtime ZIP archives.
 - Added local ZIP runtime import coverage that extracts portable payloads into the app root.
+- Replaced unsafe runtime ZIP extraction with the existing safe ZIP extractor.
+- Enforced plain-file-name validation for staged update manifests before resolving package paths.
+- Added process harness coverage for rejecting manifest traversal names and ZIP traversal entries.
 - Added a portable update staging workspace under `tmp\updates` for future staged updater work.
 - Added process harness coverage for update staging workspace creation inside the portable root.
 - Added rollback snapshot and restore helpers for staged update workspaces.
+- Added process harness coverage for rejecting rollback snapshots without a staging directory.
+- Added process harness coverage for rejecting empty rollback snapshot names.
+- Added process harness coverage for cleanup on a missing update workspace directory.
+- Added process harness coverage for rejecting empty update package names during staging setup.
 - Added a Composer launcher in the tool panel for repository-root maintenance workflows.
 - Added a Git launcher in the tool panel for repository-root maintenance workflows.
 - Added a Node launcher in the tool panel for repository-root maintenance workflows.
@@ -224,6 +287,7 @@ Completed:
 - Added a Redis launcher in the tool panel for local cache/service workflows.
 - Added a Memcached launcher in the tool panel for local cache/service workflows.
 - Added a SHA-256 package validation helper for staged update integrity checks.
+- Added process harness coverage for rejecting mismatched package hashes.
 - Added an update manifest validator for staged update package metadata.
 - Added staged update metadata output for package, hash, version, and workspace tracking.
 - Added an npm launcher in the tool panel for Node.js repository workflows.

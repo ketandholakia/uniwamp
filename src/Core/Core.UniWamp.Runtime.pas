@@ -10,9 +10,11 @@ uses
   Core.UniWamp.Config,
   Core.UniWamp.Types,
   Core.UniWamp.Interfaces,
-  Core.UniWamp.Paths;
+  Core.UniWamp.Paths,
+  Core.UniWamp.ServiceSupervisor;
 
 function ChoosePreferredTerminalExecutable(const CmderPath, WindowsTerminalPath: string): string;
+function DescribeTerminalLaunchMode(const TerminalExecutable: string): string;
 
 type
 
@@ -44,8 +46,16 @@ type
     function SelectedPhpDir: string;
     function SelectedPhpExe: string;
     function SelectedNodeDir: string;
+    function IsCompatiblePhpVersion(const Version: string): Boolean;
+    function IsCompatibleNodeVersion(const Version: string): Boolean;
 
     function ServiceStateLabel(const Running: Boolean): string;
+    procedure ApplyApacheState(const State: TServiceProcessState);
+    procedure ApplyMariaDbState(const State: TServiceProcessState);
+    procedure ClearApacheState;
+    procedure ClearMariaDbState;
+    procedure FailApacheStart(const ErrorMessage: string);
+    procedure FailMariaDbStart(const ErrorMessage: string);
 
     function ValidateApachePorts(out ErrorMessage: string): Boolean;
     function ValidateApacheConfiguration(out ErrorMessage: string): Boolean;
@@ -69,6 +79,23 @@ type
     function StartMariaDb: TRuntimeActionResult;
     function StopMariaDb: TRuntimeActionResult;
     function RestartMariaDb: TRuntimeActionResult;
+    function AddVHost(const ServerName, DocumentRoot, ServerAliases: string; EnableSsl: Boolean): TRuntimeActionResult;
+    function DeleteVHost(const ServerName: string): TRuntimeActionResult;
+    function GenerateSslCertificate: TRuntimeActionResult;
+    function GenerateEnvBat(const WorkingDir: string): Boolean;
+    function ComputeFileSha256Hex(const FileName: string): string;
+    function ValidatePackageSha256(const PackageFileName, ExpectedSha256: string; out ErrorMessage: string): Boolean;
+    function ValidateUpdateManifest(const ManifestFileName: string; out PackageFileName, ExpectedSha256, PackageVersion: string; out ErrorMessage: string): Boolean;
+    function WriteUpdateStagingMetadata(const StagingDir, PackageFileName, ExpectedSha256, PackageVersion: string; out MetadataFileName, ErrorMessage: string): Boolean;
+    function CleanupUpdateWorkspace(const WorkspaceDir: string; out ErrorMessage: string): Boolean;
+    function StageValidatedUpdatePackage(const ManifestFileName: string; out StagingDir, MetadataFileName, ErrorMessage: string): Boolean;
+    function PromoteStagedUpdate(const StagingDir, TargetDir: string; out BackupDir, ErrorMessage: string;
+      ForceFailureAfterBackup: Boolean = False): Boolean;
+    function ValidateRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
+    function ImportRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
+    function PrepareUpdateStagingArea(const PackageName: string; out StagingDir: string; out ErrorMessage: string): Boolean;
+    function CreateUpdateRollbackSnapshot(const StagingDir, SnapshotName: string; out SnapshotDir: string; out ErrorMessage: string): Boolean;
+    function RollbackUpdateStagingArea(const SnapshotDir, RestoreDir: string; out ErrorMessage: string): Boolean;
 
     function LaunchUrl(const Url: string): TRuntimeActionResult;
     function LaunchComposerInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
@@ -92,7 +119,6 @@ type
 
 
     function SetMariaDbRootPassword(const NewPassword: string): TRuntimeActionResult;
-    function DescribePortOwner(const Port: Integer): string;
     function BuildDiagnosticReport: string;
   end;
 
@@ -111,7 +137,9 @@ uses
   Core.UniWamp.ConfigGenerator,
   Core.UniWamp.VHostManager,
   Core.UniWamp.ServiceLocator,
-  Core.UniWamp.HostsFileService;
+  Core.UniWamp.HostsFileService,
+  Core.UniWamp.PackageManager,
+  Core.UniWamp.Secrets;
 
 
 
@@ -143,6 +171,15 @@ begin
   if WindowsTerminalPath <> '' then
     Exit(WindowsTerminalPath);
   Result := 'cmd.exe';
+end;
+
+function DescribeTerminalLaunchMode(const TerminalExecutable: string): string;
+begin
+  if SameText(ExtractFileName(TerminalExecutable), 'wt.exe') then
+    Exit('windows-terminal');
+  if SameText(ExtractFileName(TerminalExecutable), 'cmd.exe') then
+    Exit('cmd');
+  Exit('cmder');
 end;
 
 function TUniWampRuntime.BundledToolExecutable(const ToolDir, ExecutableName: string): string;
@@ -195,34 +232,23 @@ begin
 end;
 
 function TUniWampRuntime.ApacheRuntimePid: Cardinal;
-var
-  PidText: string;
-  ParsedPid: UInt64;
 begin
-  Result := 0;
-  if not FileExists(TPath.Combine(FPaths.LogsDir, 'httpd.pid')) then
-    Exit;
-
-  PidText := Trim(TFile.ReadAllText(TPath.Combine(FPaths.LogsDir, 'httpd.pid'), TEncoding.UTF8));
-  if not TryStrToUInt64(PidText, ParsedPid) then
-    Exit;
-  if ParsedPid > High(Cardinal) then
-    Exit;
-  
-  if not TProcessManager.IsProcessExecutable(Cardinal(ParsedPid), ApacheExe) then
-    Result := 0
-  else
-    Result := Cardinal(ParsedPid);
+  Result := TServiceProcessSupervisor.ResolveOwnedProcess(
+    FConfig.ApachePid,
+    ApacheExe,
+    TPath.Combine(FPaths.LogsDir, 'httpd.pid')).ProcessId;
 end;
 
 function TUniWampRuntime.ApacheIsRunning: Boolean;
+var
+  State: TServiceProcessState;
 begin
-  Result := (ApacheRuntimePid <> 0) and TProcessManager.IsRunning(ApacheRuntimePid);
-  if not Result and (FConfig.ApachePid <> 0) and not TProcessManager.IsRunning(FConfig.ApachePid) then
-  begin
-    FConfig.ApachePid := 0;
-    FConfig.ApacheRunning := False;
-  end;
+  State := TServiceProcessSupervisor.ResolveOwnedProcess(
+    FConfig.ApachePid,
+    ApacheExe,
+    TPath.Combine(FPaths.LogsDir, 'httpd.pid'));
+  Result := State.Running;
+  ApplyApacheState(State);
 end;
 
 function TUniWampRuntime.ApacheProcessId: Cardinal;
@@ -265,21 +291,56 @@ begin
 end;
 
 function TUniWampRuntime.MariaDbIsRunning: Boolean;
+var
+  State: TServiceProcessState;
 begin
-  Result := (FConfig.MariaDbPid <> 0) and 
-            TProcessManager.IsRunning(FConfig.MariaDbPid) and 
-            TProcessManager.IsProcessExecutable(FConfig.MariaDbPid, MariaDbExe);
-            
-  if not Result and (FConfig.MariaDbPid <> 0) then
-  begin
-    FConfig.MariaDbPid := 0;
-    FConfig.MariaDbRunning := False;
-  end;
+  State := TServiceProcessSupervisor.ResolveOwnedProcess(
+    FConfig.MariaDbPid,
+    MariaDbExe,
+    '');
+  Result := State.Running;
+  ApplyMariaDbState(State);
 end;
 
 function TUniWampRuntime.MysqlAdminExe: string;
 begin
   Result := TPath.Combine(FPaths.MariaDbBinDir, 'mysqladmin.exe');
+end;
+
+procedure TUniWampRuntime.ApplyApacheState(const State: TServiceProcessState);
+begin
+  FConfig.ApachePid := State.ProcessId;
+  FConfig.ApacheRunning := State.Running;
+end;
+
+procedure TUniWampRuntime.ApplyMariaDbState(const State: TServiceProcessState);
+begin
+  FConfig.MariaDbPid := State.ProcessId;
+  FConfig.MariaDbRunning := State.Running;
+end;
+
+procedure TUniWampRuntime.ClearApacheState;
+begin
+  FConfig.ApachePid := 0;
+  FConfig.ApacheRunning := False;
+end;
+
+procedure TUniWampRuntime.ClearMariaDbState;
+begin
+  FConfig.MariaDbPid := 0;
+  FConfig.MariaDbRunning := False;
+end;
+
+procedure TUniWampRuntime.FailApacheStart(const ErrorMessage: string);
+begin
+  ClearApacheState;
+  FConfig.LastApacheError := ErrorMessage;
+end;
+
+procedure TUniWampRuntime.FailMariaDbStart(const ErrorMessage: string);
+begin
+  ClearMariaDbState;
+  FConfig.LastMariaDbError := ErrorMessage;
 end;
 
 function TUniWampRuntime.ResolvePortablePath(const PathValue: string): string;
@@ -774,99 +835,35 @@ begin
     Result := TPath.Combine(SelectedPhpDir, 'php7apache2_4.dll');
 end;
 
-
-
-function TUniWampRuntime.DescribePortOwner(const Port: Integer): string;
+function TUniWampRuntime.IsCompatiblePhpVersion(const Version: string): Boolean;
 var
-  SystemRoot: string;
-  NetstatOutput: string;
-  HelperError: string;
-  Lines: TStringList;
-  Tokens: TStringList;
-  Line: string;
-  PidText: string;
-  OwnerPid: Cardinal;
-  TasklistOutput: string;
-  CsvLines: TStringList;
-  CsvFields: TStringList;
-  ImageName: string;
+  PhpDir: string;
 begin
-  Result := '';
-  ImageName := '';
-  SystemRoot := GetEnvironmentVariable('SystemRoot');
-  if SystemRoot = '' then
-    SystemRoot := 'C:\Windows';
-  SystemRoot := TPath.Combine(SystemRoot, 'System32');
-
-  if not TProcessManager.RunAndCaptureOutput(
-    TPath.Combine(SystemRoot, 'netstat.exe'),
-    '-ano -p tcp',
-    SystemRoot,
-    NetstatOutput) then
-  begin
-    HelperError := Trim(NetstatOutput);
-    if HelperError <> '' then
-      Result := 'port scan unavailable: ' + HelperError;
+  Result := False;
+  if Trim(Version) = '' then
     Exit;
-  end;
-
-  Lines := TStringList.Create;
-  Tokens := TStringList.Create;
-  CsvLines := TStringList.Create;
-  CsvFields := TStringList.Create;
-  try
-    Lines.Text := NetstatOutput;
-    for Line in Lines do
-    begin
-      if Pos(':' + Port.ToString, Line) = 0 then
-        Continue;
-      if Pos('LISTENING', UpperCase(Line)) = 0 then
-        Continue;
-
-      Tokens.Clear;
-      ExtractStrings([' ', #9], [], PChar(Trim(Line)), Tokens);
-      if Tokens.Count = 0 then
-        Continue;
-
-      PidText := Tokens[Tokens.Count - 1];
-      if not TryStrToUInt(PidText, OwnerPid) then
-        Continue;
-      if OwnerPid = 0 then
-        Continue;
-
-      if TProcessManager.RunAndCaptureOutput(
-        TPath.Combine(SystemRoot, 'tasklist.exe'),
-        Format('/FI "PID eq %d" /FO CSV /NH', [OwnerPid]),
-        SystemRoot,
-        TasklistOutput) then
-      begin
-        CsvLines.Text := Trim(TasklistOutput);
-        if CsvLines.Count > 0 then
-        begin
-          CsvFields.StrictDelimiter := True;
-          CsvFields.Delimiter := ',';
-          CsvFields.QuoteChar := '"';
-          CsvFields.DelimitedText := CsvLines[0];
-          if CsvFields.Count > 0 then
-            ImageName := CsvFields[0];
-        end;
-      end;
-      if (ImageName = '') and (Trim(TasklistOutput) <> '') then
-        ImageName := 'tasklist unavailable: ' + Trim(TasklistOutput);
-
-      if ImageName <> '' then
-        Result := Format('%s (PID %d)', [ImageName, OwnerPid])
-      else
-        Result := Format('PID %d', [OwnerPid]);
-      Exit;
-    end;
-  finally
-    CsvFields.Free;
-    CsvLines.Free;
-    Tokens.Free;
-    Lines.Free;
-  end;
+  PhpDir := TPath.Combine(FPaths.PhpDir, Version);
+  if not TDirectory.Exists(PhpDir) then
+    Exit;
+  if not FileExists(TPath.Combine(PhpDir, 'php.exe')) then
+    Exit;
+  Result := Length(TDirectory.GetFiles(PhpDir, 'php*apache2_4.dll')) > 0;
 end;
+
+function TUniWampRuntime.IsCompatibleNodeVersion(const Version: string): Boolean;
+var
+  NodeDir: string;
+begin
+  Result := False;
+  if Trim(Version) = '' then
+    Exit;
+  NodeDir := TPath.Combine(FPaths.NodeDir, Version);
+  if not TDirectory.Exists(NodeDir) then
+    Exit;
+  Result := FileExists(TPath.Combine(NodeDir, 'node.exe'));
+end;
+
+
 
 function TUniWampRuntime.BuildDiagnosticReport: string;
 var
@@ -877,9 +874,9 @@ var
 begin
   Lines := TStringList.Create;
   try
-    HttpOwner := DescribePortOwner(FConfig.HttpPort);
-    HttpsOwner := DescribePortOwner(FConfig.HttpsPort);
-    DbOwner := DescribePortOwner(FConfig.DatabasePort);
+    HttpOwner := DescribeTcpPortOwner(FConfig.HttpPort);
+    HttpsOwner := DescribeTcpPortOwner(FConfig.HttpsPort);
+    DbOwner := DescribeTcpPortOwner(FConfig.DatabasePort);
 
     Lines.Add('UniWamp Diagnostic Report');
     Lines.Add('Generated: ' + FormatDateTime('yyyy-mm-dd hh:nn:ss', Now));
@@ -901,7 +898,7 @@ begin
     Lines.Add('Last hosts sync: ' + FConfig.LastHostsSyncStatus);
     Lines.Add('Last Apache error: ' + FConfig.LastApacheError);
     Lines.Add('Last MariaDB error: ' + FConfig.LastMariaDbError);
-    if FConfig.MariaDbRootPassword <> '' then
+    if HasMariaDbRootPassword(FPaths) then
       Lines.Add('MariaDB root password: [redacted]')
     else
       Lines.Add('MariaDB root password: (not set)');
@@ -945,13 +942,20 @@ end;
 procedure TUniWampRuntime.SyncPhpVersions;
 var
   Versions: TArray<string>;
+  Candidate: string;
 begin
   Versions := DetectPhpVersions;
   if Length(Versions) > 0 then
   begin
     FConfig.ReplacePhpVersions(Versions);
-    if IndexText(FConfig.SelectedPhpVersion, Versions) < 0 then
-      FConfig.SelectedPhpVersion := Versions[0];
+    if IsCompatiblePhpVersion(FConfig.SelectedPhpVersion) then
+      Exit;
+    for Candidate in Versions do
+      if IsCompatiblePhpVersion(Candidate) then
+      begin
+        FConfig.SelectedPhpVersion := Candidate;
+        Exit;
+      end;
   end;
 end;
 
@@ -978,13 +982,20 @@ end;
 procedure TUniWampRuntime.SyncNodeVersions;
 var
   Versions: TArray<string>;
+  Candidate: string;
 begin
   Versions := DetectNodeVersions;
   if Length(Versions) > 0 then
   begin
     FConfig.ReplaceNodeVersions(Versions);
-    if IndexText(FConfig.SelectedNodeVersion, Versions) < 0 then
-      FConfig.SelectedNodeVersion := Versions[0];
+    if IsCompatibleNodeVersion(FConfig.SelectedNodeVersion) then
+      Exit;
+    for Candidate in Versions do
+      if IsCompatibleNodeVersion(Candidate) then
+      begin
+        FConfig.SelectedNodeVersion := Candidate;
+        Exit;
+      end;
   end;
 end;
 
@@ -999,7 +1010,7 @@ begin
   if not IsTcpPortAvailable(FConfig.HttpPort) and not ApacheRunningNow then
   begin
     Result := False;
-    OwnerInfo := DescribePortOwner(FConfig.HttpPort);
+    OwnerInfo := DescribeTcpPortOwner(FConfig.HttpPort);
     if OwnerInfo <> '' then
       ErrorMessage := Format('HTTP port %d is already in use by %s.', [FConfig.HttpPort, OwnerInfo])
     else
@@ -1009,7 +1020,7 @@ begin
   if FConfig.EnableSsl and not IsTcpPortAvailable(FConfig.HttpsPort) and not ApacheRunningNow then
   begin
     Result := False;
-    OwnerInfo := DescribePortOwner(FConfig.HttpsPort);
+    OwnerInfo := DescribeTcpPortOwner(FConfig.HttpsPort);
     if OwnerInfo <> '' then
       ErrorMessage := Format('HTTPS port %d is already in use by %s.', [FConfig.HttpsPort, OwnerInfo])
     else
@@ -1093,7 +1104,7 @@ begin
   if not IsTcpPortAvailable(FConfig.DatabasePort) and not MariaDbRunningNow then
   begin
     Result := False;
-    OwnerInfo := DescribePortOwner(FConfig.DatabasePort);
+    OwnerInfo := DescribeTcpPortOwner(FConfig.DatabasePort);
     if OwnerInfo <> '' then
       ErrorMessage := Format('Database port %d is already in use by %s.', [FConfig.DatabasePort, OwnerInfo])
     else
@@ -1119,9 +1130,11 @@ var
   ServerExe: string;
   BootstrapOutput: string;
   BootstrapCommand: string;
+  HadDirtyDataDir: Boolean;
 begin
   Result := False;
   ErrorMessage := '';
+  HadDirtyDataDir := False;
   DataDir := TPath.Combine(FPaths.MariaDbDir, 'data');
   MysqlDir := TPath.Combine(DataDir, 'mysql');
 
@@ -1144,6 +1157,7 @@ begin
     DataFiles := TDirectory.GetFiles(DataDir);
     if (Length(DataSubDirs) > 0) or (Length(DataFiles) > 0) or DirectoryExists(MysqlDir) then
     begin
+      HadDirtyDataDir := True;
       BackupDir := TPath.Combine(TPath.GetDirectoryName(DataDir),
         'data.bak-' + FormatDateTime('yyyymmdd-hhnnss', Now));
       AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log'),
@@ -1188,6 +1202,8 @@ begin
     ErrorMessage := Trim(BootstrapOutput);
     if ErrorMessage = '' then
       ErrorMessage := 'MariaDB initialization timed out while creating the system database.';
+    if HadDirtyDataDir then
+      ErrorMessage := ErrorMessage + ' The dirty data directory was backed up before retrying initialization.';
     AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log'),
       'MariaDB init output:' + sLineBreak + ErrorMessage);
     Exit;
@@ -1198,6 +1214,8 @@ begin
   if not MariaDbSystemDatabaseReady(MysqlDir) then
   begin
     ErrorMessage := 'MariaDB initialization did not create the mysql system database.';
+    if HadDirtyDataDir then
+      ErrorMessage := ErrorMessage + ' The dirty data directory was backed up before retrying initialization.';
     Exit;
   end;
 
@@ -1270,36 +1288,214 @@ end;
 procedure TUniWampRuntime.GenerateAllConfigs;
 var
   HostsError: string;
-  Generator: IConfigurationGenerator;
-  HostsFileService: IHostsFileService;
+  Generator: TConfigurationGenerator;
+  HostsFileService: THostsFileService;
 begin
   TTemplateRenderer.EnsureDefaultTemplates(FPaths);
-  Generator := TServiceLocator.Instance.GetService<IConfigurationGenerator>;
-  Generator.GeneratePhpConfig(SelectedPhpDir);
-  Generator.GenerateVHostConfig;
-  Generator.GenerateApacheConfig(ApacheModuleDir, ApacheModuleForSelectedPhp);
-  Generator.GenerateMariaDbConfig;
+  Generator := TConfigurationGenerator.Create(FPaths, FConfig);
+  try
+    Generator.GeneratePhpConfig(SelectedPhpDir);
+    Generator.GenerateVHostConfig;
+    Generator.GenerateApacheConfig(ApacheModuleDir, ApacheModuleForSelectedPhp);
+    Generator.GenerateMariaDbConfig;
+  finally
+    Generator.Free;
+  end;
 
-  HostsFileService := TServiceLocator.Instance.GetService<IHostsFileService>;
-  HostsFileService.SyncHostsFile(HostsError);
+  HostsFileService := THostsFileService.Create(FPaths, FConfig);
+  try
+    HostsFileService.SyncHostsFile(HostsError);
+  finally
+    HostsFileService.Free;
+  end;
+end;
+
+function TUniWampRuntime.GenerateEnvBat(const WorkingDir: string): Boolean;
+begin
+  with TConfigurationGenerator.Create(FPaths, FConfig) do
+  try
+    GenerateEnvBat(WorkingDir, SelectedPhpDir, SelectedNodeDir);
+    Result := True;
+  finally
+    Free;
+  end;
+end;
+
+function TUniWampRuntime.AddVHost(const ServerName, DocumentRoot, ServerAliases: string;
+  EnableSsl: Boolean): TRuntimeActionResult;
+begin
+  with TVHostManager.Create(FPaths, FConfig) do
+  try
+    Result := AddVHost(ServerName, DocumentRoot, ServerAliases, EnableSsl);
+  finally
+    Free;
+  end;
+end;
+
+function TUniWampRuntime.DeleteVHost(const ServerName: string): TRuntimeActionResult;
+begin
+  with TVHostManager.Create(FPaths, FConfig) do
+  try
+    Result := DeleteVHost(ServerName);
+  finally
+    Free;
+  end;
+end;
+
+function TUniWampRuntime.GenerateSslCertificate: TRuntimeActionResult;
+begin
+  with TVHostManager.Create(FPaths, FConfig) do
+  try
+    Result := GenerateSslCertificate;
+  finally
+    Free;
+  end;
+end;
+
+function TUniWampRuntime.ComputeFileSha256Hex(const FileName: string): string;
+begin
+  with TPackageManager.Create(FPaths) do
+  try
+    Result := ComputeFileSha256Hex(FileName);
+  finally
+    Free;
+  end;
+end;
+
+function TUniWampRuntime.ValidatePackageSha256(const PackageFileName, ExpectedSha256: string;
+  out ErrorMessage: string): Boolean;
+begin
+  with TPackageManager.Create(FPaths) do
+  try
+    Result := ValidatePackageSha256(PackageFileName, ExpectedSha256, ErrorMessage);
+  finally
+    Free;
+  end;
+end;
+
+function TUniWampRuntime.ValidateUpdateManifest(const ManifestFileName: string;
+  out PackageFileName, ExpectedSha256, PackageVersion: string; out ErrorMessage: string): Boolean;
+begin
+  with TPackageManager.Create(FPaths) do
+  try
+    Result := ValidateUpdateManifest(ManifestFileName, PackageFileName, ExpectedSha256, PackageVersion, ErrorMessage);
+  finally
+    Free;
+  end;
+end;
+
+function TUniWampRuntime.WriteUpdateStagingMetadata(const StagingDir, PackageFileName,
+  ExpectedSha256, PackageVersion: string; out MetadataFileName, ErrorMessage: string): Boolean;
+begin
+  with TPackageManager.Create(FPaths) do
+  try
+    Result := WriteUpdateStagingMetadata(StagingDir, PackageFileName, ExpectedSha256, PackageVersion, MetadataFileName, ErrorMessage);
+  finally
+    Free;
+  end;
+end;
+
+function TUniWampRuntime.CleanupUpdateWorkspace(const WorkspaceDir: string; out ErrorMessage: string): Boolean;
+begin
+  with TPackageManager.Create(FPaths) do
+  try
+    Result := CleanupUpdateWorkspace(WorkspaceDir, ErrorMessage);
+  finally
+    Free;
+  end;
+end;
+
+function TUniWampRuntime.StageValidatedUpdatePackage(const ManifestFileName: string;
+  out StagingDir, MetadataFileName, ErrorMessage: string): Boolean;
+begin
+  with TPackageManager.Create(FPaths) do
+  try
+    Result := StageValidatedUpdatePackage(ManifestFileName, StagingDir, MetadataFileName, ErrorMessage);
+  finally
+    Free;
+  end;
+end;
+
+function TUniWampRuntime.PromoteStagedUpdate(const StagingDir, TargetDir: string;
+  out BackupDir, ErrorMessage: string; ForceFailureAfterBackup: Boolean): Boolean;
+begin
+  with TPackageManager.Create(FPaths) do
+  try
+    Result := PromoteStagedUpdate(StagingDir, TargetDir, BackupDir, ErrorMessage, ForceFailureAfterBackup);
+  finally
+    Free;
+  end;
+end;
+
+function TUniWampRuntime.ValidateRuntimeZipArchive(const ZipFileName: string;
+  out ErrorMessage: string): Boolean;
+begin
+  with TPackageManager.Create(FPaths) do
+  try
+    Result := ValidateRuntimeZipArchive(ZipFileName, ErrorMessage);
+  finally
+    Free;
+  end;
+end;
+
+function TUniWampRuntime.ImportRuntimeZipArchive(const ZipFileName: string; out ErrorMessage: string): Boolean;
+begin
+  with TPackageManager.Create(FPaths) do
+  try
+    Result := ImportRuntimeZipArchive(ZipFileName, ErrorMessage);
+  finally
+    Free;
+  end;
+end;
+
+function TUniWampRuntime.PrepareUpdateStagingArea(const PackageName: string; out StagingDir: string;
+  out ErrorMessage: string): Boolean;
+begin
+  with TPackageManager.Create(FPaths) do
+  try
+    Result := PrepareUpdateStagingArea(PackageName, StagingDir, ErrorMessage);
+  finally
+    Free;
+  end;
+end;
+
+function TUniWampRuntime.CreateUpdateRollbackSnapshot(const StagingDir, SnapshotName: string;
+  out SnapshotDir: string; out ErrorMessage: string): Boolean;
+begin
+  with TPackageManager.Create(FPaths) do
+  try
+    Result := CreateUpdateRollbackSnapshot(StagingDir, SnapshotName, SnapshotDir, ErrorMessage);
+  finally
+    Free;
+  end;
+end;
+
+function TUniWampRuntime.RollbackUpdateStagingArea(const SnapshotDir, RestoreDir: string;
+  out ErrorMessage: string): Boolean;
+begin
+  with TPackageManager.Create(FPaths) do
+  try
+    Result := RollbackUpdateStagingArea(SnapshotDir, RestoreDir, ErrorMessage);
+  finally
+    Free;
+  end;
 end;
 
 function TUniWampRuntime.StartApache: TRuntimeActionResult;
 var
   StartResult: TProcessStartResult;
   ErrorMessage: string;
-  VHostManager: IVHostManager;
+  VHostManager: TVHostManager;
 begin
   if FConfig.ApacheRunning and not ApacheIsRunning then
   begin
     FConfig.LastApacheError := 'Stale Apache state detected; retrying start.';
-    FConfig.ApachePid := 0;
-    FConfig.ApacheRunning := False;
+    ClearApacheState;
   end;
 
   if ApacheIsRunning then
   begin
-    FConfig.ApacheRunning := True;
+    FConfig.LastApacheError := '';
     Result.Success := True;
     Result.Message := 'Apache already running.';
     Exit;
@@ -1309,41 +1505,44 @@ begin
   Result.Success := False;
   if not ValidateApachePorts(ErrorMessage) then
   begin
-    FConfig.LastApacheError := ErrorMessage;
+    FailApacheStart(ErrorMessage);
     Result.Message := ErrorMessage;
     Exit;
   end;
 
   if not FileExists(SelectedPhpExe) then
   begin
-    FConfig.LastApacheError := 'Selected PHP runtime is missing: ' + SelectedPhpExe;
+    FailApacheStart('Selected PHP runtime is missing: ' + SelectedPhpExe);
     Result.Message := 'Selected PHP runtime is missing: ' + SelectedPhpExe;
     Exit;
   end;
 
   if not FileExists(ApacheModuleForSelectedPhp) then
   begin
-    FConfig.LastApacheError := 'Apache PHP module missing for ' + FConfig.SelectedPhpVersion;
+    FailApacheStart('Apache PHP module missing for ' + FConfig.SelectedPhpVersion);
     Result.Message := 'Apache PHP module missing for ' + FConfig.SelectedPhpVersion;
     Exit;
   end;
 
   if FConfig.EnableSsl then
   begin
-    VHostManager := TServiceLocator.Instance.GetService<IVHostManager>;
-    if not VHostManager.EnsureDefaultSslCertificate(ErrorMessage) then
-    begin
-      FConfig.LastApacheError := ErrorMessage;
-      Result.Message := ErrorMessage;
-      Exit;
+    VHostManager := TVHostManager.Create(FPaths, FConfig);
+    try
+      if not VHostManager.EnsureDefaultSslCertificate(ErrorMessage) then
+      begin
+        FailApacheStart(ErrorMessage);
+        Result.Message := ErrorMessage;
+        Exit;
+      end;
+    finally
+      VHostManager.Free;
     end;
   end;
 
   GenerateAllConfigs;
   if not ValidateApacheConfiguration(ErrorMessage) then
   begin
-    FConfig.ApacheRunning := False;
-    FConfig.LastApacheError := ErrorMessage;
+    FailApacheStart(ErrorMessage);
     Result.Message := ErrorMessage;
     Exit;
   end;
@@ -1366,17 +1565,14 @@ begin
     end
     else
     begin
-      FConfig.ApachePid := 0;
-      FConfig.ApacheRunning := False;
-      FConfig.LastApacheError := ErrorMessage;
+      FailApacheStart(ErrorMessage);
       Result.Success := False;
       Result.Message := ErrorMessage;
     end;
   end
   else
   begin
-    FConfig.ApacheRunning := False;
-    FConfig.LastApacheError := StartResult.ErrorMessage;
+    FailApacheStart(StartResult.ErrorMessage);
     Result.Message := StartResult.ErrorMessage;
     AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'apache-error.log'), 'Apache failed to start: ' + StartResult.ErrorMessage);
   end;
@@ -1385,12 +1581,22 @@ end;
 function TUniWampRuntime.StopApache: TRuntimeActionResult;
 var
   StartResult: TProcessStartResult;
-  RuntimePid: Cardinal;
+  State: TServiceProcessState;
   SystemRoot: string;
 begin
   Result.Success := True;
   AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'apache-error.log'), 'Initiating Apache shutdown...');
-  RuntimePid := ApacheRuntimePid;
+  State := TServiceProcessSupervisor.ResolveOwnedProcess(
+    FConfig.ApachePid,
+    ApacheExe,
+    TPath.Combine(FPaths.LogsDir, 'httpd.pid'));
+  if not State.Running then
+  begin
+    ClearApacheState;
+    Result.Message := 'Apache stopped.';
+    AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'apache-error.log'), Result.Message);
+    Exit;
+  end;
   if FileExists(ApacheExe) then
   begin
     StartResult := TProcessManager.StartDetached(
@@ -1401,43 +1607,25 @@ begin
       TProcessManager.WaitForExit(StartResult.ProcessId, 4000);
   end;
 
-  if (RuntimePid <> 0) and TProcessManager.IsRunning(RuntimePid) then
-    Result.Success := TProcessManager.StopProcess(RuntimePid);
+  Result.Success := TServiceProcessSupervisor.StopOwnedProcess(State) and Result.Success;
 
-  if TProcessManager.IsRunning(FConfig.ApachePid) then
-    Result.Success := TProcessManager.StopProcess(FConfig.ApachePid) and Result.Success;
-  if (FConfig.ApachePid <> 0) and not TProcessManager.IsRunning(FConfig.ApachePid) then
-    FConfig.ApachePid := 0;
-
-  if (RuntimePid <> 0) and not IsTcpPortAvailable(FConfig.HttpPort) then
+  if (State.ProcessId <> 0) and not IsTcpPortAvailable(FConfig.HttpPort) then
   begin
     SystemRoot := TPath.Combine(GetEnvironmentVariable('SystemRoot'), 'System32');
     StartResult := TProcessManager.StartDetached(
       TPath.Combine(SystemRoot, 'taskkill.exe'),
-      '/PID ' + RuntimePid.ToString + ' /T /F',
+      '/PID ' + State.ProcessId.ToString + ' /T /F',
       SystemRoot);
     if StartResult.Success then
       TProcessManager.WaitForExit(StartResult.ProcessId, 4000);
   end;
 
-  if (RuntimePid <> 0) and FConfig.EnableSsl and (not IsTcpPortAvailable(FConfig.HttpsPort)) then
+  if (State.ProcessId <> 0) and FConfig.EnableSsl and (not IsTcpPortAvailable(FConfig.HttpsPort)) then
   begin
     SystemRoot := TPath.Combine(GetEnvironmentVariable('SystemRoot'), 'System32');
     StartResult := TProcessManager.StartDetached(
       TPath.Combine(SystemRoot, 'taskkill.exe'),
-      '/PID ' + RuntimePid.ToString + ' /T /F',
-      SystemRoot);
-    if StartResult.Success then
-      TProcessManager.WaitForExit(StartResult.ProcessId, 4000);
-  end;
-
-  if (not IsTcpPortAvailable(FConfig.HttpPort)) or
-     (FConfig.EnableSsl and (not IsTcpPortAvailable(FConfig.HttpsPort))) then
-  begin
-    SystemRoot := TPath.Combine(GetEnvironmentVariable('SystemRoot'), 'System32');
-    StartResult := TProcessManager.StartDetached(
-      TPath.Combine(SystemRoot, 'taskkill.exe'),
-      '/IM httpd.exe /T /F',
+      '/PID ' + State.ProcessId.ToString + ' /T /F',
       SystemRoot);
     if StartResult.Success then
       TProcessManager.WaitForExit(StartResult.ProcessId, 4000);
@@ -1445,8 +1633,7 @@ begin
 
   Sleep(1000);
 
-  FConfig.ApachePid := 0;
-  FConfig.ApacheRunning := False;
+  ClearApacheState;
   Result.Success := Result.Success and IsTcpPortAvailable(FConfig.HttpPort) and
     ((not FConfig.EnableSsl) or IsTcpPortAvailable(FConfig.HttpsPort));
   if Result.Success then
@@ -1482,13 +1669,12 @@ begin
   if FConfig.MariaDbRunning and not MariaDbIsRunning then
   begin
     FConfig.LastMariaDbError := 'Stale MariaDB state detected; retrying start.';
-    FConfig.MariaDbPid := 0;
-    FConfig.MariaDbRunning := False;
+    ClearMariaDbState;
   end;
 
   if MariaDbIsRunning then
   begin
-    FConfig.MariaDbRunning := True;
+    FConfig.LastMariaDbError := '';
     Result.Success := True;
     Result.Message := 'MariaDB already running.';
     Exit;
@@ -1497,15 +1683,14 @@ begin
   Result.Success := False;
   if not ValidateMariaDbPorts(ErrorMessage) then
   begin
-    FConfig.LastMariaDbError := ErrorMessage;
+    FailMariaDbStart(ErrorMessage);
     Result.Message := ErrorMessage;
     Exit;
   end;
 
   if not EnsureMariaDbInitialized(ErrorMessage) then
   begin
-    FConfig.MariaDbRunning := False;
-    FConfig.LastMariaDbError := ErrorMessage;
+    FailMariaDbStart(ErrorMessage);
     Result.Message := ErrorMessage;
     Exit;
   end;
@@ -1535,17 +1720,14 @@ begin
     end
     else
     begin
-      FConfig.MariaDbPid := 0;
-      FConfig.MariaDbRunning := False;
-      FConfig.LastMariaDbError := ErrorMessage;
+      FailMariaDbStart(ErrorMessage);
       Result.Success := False;
       Result.Message := ErrorMessage;
     end;
   end
   else
   begin
-    FConfig.MariaDbRunning := False;
-    FConfig.LastMariaDbError := StartResult.ErrorMessage;
+    FailMariaDbStart(StartResult.ErrorMessage);
     Result.Message := StartResult.ErrorMessage;
     AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log'), 'MariaDB failed to start: ' + StartResult.ErrorMessage);
   end;
@@ -1554,9 +1736,21 @@ end;
 function TUniWampRuntime.StopMariaDb: TRuntimeActionResult;
 var
   StartResult: TProcessStartResult;
+  State: TServiceProcessState;
 begin
   Result.Success := True;
   AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log'), 'Initiating MariaDB shutdown...');
+  State := TServiceProcessSupervisor.ResolveOwnedProcess(
+    FConfig.MariaDbPid,
+    MariaDbExe,
+    '');
+  if not State.Running then
+  begin
+    ClearMariaDbState;
+    Result.Message := 'MariaDB stopped.';
+    AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log'), Result.Message);
+    Exit;
+  end;
   if FileExists(MysqlAdminExe) then
   begin
     StartResult := TProcessManager.StartDetached(
@@ -1567,12 +1761,9 @@ begin
       TProcessManager.WaitForExit(StartResult.ProcessId, 4000);
   end;
 
-  if TProcessManager.IsRunning(FConfig.MariaDbPid) then
-    Result.Success := TProcessManager.StopProcess(FConfig.MariaDbPid);
-  if (FConfig.MariaDbPid <> 0) and not TProcessManager.IsRunning(FConfig.MariaDbPid) then
-    FConfig.MariaDbPid := 0;
-
-  FConfig.MariaDbRunning := False;
+  Result.Success := TServiceProcessSupervisor.StopOwnedProcess(State);
+  if not TProcessManager.IsRunning(State.ProcessId) then
+    ClearMariaDbState;
   if Result.Success then
     Result.Message := 'MariaDB stopped.'
   else
@@ -1607,6 +1798,8 @@ var
   Arguments: string;
   Output: string;
   LowerOutput: string;
+  CurrentPassword: string;
+  SecretError: string;
 begin
   if Trim(NewPassword) = '' then
   begin
@@ -1630,9 +1823,10 @@ begin
     Exit;
   end;
 
+  CurrentPassword := LoadMariaDbRootPassword(FPaths);
   Arguments := '--port=' + FConfig.DatabasePort.ToString + ' --user=root ';
-  if FConfig.MariaDbRootPassword <> '' then
-    Arguments := Arguments + '--password="' + FConfig.MariaDbRootPassword + '" ';
+  if CurrentPassword <> '' then
+    Arguments := Arguments + '--password="' + CurrentPassword + '" ';
   Arguments := Arguments + 'password "' + NewPassword + '"';
 
   if not TProcessManager.RunAndCaptureOutput(MysqlAdminExePath, Arguments, FPaths.MariaDbBinDir, Output) then
@@ -1657,6 +1851,12 @@ begin
     Exit;
   end;
 
+  if not SaveMariaDbRootPassword(FPaths, NewPassword, SecretError) then
+  begin
+    Result.Success := False;
+    Result.Message := SecretError;
+    Exit;
+  end;
   FConfig.MariaDbRootPassword := NewPassword;
   FConfig.LastMariaDbError := '';
   Result.Success := True;
@@ -1785,10 +1985,10 @@ begin
     Result.Success := ShellExecuteInWorkingDir(TerminalExe, '/START ' + QuoteForCmd(WorkingDir), '');
     if Result.Success then
       Result.Message := 'Launched Cmder terminal'
-    else
+      else
       Result.Message := 'Failed to launch Cmder terminal';
   end
-  else if SameText(ExtractFileName(TerminalExe), 'wt.exe') then
+  else if DescribeTerminalLaunchMode(TerminalExe) = 'windows-terminal' then
   begin
     Result.Success := ShellExecuteInWorkingDir(TerminalExe, '-d ' + QuoteForCmd(WorkingDir), '');
     if Result.Success then
