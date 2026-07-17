@@ -16,7 +16,7 @@
   "mariaDbPid": 0,
   "apacheRunning": false,
   "mariaDbRunning": false,
-  "lastApacheError": "Apache did not start listening on port 8080 within 30 seconds.",
+  "lastApacheError": "Apache restart failed during start: Apache did not start listening on port 8080 within 30 seconds.",
   "lastMariaDbError": "",
   "lastHostsSyncStatus": "Hosts synced",
   "apacheEnabledModules": [
@@ -79,5 +79,21 @@
     "error_reporting": "E_ALL"
   },
   "vhosts": [
+    {
+      "serverName": "myproject",
+      "serverAliases": "",
+      "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\myproject",
+      "enableSsl": false,
+      "sslCertFile": "",
+      "sslKeyFile": ""
+    },
+    {
+      "serverName": "myproject2",
+      "serverAliases": "",
+      "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\myproject2",
+      "enableSsl": false,
+      "sslCertFile": "",
+      "sslKeyFile": ""
+    }
   ]
 }

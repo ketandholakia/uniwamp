@@ -1142,7 +1142,9 @@ function dashboardRenderLayout(array $state, string $pageKey, string $pageTitle,
       <div class="dashboard-shell">
         <aside class="dashboard-sidebar">
           <a href="<?php echo dashboardH($state['overviewUrl']); ?>" class="dashboard-brand">
-            <div class="dashboard-brand-mark">UW</div>
+            <div class="dashboard-brand-mark">
+              <img src="/src/images/logo/logo_uniwamp_512.png" alt="UniWamp">
+            </div>
             <div>
               <div class="dashboard-brand-title">UniWamp</div>
               <div class="dashboard-brand-subtitle">Local stack dashboard</div>

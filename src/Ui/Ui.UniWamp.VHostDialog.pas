@@ -25,6 +25,7 @@ type
   TVHostDialog = class(TForm)
   private
     FBaseVHostDir: string;
+    FLastSuggestedDocumentRoot: string;
     FServerNameEdit: TEdit;
     FDocumentRootEdit: TEdit;
     FAliasesEdit: TEdit;
@@ -39,6 +40,38 @@ type
   end;
 
 implementation
+
+function BuildSuggestedFolderName(const Value: string): string;
+var
+  I: Integer;
+  C: Char;
+  LastWasSeparator: Boolean;
+begin
+  Result := '';
+  LastWasSeparator := False;
+  for I := 1 to Length(Value) do
+  begin
+    C := Value[I];
+    if CharInSet(C, ['A'..'Z', 'a'..'z', '0'..'9']) then
+    begin
+      Result := Result + C;
+      LastWasSeparator := False;
+    end
+    else if CharInSet(C, ['_', '-', ' ', '.']) then
+    begin
+      if not LastWasSeparator then
+      begin
+        Result := Result + '-';
+        LastWasSeparator := True;
+      end;
+    end;
+  end;
+  Result := Trim(Result);
+  while (Result <> '') and CharInSet(Result[1], ['-', '_']) do
+    Delete(Result, 1, 1);
+  while (Result <> '') and CharInSet(Result[Length(Result)], ['-', '_']) do
+    Delete(Result, Length(Result), 1);
+end;
 
 constructor TVHostDialog.Create(AOwner: TComponent);
 var
@@ -129,12 +162,25 @@ end;
 procedure TVHostDialog.ServerNameChanged(Sender: TObject);
 var
   NormalizedName: string;
+  SuggestedFolderName: string;
+  SuggestedDocumentRoot: string;
 begin
   NormalizedName := Trim(FServerNameEdit.Text);
   if NormalizedName = '' then
-    Exit;
-  if Trim(FDocumentRootEdit.Text) = '' then
-    FDocumentRootEdit.Text := TPath.Combine(FBaseVHostDir, NormalizedName);
+    SuggestedDocumentRoot := ''
+  else
+  begin
+    SuggestedFolderName := BuildSuggestedFolderName(NormalizedName);
+    if SuggestedFolderName = '' then
+      SuggestedDocumentRoot := ''
+    else
+      SuggestedDocumentRoot := TPath.Combine(FBaseVHostDir, SuggestedFolderName);
+  end;
+
+  if (Trim(FDocumentRootEdit.Text) = '') or SameText(Trim(FDocumentRootEdit.Text), FLastSuggestedDocumentRoot) then
+    FDocumentRootEdit.Text := SuggestedDocumentRoot;
+
+  FLastSuggestedDocumentRoot := SuggestedDocumentRoot;
 end;
 
 procedure TVHostDialog.OkClick(Sender: TObject);
@@ -176,9 +222,14 @@ begin
     Dialog.FBaseVHostDir := BaseVHostDir;
     Dialog.FServerNameEdit.Text := DefaultServerName;
     if DefaultDocumentRoot <> '' then
+    begin
       Dialog.FDocumentRootEdit.Text := DefaultDocumentRoot
+    end
     else if DefaultServerName <> '' then
-      Dialog.FDocumentRootEdit.Text := TPath.Combine(BaseVHostDir, DefaultServerName);
+    begin
+      Dialog.FDocumentRootEdit.Text := TPath.Combine(BaseVHostDir, BuildSuggestedFolderName(DefaultServerName));
+      Dialog.FLastSuggestedDocumentRoot := Dialog.FDocumentRootEdit.Text;
+    end;
     Dialog.FAliasesEdit.Text := DefaultAliases;
     Dialog.FSslCheck.Checked := DefaultEnableSsl;
     Result.Accepted := Dialog.ShowModal = mrOk;

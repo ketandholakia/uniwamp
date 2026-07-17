@@ -99,6 +99,7 @@ type
     OpenVHostTerminalButton: TPanel;
     CopyVHostUrlButton: TPanel;
     DeleteVHostButton: TPanel;
+    ActivityLogSplitter: TSplitter;
     Panel7: TPanel;
     Panel4: TPanel;
     OpenApacheLogButton: TPanel;
@@ -119,6 +120,7 @@ type
     Panel13: TPanel;
     CopyDiagnosticReportButton: TPanel;
     CopyActivityLogButton: TPanel;
+    OpenHostsFileButton: TPanel;
     ToolGroupWebLabel: TPanel;
     ToolGroupRuntimeLabel: TPanel;
     ToolGroupLogsLabel: TPanel;
@@ -279,6 +281,7 @@ type
   procedure LaunchAdminerClick(Sender: TObject);
     procedure CopyDiagnosticReportClick(Sender: TObject);
     procedure CopyActivityLogClick(Sender: TObject);
+    procedure OpenHostsFileClick(Sender: TObject);
     procedure OpenPhpExtensionsClick(Sender: TObject);
     procedure OpenPhpSettingsClick(Sender: TObject);
     procedure OpenAppSettingsClick(Sender: TObject);
@@ -1113,8 +1116,14 @@ begin
   ClearMariaLogButton.Parent := pnltools;
   ClearActivityLogButton.Parent := pnltools;
   Panel4.Visible := False;
+  ActivityLogSplitter.Align := alBottom;
+  ActivityLogSplitter.Height := 6;
+  ActivityLogSplitter.MinSize := 80;
+  ActivityLogSplitter.Cursor := crVSplit;
+  ActivityLogSplitter.Color := RGB(232, 236, 243);
   Panel7.Align := alBottom;
   Panel7.Height := 96;
+  Panel7.Constraints.MinHeight := 80;
   FActivityCard.Align := alClient;
   FActivityCard.Left := 0;
   FActivityCard.Width := Panel7.ClientWidth;
@@ -1419,6 +1428,22 @@ begin
     'Copies the current activity log text to the clipboard.');
   CopyActivityLogButton.ShowHint := True;
   CopyActivityLogButton.OnClick := CopyActivityLogClick;
+  OpenHostsFileButton := TPanel.Create(Self);
+  OpenHostsFileButton.Parent := pnltools;
+  OpenHostsFileButton.SetBounds(431, 41, 150, 24);
+  OpenHostsFileButton.Cursor := crHandPoint;
+  OpenHostsFileButton.BevelOuter := bvNone;
+  OpenHostsFileButton.Caption := 'Hosts File';
+  OpenHostsFileButton.Color := 16053492;
+  OpenHostsFileButton.Font.Assign(GenerateSslButton.Font);
+  OpenHostsFileButton.ParentBackground := False;
+  OpenHostsFileButton.ParentFont := False;
+  OpenHostsFileButton.TabOrder := 10;
+  OpenHostsFileButton.TabStop := True;
+  OpenHostsFileButton.Hint := BuildToolPanelHint('Open Windows hosts file',
+    'Shows the hosts file UniWamp reads and updates in the default text editor.');
+  OpenHostsFileButton.ShowHint := True;
+  OpenHostsFileButton.OnClick := OpenHostsFileClick;
   Panel8.Hint := BuildToolPanelHint('Open the local dashboard',
     'Only opens when Apache and MariaDB are both healthy.');
   Panel8.ShowHint := True;
@@ -1575,6 +1600,7 @@ begin
   ClearPanelIcon(UpdateButton);
   ClearPanelIcon(CopyDiagnosticReportButton);
   ClearPanelIcon(CopyActivityLogButton);
+  ClearPanelIcon(OpenHostsFileButton);
   ClearPanelIcon(OpenPhpExtensionsButton);
   ClearPanelIcon(OpenPhpSettingsButton);
   ClearPanelIcon(OpenApacheModulesButton);
@@ -1612,6 +1638,7 @@ begin
   SetButtonCaption(GenerateSslButton, 'Generate SSL');
   SetButtonCaption(CopyDiagnosticReportButton, 'Copy Report');
   SetButtonCaption(CopyActivityLogButton, 'Copy Activity');
+  SetButtonCaption(OpenHostsFileButton, 'Hosts File');
   SetButtonCaption(OpenApacheLogButton, 'Apache Log');
   SetButtonCaption(OpenMariaLogButton, 'MariaDB Log');
   SetButtonCaption(ClearApacheLogButton, 'Clear Apache');
@@ -1637,6 +1664,7 @@ begin
   ClearPanelIcon(SaveConfigButton);
   ClearPanelIcon(CopyDiagnosticReportButton);
   ClearPanelIcon(CopyActivityLogButton);
+  ClearPanelIcon(OpenHostsFileButton);
   ClearPanelIcon(OpenPhpExtensionsButton);
   ClearPanelIcon(OpenPhpSettingsButton);
   ClearPanelIcon(OpenApacheModulesButton);
@@ -1660,6 +1688,7 @@ begin
   SetButtonCaption(SaveConfigButton, 'Save Config');
   SetButtonCaption(CopyDiagnosticReportButton, 'Copy Report');
   SetButtonCaption(CopyActivityLogButton, 'Copy Activity');
+  SetButtonCaption(OpenHostsFileButton, 'Hosts File');
   SetButtonCaption(OpenPhpExtensionsButton, 'PHP Extensions');
   SetButtonCaption(OpenPhpSettingsButton, 'PHP Settings');
   SetButtonCaption(OpenApacheModulesButton, 'Apache Modules');
@@ -1912,6 +1941,7 @@ begin
   PlaceButton(SaveConfigButton);
   PlaceButton(CopyDiagnosticReportButton);
   PlaceButton(CopyActivityLogButton);
+  PlaceButton(OpenHostsFileButton);
   PlaceButton(UpdateButton);
 end;
 
@@ -3771,6 +3801,16 @@ begin
     MemoText := FActivityMemo.Text;
   Clipboard.AsText := ChooseActivityLogClipboardText(LogText, MemoText);
   AppendStatus('Activity log copied to clipboard.');
+end;
+
+procedure TMainForm.OpenHostsFileClick(Sender: TObject);
+var
+  HostsFileService: IHostsFileService;
+  HostsPath: string;
+begin
+  HostsFileService := THostsFileService.Create(FPaths, FConfig);
+  HostsPath := HostsFileService.HostsFilePath;
+  AppendStatus(FRuntime.LaunchTextEditor(HostsPath).Message);
 end;
 
 procedure TMainForm.GenerateSslClick(Sender: TObject);

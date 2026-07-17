@@ -910,7 +910,7 @@ object MainForm: TMainForm
           Left = 0
           Top = 449
           Width = 768
-          Height = 56
+          Height = 60
           Align = alBottom
           Alignment = taLeftJustify
           BevelKind = bkTile
@@ -920,9 +920,9 @@ object MainForm: TMainForm
           TabOrder = 3
           object AddVHostButton: TPanel
             Left = 17
-            Top = 15
+            Top = 14
             Width = 110
-            Height = 24
+            Height = 32
             Cursor = crHandPoint
             BevelOuter = bvNone
             Caption = 'Add'
@@ -938,9 +938,9 @@ object MainForm: TMainForm
           end
           object OpenVHostButton: TPanel
             Left = 131
-            Top = 15
+            Top = 14
             Width = 118
-            Height = 24
+            Height = 32
             Cursor = crHandPoint
             BevelOuter = bvNone
             Caption = 'Open Selected'
@@ -956,9 +956,9 @@ object MainForm: TMainForm
           end
           object OpenVHostFolderButton: TPanel
             Left = 259
-            Top = 15
+            Top = 14
             Width = 100
-            Height = 24
+            Height = 32
             Cursor = crHandPoint
             BevelOuter = bvNone
             Caption = 'Open Root'
@@ -974,9 +974,9 @@ object MainForm: TMainForm
           end
           object OpenVHostTerminalButton: TPanel
             Left = 369
-            Top = 15
+            Top = 14
             Width = 100
-            Height = 24
+            Height = 32
             Cursor = crHandPoint
             BevelOuter = bvNone
             Caption = 'Terminal'
@@ -992,9 +992,9 @@ object MainForm: TMainForm
           end
           object CopyVHostUrlButton: TPanel
             Left = 479
-            Top = 15
+            Top = 14
             Width = 100
-            Height = 24
+            Height = 32
             Cursor = crHandPoint
             BevelOuter = bvNone
             Caption = 'Copy URL'
@@ -1010,9 +1010,9 @@ object MainForm: TMainForm
           end
           object DeleteVHostButton: TPanel
             Left = 589
-            Top = 15
+            Top = 14
             Width = 130
-            Height = 24
+            Height = 32
             Cursor = crHandPoint
             BevelOuter = bvNone
             Caption = 'Delete Selected'
@@ -1027,16 +1027,28 @@ object MainForm: TMainForm
             TabOrder = 5
           end
         end
+        object ActivityLogSplitter: TSplitter
+          Left = 0
+          Top = 509
+          Width = 768
+          Height = 6
+          Cursor = crVSplit
+          Align = alBottom
+          Color = 15262952
+          MinSize = 80
+          ParentColor = False
+        end
         object Panel7: TPanel
           Left = 0
-          Top = 505
+          Top = 515
           Width = 768
-          Height = 137
+          Height = 127
           Align = alBottom
           Alignment = taLeftJustify
           BevelKind = bkTile
           BevelOuter = bvNone
           Color = clWhite
+          Constraints.MinHeight = 80
           ParentBackground = False
           TabOrder = 4
           object Panel4: TPanel

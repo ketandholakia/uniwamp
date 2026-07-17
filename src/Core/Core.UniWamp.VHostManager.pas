@@ -49,7 +49,10 @@ begin
   Values := TDictionary<string, string>.Create;
   try
     Values.Add('ServerName', ServerName);
+    Values.Add('SERVER_NAME', ServerName);
     Values.Add('DocumentRoot', DocumentRoot);
+    Values.Add('DOCUMENT_ROOT', DocumentRoot);
+    Values.Add('HTTP_PORT', FConfig.HttpPort.ToString);
     Values.Add('Timestamp', FormatDateTime('yyyy-mm-dd hh:nn:ss', Now));
     TTemplateRenderer.RenderToFile(TPath.Combine(FPaths.TemplatesDir, 'vhost-index.html.tpl'), IndexFile, Values);
   finally

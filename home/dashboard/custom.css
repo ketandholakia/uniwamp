@@ -71,15 +71,18 @@ html.dark .dashboard-sidebar {
 .dashboard-brand-mark {
   width: 48px;
   height: 48px;
-  border-radius: 16px;
-  display: grid;
-  place-items: center;
-  font-weight: 800;
-  color: #fff;
-  background:
-    linear-gradient(135deg, var(--dash-brand), #7b8cff 60%, #9cc0ff);
-  box-shadow: 0 14px 28px rgba(70, 95, 255, 0.28);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
   flex: 0 0 auto;
+}
+
+.dashboard-brand-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .dashboard-brand-title {
