@@ -7,6 +7,7 @@
 !/logs/.gitkeep
 /tmp/*
 !/tmp/.gitkeep
+/backups/
 
 # Third-party dashboard template artifacts
 /tailadmin-free-tailwind-dashboard-template-main/node_modules/
