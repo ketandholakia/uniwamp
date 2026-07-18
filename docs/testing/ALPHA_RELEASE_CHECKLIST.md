@@ -16,9 +16,9 @@ This checklist defines the minimum bar for an alpha release. It is intentionally
 
 - `[x]` Clean Delphi build produces `UniWamp.exe`.
 - `[x]` Build blocker from `UNIWAMP_RELEASE_READINESS.md` is resolved: `F2039 Could not create output file 'UniWamp.exe'`.
-- `[ ]` Worktree is clean except for intentional release files.
-- `[ ]` Version/tag name is chosen and documented as `v0.1.0-alpha`.
-- `[ ]` Release notes list alpha scope, known limitations, and required runtimes.
+- `[x]` Worktree is clean except for intentional release files.
+- `[x]` Version/tag name is chosen and documented as `v0.1.0-alpha`.
+- `[x]` Release notes list alpha scope, known limitations, and required runtimes.
 
 ## Packaging
 
@@ -88,8 +88,8 @@ This checklist defines the minimum bar for an alpha release. It is intentionally
 ## Documentation
 
 - `[x]` README explains the project purpose and repository layout.
-- `[ ]` README clearly labels the project as alpha.
-- `[ ]` README lists known alpha limitations.
+- `[x]` README clearly labels the project as alpha.
+- `[x]` README lists known alpha limitations.
 - `[ ]` README includes exact build instructions used for the release.
 - `[ ]` README includes exact packaging or installer instructions.
 - `[ ]` Release notes include tested Windows and Delphi versions.

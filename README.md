@@ -1,6 +1,27 @@
 # UniWamp
 
+Current release target: `v0.1.0-alpha`
+
+UniWamp is currently preparing for an alpha release. The alpha is intended for early validation on Windows development machines, not for production use or unattended deployment.
+
 UniWamp is a portable Windows WAMP dashboard built in Delphi 12.4. It controls a local Apache, MariaDB, and PHP stack from a single VCL app and keeps its runtime state inside the UniWamp folder.
+
+## Alpha Status
+
+Target version: `v0.1.0-alpha`
+
+Alpha scope:
+
+- Portable Windows WAMP dashboard for Apache, MariaDB, PHP, local vHosts, generated config, and developer tools.
+- Script catalog and installer flow for common PHP applications.
+- Early release packaging and clean-machine validation.
+
+Known alpha limitations:
+
+- Runtime binaries must be provided in the expected folders unless using a package profile that includes them.
+- Clean-machine, portability, and long-running stability validation are still tracked in `docs/testing/ALPHA_RELEASE_CHECKLIST.md`.
+- The script manager is under active validation and may need catalog-specific fixes for individual upstream installers.
+- The app is intended for local development only.
 
 ## What It Does
 
