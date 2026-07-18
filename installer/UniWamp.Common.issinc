@@ -63,7 +63,6 @@ Source: "..\runtime\apache\*"; DestDir: "{app}\runtime\apache"; Flags: recursesu
 Source: "..\runtime\mariadb\*"; DestDir: "{app}\runtime\mariadb"; Excludes: "data\*"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\templates\*"; DestDir: "{app}\templates"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\home\*"; DestDir: "{app}\home"; Flags: recursesubdirs createallsubdirs ignoreversion
-Source: "..\www\index.php"; DestDir: "{app}\www"; Flags: ignoreversion
 Source: "..\bin\cmder\*"; DestDir: "{app}\bin\cmder"; Excludes: "config\*"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\runtime\tools\lite-xl\*"; DestDir: "{app}\runtime\tools\lite-xl"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\scripts\*"; DestDir: "{app}\scripts"; Flags: recursesubdirs createallsubdirs ignoreversion
