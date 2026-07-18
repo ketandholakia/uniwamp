@@ -7,6 +7,7 @@ uses
   System.Hash,
   System.Zip,
   System.SysUtils,
+  System.Win.Registry,
   Core.UniWamp.Config,
   Core.UniWamp.Types,
   Core.UniWamp.Interfaces,
@@ -56,6 +57,7 @@ type
     procedure ClearMariaDbState;
     procedure FailApacheStart(const ErrorMessage: string);
     procedure FailMariaDbStart(const ErrorMessage: string);
+    function HasRequiredApacheVisualCRuntime(out ErrorMessage: string): Boolean;
     function PushPhpRuntimeToPath(const PhpDir: string; out OldPath: string): Boolean;
     procedure RestorePath(const OldPath: string);
 
@@ -256,6 +258,57 @@ end;
 function TUniWampRuntime.ApacheProcessId: Cardinal;
 begin
   Result := ApacheRuntimePid;
+end;
+
+function TUniWampRuntime.HasRequiredApacheVisualCRuntime(out ErrorMessage: string): Boolean;
+var
+  Registry: TRegistry;
+  Installed: Integer;
+  SystemRoot: string;
+  RuntimeDll: string;
+  VersionText: string;
+begin
+  ErrorMessage := '';
+  VersionText := '';
+
+  if SameText(Trim(GetEnvironmentVariable('UNIWAMP_FORCE_MISSING_VC_RUNTIME')), '1') then
+  begin
+    ErrorMessage := 'Microsoft Visual C++ Redistributable 2015-2022 (x64) is required for Apache 2.4.68 (Apache Lounge VS18). Install or repair the latest vc_redist.x64, then restart UniWamp.';
+    Exit(False);
+  end;
+
+  Registry := TRegistry.Create(KEY_READ or KEY_WOW64_64KEY);
+  try
+    Registry.RootKey := HKEY_LOCAL_MACHINE;
+    if Registry.OpenKeyReadOnly('SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64') then
+    try
+      if Registry.ValueExists('Version') then
+        VersionText := Trim(Registry.ReadString('Version'));
+      if Registry.ValueExists('Installed') then
+      begin
+        Installed := Registry.ReadInteger('Installed');
+        if Installed = 1 then
+          Exit(True);
+      end;
+    finally
+      Registry.CloseKey;
+    end;
+  finally
+    Registry.Free;
+  end;
+
+  SystemRoot := GetEnvironmentVariable('SystemRoot');
+  if SystemRoot <> '' then
+  begin
+    RuntimeDll := TPath.Combine(TPath.Combine(SystemRoot, 'System32'), 'vcruntime140.dll');
+    if FileExists(RuntimeDll) then
+      Exit(True);
+  end;
+
+  ErrorMessage := 'Microsoft Visual C++ Redistributable 2015-2022 (x64) is required for Apache 2.4.68 (Apache Lounge VS18). Install or repair the latest vc_redist.x64, then restart UniWamp.';
+  if VersionText <> '' then
+    ErrorMessage := ErrorMessage + ' Detected registry version: ' + VersionText + '.';
+  Result := False;
 end;
 
 function TUniWampRuntime.PushPhpRuntimeToPath(const PhpDir: string; out OldPath: string): Boolean;
@@ -1546,6 +1599,13 @@ begin
   begin
     FailApacheStart('Apache PHP module missing for ' + FConfig.SelectedPhpVersion);
     Result.Message := 'Apache PHP module missing for ' + FConfig.SelectedPhpVersion;
+    Exit;
+  end;
+
+  if not HasRequiredApacheVisualCRuntime(ErrorMessage) then
+  begin
+    FailApacheStart(ErrorMessage);
+    Result.Message := ErrorMessage;
     Exit;
   end;
 

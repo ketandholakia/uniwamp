@@ -1035,6 +1035,56 @@ begin
   end;
 end;
 
+procedure TestApacheStartReportsMissingVisualCRuntime;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Runtime: TUniWampRuntime;
+  ResultInfo: TRuntimeActionResult;
+  PreviousOverride: string;
+begin
+  RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-apache-vc-runtime-' + TGuid.NewGuid.ToString);
+  TDirectory.CreateDirectory(RootDir);
+  try
+    Paths := BuildPaths(RootDir);
+    EnsurePortableLayout(Paths);
+    TTemplateRenderer.EnsureDefaultTemplates(Paths);
+    TDirectory.CreateDirectory(TPath.Combine(Paths.PhpDir, 'php83'));
+    TFile.WriteAllText(TPath.Combine(Paths.PhpDir, 'php83\php.exe'), '', TEncoding.ASCII);
+    TFile.WriteAllText(TPath.Combine(Paths.PhpDir, 'php83\php83apache2_4.dll'), '', TEncoding.ASCII);
+    TDirectory.CreateDirectory(Paths.ApacheBinDir);
+    TFile.Copy('C:\Windows\System32\robocopy.exe', TPath.Combine(Paths.ApacheBinDir, 'httpd.exe'), True);
+
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+      Runtime := TUniWampRuntime.Create(Paths, Config);
+      try
+        PreviousOverride := GetEnvironmentVariable('UNIWAMP_FORCE_MISSING_VC_RUNTIME');
+        SetEnvironmentVariable('UNIWAMP_FORCE_MISSING_VC_RUNTIME', '1');
+        try
+          ResultInfo := Runtime.StartApache;
+        finally
+          if PreviousOverride = '' then
+            SetEnvironmentVariable('UNIWAMP_FORCE_MISSING_VC_RUNTIME', nil)
+          else
+            SetEnvironmentVariable('UNIWAMP_FORCE_MISSING_VC_RUNTIME', PChar(PreviousOverride));
+        end;
+        AssertTrue(not ResultInfo.Success, 'Apache start should fail when the VC++ runtime prerequisite is missing');
+        AssertContains(ResultInfo.Message, 'vc_redist.x64', 'Apache start should report the required Visual C++ redistributable');
+        AssertContains(Config.LastApacheError, 'Apache Lounge VS18', 'Apache failure state should preserve the VC++ runtime guidance');
+      finally
+        Runtime.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 procedure TestSyncPhpVersionsPrefersCompatibleRuntime;
 var
   RootDir: string;
@@ -2833,6 +2883,7 @@ begin
     TestDeleteSslVHostRemovesCertificateFiles;
     TestGenerateSslCertificateReportsMissingOpenSsl;
     TestApacheStartSyncsPhpVersionSelection;
+    TestApacheStartReportsMissingVisualCRuntime;
     TestSyncPhpVersionsPrefersCompatibleRuntime;
     TestSyncNodeVersionsPrefersExecutableRuntime;
     TestStopPathsAreIdempotentWhenAlreadyStopped;

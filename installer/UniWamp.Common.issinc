@@ -156,3 +156,44 @@ Name: "desktopicon"; Description: "Create a &desktop icon"; GroupDescription: "A
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "&Launch UniWamp"; Flags: nowait postinstall skipifsilent
+
+[Code]
+function HasRequiredApacheVisualCRuntime(): Boolean;
+var
+  Installed: Cardinal;
+  VersionText: string;
+begin
+  Result := False;
+  VersionText := '';
+
+  if RegQueryStringValue(HKLM64, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64', 'Version', VersionText) and
+     RegQueryDWordValue(HKLM64, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64', 'Installed', Installed) and
+     (Installed = 1) then
+  begin
+    Result := True;
+    exit;
+  end;
+
+  if FileExists(ExpandConstant('{sys}\vcruntime140.dll')) then
+  begin
+    Result := True;
+    exit;
+  end;
+end;
+
+function InitializeSetup(): Boolean;
+var
+  MessageText: string;
+begin
+  Result := HasRequiredApacheVisualCRuntime();
+  if Result then
+    exit;
+
+  MessageText :=
+    'UniWamp requires Microsoft Visual C++ Redistributable 2015-2022 (x64) before setup can continue.' + #13#10#13#10 +
+    'Bundled Apache: Apache 2.4.68 Win64 (Apache Lounge VS18).' + #13#10 +
+    'Required runtime: latest vc_redist.x64.' + #13#10#13#10 +
+    'Install or repair the x64 redistributable, then run this installer again.';
+
+  MsgBox(MessageText, mbCriticalError, MB_OK);
+end;
