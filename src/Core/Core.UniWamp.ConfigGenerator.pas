@@ -118,6 +118,7 @@ begin
     Block.Add('  DocumentRoot "' + NormalizedDocumentRoot + '"');
     Block.Add('  <Directory "' + NormalizedDocumentRoot + '">');
     Block.Add('    AllowOverride All');
+    Block.Add('    DirectoryIndex index.php index.html');
     Block.Add('    Require all granted');
     Block.Add('  </Directory>');
     Block.Add('</VirtualHost>');
@@ -138,6 +139,7 @@ begin
       Block.Add('  DocumentRoot "' + NormalizedDocumentRoot + '"');
       Block.Add('  <Directory "' + NormalizedDocumentRoot + '">');
       Block.Add('    AllowOverride All');
+      Block.Add('    DirectoryIndex index.php index.html');
       Block.Add('    Require all granted');
       Block.Add('  </Directory>');
       Block.Add('</VirtualHost>');
@@ -295,6 +297,7 @@ begin
     Lines.Add('set "UNIWAMP_DOCROOT=' + ResolvedWorkingDir + '"');
     Lines.Add('set "UNIWAMP_MARIADB_BIN=' + FPaths.MariaDbBinDir + '"');
     Lines.Add('set "UNIWAMP_PHP_VERSION=' + FConfig.SelectedPhpVersion + '"');
+    Lines.Add('set "PHPRC=' + FPaths.GeneratedConfigDir + '"');
     Lines.Add('set "UNIWAMP_NODE_VERSION=' + FConfig.SelectedNodeVersion + '"');
     if FConfig.SelectedPhpVersion <> '' then
     begin

@@ -700,6 +700,18 @@ object MainForm: TMainForm
         Color = clWhite
         ParentBackground = False
         TabOrder = 0
+        object ActivityLogSplitter: TSplitter
+          Left = 0
+          Top = 585
+          Width = 768
+          Height = 6
+          Cursor = crVSplit
+          Align = alBottom
+          Color = 15262952
+          MinSize = 80
+          ParentColor = False
+          ExplicitTop = 509
+        end
         object Label11: TPanel
           Left = 0
           Top = 0
@@ -707,7 +719,6 @@ object MainForm: TMainForm
           Height = 34
           Align = alTop
           BevelOuter = bvNone
-          Caption = ''
           Color = clWhite
           Font.Charset = DEFAULT_CHARSET
           Font.Color = clWindowText
@@ -721,10 +732,9 @@ object MainForm: TMainForm
         object VHostGrid: TStringGrid
           Left = 0
           Top = 34
-          Width = 768
-          Height = 421
+          Width = 548
+          Height = 491
           Align = alClient
-          ColCount = 5
           DefaultRowHeight = 28
           FixedCols = 0
           RowCount = 2
@@ -733,9 +743,9 @@ object MainForm: TMainForm
         end
         object pnltools: TPanel
           Left = 548
-          Top = 0
+          Top = 34
           Width = 220
-          Height = 722
+          Height = 491
           Align = alRight
           Alignment = taLeftJustify
           BevelKind = bkTile
@@ -908,7 +918,7 @@ object MainForm: TMainForm
         end
         object Panel6: TPanel
           Left = 0
-          Top = 449
+          Top = 525
           Width = 768
           Height = 60
           Align = alBottom
@@ -921,7 +931,7 @@ object MainForm: TMainForm
           object AddVHostButton: TPanel
             Left = 17
             Top = 14
-            Width = 110
+            Width = 90
             Height = 32
             Cursor = crHandPoint
             BevelOuter = bvNone
@@ -937,9 +947,9 @@ object MainForm: TMainForm
             TabOrder = 0
           end
           object OpenVHostButton: TPanel
-            Left = 131
+            Left = 115
             Top = 14
-            Width = 118
+            Width = 110
             Height = 32
             Cursor = crHandPoint
             BevelOuter = bvNone
@@ -955,9 +965,9 @@ object MainForm: TMainForm
             TabOrder = 1
           end
           object OpenVHostFolderButton: TPanel
-            Left = 259
+            Left = 233
             Top = 14
-            Width = 100
+            Width = 96
             Height = 32
             Cursor = crHandPoint
             BevelOuter = bvNone
@@ -973,9 +983,9 @@ object MainForm: TMainForm
             TabOrder = 2
           end
           object OpenVHostTerminalButton: TPanel
-            Left = 369
+            Left = 337
             Top = 14
-            Width = 100
+            Width = 88
             Height = 32
             Cursor = crHandPoint
             BevelOuter = bvNone
@@ -990,10 +1000,46 @@ object MainForm: TMainForm
             ParentFont = False
             TabOrder = 3
           end
-          object CopyVHostUrlButton: TPanel
-            Left = 479
+          object BackupProjectButton: TPanel
+            Left = 433
             Top = 14
-            Width = 100
+            Width = 110
+            Height = 32
+            Cursor = crHandPoint
+            BevelOuter = bvNone
+            Caption = 'Backup Project'
+            Color = 16053492
+            Font.Charset = DEFAULT_CHARSET
+            Font.Color = clWindowText
+            Font.Height = -11
+            Font.Name = 'Segoe UI'
+            Font.Style = [fsBold]
+            ParentBackground = False
+            ParentFont = False
+            TabOrder = 4
+          end
+          object RestoreProjectButton: TPanel
+            Left = 551
+            Top = 14
+            Width = 112
+            Height = 32
+            Cursor = crHandPoint
+            BevelOuter = bvNone
+            Caption = 'Restore Project'
+            Color = 16053492
+            Font.Charset = DEFAULT_CHARSET
+            Font.Color = clWindowText
+            Font.Height = -11
+            Font.Name = 'Segoe UI'
+            Font.Style = [fsBold]
+            ParentBackground = False
+            ParentFont = False
+            TabOrder = 5
+          end
+          object CopyVHostUrlButton: TPanel
+            Left = 671
+            Top = 14
+            Width = 88
             Height = 32
             Cursor = crHandPoint
             BevelOuter = bvNone
@@ -1006,12 +1052,12 @@ object MainForm: TMainForm
             Font.Style = [fsBold]
             ParentBackground = False
             ParentFont = False
-            TabOrder = 4
+            TabOrder = 6
           end
           object DeleteVHostButton: TPanel
-            Left = 589
+            Left = 767
             Top = 14
-            Width = 130
+            Width = 104
             Height = 32
             Cursor = crHandPoint
             BevelOuter = bvNone
@@ -1024,23 +1070,12 @@ object MainForm: TMainForm
             Font.Style = [fsBold]
             ParentBackground = False
             ParentFont = False
-            TabOrder = 5
+            TabOrder = 7
           end
-        end
-        object ActivityLogSplitter: TSplitter
-          Left = 0
-          Top = 509
-          Width = 768
-          Height = 6
-          Cursor = crVSplit
-          Align = alBottom
-          Color = 15262952
-          MinSize = 80
-          ParentColor = False
         end
         object Panel7: TPanel
           Left = 0
-          Top = 515
+          Top = 591
           Width = 768
           Height = 127
           Align = alBottom
@@ -1055,7 +1090,7 @@ object MainForm: TMainForm
             Left = 0
             Top = 0
             Width = 260
-            Height = 133
+            Height = 123
             Align = alLeft
             BevelKind = bkTile
             BevelOuter = bvNone
@@ -1174,7 +1209,7 @@ object MainForm: TMainForm
             Left = 260
             Top = 0
             Width = 504
-            Height = 133
+            Height = 123
             Align = alClient
             BevelKind = bkTile
             BevelOuter = bvNone

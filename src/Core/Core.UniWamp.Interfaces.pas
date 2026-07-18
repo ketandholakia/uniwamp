@@ -17,6 +17,19 @@ type
     function EnsureDefaultSslCertificate(out ErrorMessage: string): Boolean;
   end;
 
+  IProjectBackupService = interface
+    ['{F7B1A25C-49CB-4F54-92A7-7D5A1B8A2F11}']
+    function BackupProject(const ServerName: string; out BackupDirectory: string): TRuntimeActionResult;
+    function RestoreProject(const ManifestFileName, TargetServerName, TargetDocumentRoot,
+      TargetServerAliases: string; TargetEnableSsl: Boolean; out RestoredServerName: string): TRuntimeActionResult;
+  end;
+
+  IDatabaseBackupService = interface
+    ['{2A7C9B1B-3F0E-4D0D-9C36-9E2A6B2E4D71}']
+    function BackupAllDatabases(out BackupDirectory: string): TRuntimeActionResult;
+    function RestoreDatabase(const BackupInfoFileName: string): TRuntimeActionResult;
+  end;
+
   IHostsFileService = interface
     ['{B1A2C3D4-E5F6-7A8B-9C0D-1E2F3A4B5C6D}']
     function SyncHostsFile(out ErrorMessage: string): Boolean;

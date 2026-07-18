@@ -43,6 +43,8 @@ type
     ThemeStyleName: string;
     EnableSsl: Boolean;
     StartAllOnLaunch: Boolean;
+    OpenDashboardAfterStart: Boolean;
+    ConfirmVHostDelete: Boolean;
     ApachePid: Cardinal;
     MariaDbPid: Cardinal;
     ApacheRunning: Boolean;
@@ -289,6 +291,8 @@ begin
   PhpProfile := 'development';
   EnableSsl := False;
   StartAllOnLaunch := False;
+  OpenDashboardAfterStart := True;
+  ConfirmVHostDelete := True;
   TerminalExePath := 'bin\cmder\Cmder.exe';
   ApachePid := 0;
   MariaDbPid := 0;
@@ -395,6 +399,8 @@ begin
     ThemeStyleName := ReadStringOrDefault(Root, 'themeStyleName', ThemeStyleName);
     EnableSsl := ReadBooleanOrDefault(Root, 'enableSsl', EnableSsl);
     StartAllOnLaunch := ReadBooleanOrDefault(Root, 'startAllOnLaunch', StartAllOnLaunch);
+    OpenDashboardAfterStart := ReadBooleanOrDefault(Root, 'openDashboardAfterStart', OpenDashboardAfterStart);
+    ConfirmVHostDelete := ReadBooleanOrDefault(Root, 'confirmVHostDelete', ConfirmVHostDelete);
     ApachePid := ReadIntegerOrDefault(Root, 'apachePid', ApachePid);
     MariaDbPid := ReadIntegerOrDefault(Root, 'mariaDbPid', MariaDbPid);
     ApacheRunning := ReadBooleanOrDefault(Root, 'apacheRunning', ApacheRunning);
@@ -676,6 +682,8 @@ begin
     Root.AddPair('themeStyleName', ThemeStyleName);
     Root.AddPair('enableSsl', TJSONBool.Create(EnableSsl));
     Root.AddPair('startAllOnLaunch', TJSONBool.Create(StartAllOnLaunch));
+    Root.AddPair('openDashboardAfterStart', TJSONBool.Create(OpenDashboardAfterStart));
+    Root.AddPair('confirmVHostDelete', TJSONBool.Create(ConfirmVHostDelete));
     Root.AddPair('apachePid', TJSONNumber.Create(ApachePid));
     Root.AddPair('mariaDbPid', TJSONNumber.Create(MariaDbPid));
     Root.AddPair('apacheRunning', TJSONBool.Create(ApacheRunning));

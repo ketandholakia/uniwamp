@@ -147,9 +147,25 @@ object AppSettingsForm: TAppSettingsForm
           Caption = 'Start all services when UniWamp launches'
           TabOrder = 4
         end
+        object FOpenDashboardAfterStartCheck: TCheckBox
+          Left = 18
+          Top = 284
+          Width = 320
+          Height = 19
+          Caption = 'Open dashboard after services start'
+          TabOrder = 5
+        end
+        object FConfirmVHostDeleteCheck: TCheckBox
+          Left = 18
+          Top = 308
+          Width = 380
+          Height = 19
+          Caption = 'Ask for confirmation before deleting a vHost/project'
+          TabOrder = 6
+        end
         object FThemeStyleLabel: TLabel
           Left = 18
-          Top = 294
+          Top = 344
           Width = 66
           Height = 15
           Caption = 'Theme style'
@@ -159,11 +175,11 @@ object AppSettingsForm: TAppSettingsForm
         end
         object FThemeStyleCombo: TComboBox
           Left = 18
-          Top = 314
+          Top = 364
           Width = 210
           Height = 23
           Style = csDropDownList
-          TabOrder = 5
+          TabOrder = 7
         end
       end
       object FPortCard: TPanel

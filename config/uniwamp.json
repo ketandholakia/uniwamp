@@ -9,14 +9,16 @@
   "selectedNodeVersion": "node-v22.23.1-win-x64",
   "terminalExePath": "bin\\cmder\\Cmder.exe",
   "phpProfile": "development",
-  "themeStyleName": "",
+  "themeStyleName": "Windows",
   "enableSsl": false,
   "startAllOnLaunch": false,
+  "openDashboardAfterStart": false,
+  "confirmVHostDelete": true,
   "apachePid": 0,
   "mariaDbPid": 0,
   "apacheRunning": false,
   "mariaDbRunning": false,
-  "lastApacheError": "Apache restart failed during start: Apache did not start listening on port 8080 within 30 seconds.",
+  "lastApacheError": "Apache did not start listening on port 8080 within 30 seconds.",
   "lastMariaDbError": "",
   "lastHostsSyncStatus": "Hosts synced",
   "apacheEnabledModules": [
@@ -80,17 +82,65 @@
   },
   "vhosts": [
     {
-      "serverName": "myproject",
+      "serverName": "myproject2",
       "serverAliases": "",
-      "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\myproject",
+      "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\myproject2",
       "enableSsl": false,
       "sslCertFile": "",
       "sslKeyFile": ""
     },
     {
-      "serverName": "myproject2",
+      "serverName": "lara22",
       "serverAliases": "",
-      "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\myproject2",
+      "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\lara22",
+      "enableSsl": false,
+      "sslCertFile": "",
+      "sslKeyFile": ""
+    },
+    {
+      "serverName": "lara44",
+      "serverAliases": "",
+      "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\lara44\\public",
+      "enableSsl": false,
+      "sslCertFile": "",
+      "sslKeyFile": ""
+    },
+    {
+      "serverName": "lara31",
+      "serverAliases": "",
+      "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\lara31\\public",
+      "enableSsl": false,
+      "sslCertFile": "",
+      "sslKeyFile": ""
+    },
+    {
+      "serverName": "lara55",
+      "serverAliases": "",
+      "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\lara55\\public",
+      "enableSsl": false,
+      "sslCertFile": "",
+      "sslKeyFile": ""
+    },
+    {
+      "serverName": "lara111",
+      "serverAliases": "",
+      "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\lara111\\public",
+      "enableSsl": false,
+      "sslCertFile": "",
+      "sslKeyFile": ""
+    },
+    {
+      "serverName": "ketan",
+      "serverAliases": "",
+      "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\ketan\\public",
+      "enableSsl": false,
+      "sslCertFile": "",
+      "sslKeyFile": ""
+    },
+    {
+      "serverName": "laralara",
+      "serverAliases": "",
+      "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\laralara\\public",
       "enableSsl": false,
       "sslCertFile": "",
       "sslKeyFile": ""

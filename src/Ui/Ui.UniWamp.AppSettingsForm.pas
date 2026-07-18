@@ -12,6 +12,7 @@ uses
   Vcl.Graphics,
   Vcl.StdCtrls,
   Vcl.Themes,
+  Core.UniWamp.Types,
   Core.UniWamp.Security,
   Core.UniWamp.Config,
   Core.UniWamp.Paths,
@@ -27,6 +28,8 @@ type
     FTerminalPathEdit: TEdit;
     FEnableSslCheck: TCheckBox;
     FStartAllOnLaunchCheck: TCheckBox;
+    FOpenDashboardAfterStartCheck: TCheckBox;
+    FConfirmVHostDeleteCheck: TCheckBox;
     FPhpVersionCombo: TComboBox;
     FNodeVersionCombo: TComboBox;
     FPhpProfileCombo: TComboBox;
@@ -186,6 +189,7 @@ begin
      not Assigned(FHttpPortEdit) or not Assigned(FHttpsPortEdit) or
      not Assigned(FDatabasePortEdit) or not Assigned(FTerminalPathEdit) or
      not Assigned(FEnableSslCheck) or not Assigned(FStartAllOnLaunchCheck) or
+     not Assigned(FOpenDashboardAfterStartCheck) or not Assigned(FConfirmVHostDeleteCheck) or
      not Assigned(FPhpVersionCombo) or
      not Assigned(FNodeVersionCombo) or not Assigned(FPhpProfileCombo) then
     Exit;
@@ -197,6 +201,8 @@ begin
   FTerminalPathEdit.Text := FConfig.TerminalExePath;
   FEnableSslCheck.Checked := FConfig.EnableSsl;
   FStartAllOnLaunchCheck.Checked := FConfig.StartAllOnLaunch;
+  FOpenDashboardAfterStartCheck.Checked := FConfig.OpenDashboardAfterStart;
+  FConfirmVHostDeleteCheck.Checked := FConfig.ConfirmVHostDelete;
 
   PopulateComboFromList(FPhpVersionCombo, FConfig.PhpVersions, FConfig.SelectedPhpVersion, False);
   PopulateComboFromList(FNodeVersionCombo, FConfig.NodeVersions, FConfig.SelectedNodeVersion, True);
@@ -242,6 +248,8 @@ var
   SelectedNodeVersion: string;
   SelectedPhpProfile: string;
   SelectedThemeStyle: string;
+  OldPhpVersion: string;
+  RestartInfo: TRuntimeActionResult;
 begin
   if not TryStrToInt(Trim(FHttpPortEdit.Text), HttpPort) then
   begin
@@ -285,6 +293,8 @@ begin
     FConfig.TerminalExePath := 'bin\cmder\Cmder.exe';
   FConfig.EnableSsl := FEnableSslCheck.Checked;
   FConfig.StartAllOnLaunch := FStartAllOnLaunchCheck.Checked;
+  FConfig.OpenDashboardAfterStart := FOpenDashboardAfterStartCheck.Checked;
+  FConfig.ConfirmVHostDelete := FConfirmVHostDeleteCheck.Checked;
 
   SelectedPhpVersion := FConfig.SelectedPhpVersion;
   if FPhpVersionCombo.ItemIndex >= 0 then
@@ -316,6 +326,7 @@ begin
   if Assigned(FThemeStyleCombo) and (FThemeStyleCombo.ItemIndex >= 0) then
     SelectedThemeStyle := FThemeStyleCombo.Items[FThemeStyleCombo.ItemIndex];
 
+  OldPhpVersion := FConfig.SelectedPhpVersion;
   FConfig.SelectedPhpVersion := SelectedPhpVersion;
   FConfig.SelectedNodeVersion := SelectedNodeVersion;
   FConfig.PhpProfile := SelectedPhpProfile;
@@ -327,7 +338,19 @@ begin
 
   FConfig.Save(FPaths);
   if Assigned(FRuntime) then
+  begin
     FRuntime.GenerateAllConfigs;
+    if FRuntime.ApacheIsRunning and not SameText(OldPhpVersion, FConfig.SelectedPhpVersion) then
+    begin
+      RestartInfo := FRuntime.RestartApache;
+      if not RestartInfo.Success then
+      begin
+        MessageDlg('Settings saved, but Apache restart failed: ' + RestartInfo.Message,
+          mtWarning, [mbOK], 0);
+        Exit;
+      end;
+    end;
+  end;
   ModalResult := mrOk;
 end;
 

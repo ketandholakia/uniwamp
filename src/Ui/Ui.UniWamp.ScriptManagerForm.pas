@@ -72,6 +72,8 @@ type
     FPendingCompletionOutput: string;
     FPendingCompletionSuccess: Boolean;
     FProgressBar: TProgressBar;
+    FShowInstallTerminalCheck: TCheckBox;
+    FInstallLogFile: string;
     procedure Populate;
     procedure BindControls;
     procedure PopulateCategoryFilter;
@@ -79,6 +81,8 @@ type
     procedure SyncCategoryExpansion;
     procedure SetGridHeader;
     procedure AppendOutput(const Text: string);
+    procedure WriteInstallLogLine(const Text: string);
+    procedure OpenInstallTerminal;
     procedure SyncAppendOutput;
     procedure SyncInstallFinished;
     procedure SetInstalling(const Value: Boolean);
@@ -129,6 +133,8 @@ implementation
 uses
   Core.UniWamp.ScriptEngine,
   Core.UniWamp.Security,
+  Winapi.ShellAPI,
+  System.Types,
   System.IOUtils,
   System.StrUtils,
   System.UITypes,
@@ -750,6 +756,30 @@ begin
   TThread.Synchronize(nil, SyncAppendOutput);
 end;
 
+procedure TScriptManagerForm.OpenInstallTerminal;
+var
+  LogTailCommand: string;
+  CmdExe: string;
+begin
+  if Trim(FInstallLogFile) = '' then
+    Exit;
+  CmdExe := 'cmd.exe';
+  LogTailCommand := Format('/K powershell -NoExit -Command "Get-Content -Path ''%s'' -Wait"',
+    [FInstallLogFile]);
+  if ShellExecute(Handle, 'open', PChar(CmdExe), PChar(LogTailCommand), nil, SW_SHOWNORMAL) <= 32 then
+    Exit;
+end;
+
+procedure TScriptManagerForm.WriteInstallLogLine(const Text: string);
+var
+  Line: string;
+begin
+  if Trim(FInstallLogFile) = '' then
+    Exit;
+  Line := FormatDateTime('hh:nn:ss', Now) + '  ' + Text;
+  TFile.AppendAllText(FInstallLogFile, Line + sLineBreak, TEncoding.UTF8);
+end;
+
 procedure TScriptManagerForm.SyncAppendOutput;
 var
   ProgressStr: string;
@@ -767,6 +797,7 @@ begin
     FOutputMemo.Lines.Add(FPendingOutputText);
     FOutputMemo.SelStart := Length(FOutputMemo.Text);
   end;
+  WriteInstallLogLine(FPendingOutputText);
 end;
 
 procedure TScriptManagerForm.SyncInstallFinished;
@@ -788,6 +819,8 @@ begin
   FInstalling := Value;
   if Assigned(FDetailInstallButton) then
     FDetailInstallButton.Enabled := not Value;
+  if Value and Assigned(FShowInstallTerminalCheck) and FShowInstallTerminalCheck.Checked then
+    OpenInstallTerminal;
   if Assigned(FGrid) then
     FGrid.Enabled := not Value;
   if Assigned(FSearchEdit) then
@@ -866,11 +899,15 @@ begin
       ReloadConfig: TUniWampConfig;
       VHostManager: IVHostManager;
       VHostResult: TRuntimeActionResult;
+      VHostEntry: TVHostEntry;
       MariaResult: TRuntimeActionResult;
       ProjectPath: string;
       NeedsDatabase: Boolean;
       Step: TScriptStep;
       InstallSucceeded: Boolean;
+      VHostDocumentRoot: string;
+      ApacheWasRunning: Boolean;
+      RestartInfo: TRuntimeActionResult;
     begin
       InstallSucceeded := False;
       FPendingCompletionMessage := '';
@@ -888,6 +925,7 @@ begin
       Runtime := nil;
       try
         Runtime := TUniWampRuntime.Create(FPaths, Config);
+        ApacheWasRunning := Runtime.ApacheIsRunning;
         try
           if NeedsDatabase and not Config.MariaDbRunning then
           begin
@@ -915,30 +953,46 @@ begin
             AppendOutput(ExecutionResult.Message);
             ReloadConfig := TUniWampConfig.Create;
             try
-              if ReloadConfig.LoadOrCreate(FPaths) then
+              ReloadConfig.LoadOrCreate(FPaths);
+              VHostManager := TServiceLocator.Instance.GetService<IVHostManager>;
+              VHostDocumentRoot := ProjectPath;
+              if TDirectory.Exists(TPath.Combine(ProjectPath, 'public')) then
+                VHostDocumentRoot := TPath.Combine(ProjectPath, 'public');
+              VHostResult := VHostManager.AddVHost(ProjectName, VHostDocumentRoot, '', False);
+              AppendOutput(VHostResult.Message);
+              if not VHostResult.Success then
               begin
-                VHostManager := TServiceLocator.Instance.GetService<IVHostManager>;
-                VHostResult := VHostManager.AddVHost(ProjectName, ProjectPath, '', False);
-                AppendOutput(VHostResult.Message);
-                if not VHostResult.Success then
-                begin
-                  FPendingCompletionMessage := 'VHost registration failed: ' + VHostResult.Message;
-                  FPendingCompletionOutput := VHostResult.Message;
-                  Exit;
-                end;
-                ReloadConfig.Save(FPaths);
-                  AppendOutput('Open the site at: ' + Format('http://%s:%d/',
-                    [ProjectName, ReloadConfig.HttpPort]));
-                  FPendingCompletionMessage := ExecutionResult.Message;
-                  FPendingCompletionSuccess := True;
-                  InstallSucceeded := True;
-              end
-              else
-              begin
-                FPendingCompletionMessage := 'Project installed, but UniWamp config could not be reloaded.';
-                FPendingCompletionOutput := '';
+                FPendingCompletionMessage := 'VHost registration failed: ' + VHostResult.Message;
+                FPendingCompletionOutput := VHostResult.Message;
                 Exit;
               end;
+              VHostEntry.ServerName := ProjectName;
+              VHostEntry.ServerAliases := '';
+              VHostEntry.DocumentRoot := VHostDocumentRoot;
+              VHostEntry.EnableSsl := False;
+              VHostEntry.SslCertFile := '';
+              VHostEntry.SslKeyFile := '';
+              ReloadConfig.AddOrUpdateVHost(VHostEntry);
+              ReloadConfig.Save(FPaths);
+              if ApacheWasRunning then
+              begin
+                AppendOutput('Restarting Apache to load the new virtual host...');
+                RestartInfo := Runtime.RestartApache;
+                AppendOutput(RestartInfo.Message);
+                if not RestartInfo.Success then
+                begin
+                  FPendingCompletionMessage := 'Apache restart failed: ' + RestartInfo.Message;
+                  FPendingCompletionOutput := RestartInfo.Message;
+                  Exit;
+                end;
+              end;
+              AppendOutput('Open the site at: ' + Format('http://%s:%d/',
+                [ProjectName, ReloadConfig.HttpPort]));
+              if not SameText(VHostDocumentRoot, ProjectPath) then
+                AppendOutput('Document root set to /public for this framework.');
+              FPendingCompletionMessage := ExecutionResult.Message;
+              FPendingCompletionSuccess := True;
+              InstallSucceeded := True;
             finally
               ReloadConfig.Free;
             end;
@@ -1017,11 +1071,7 @@ begin
   end;
   Config := TUniWampConfig.Create;
   try
-    if not Config.LoadOrCreate(FPaths) then
-    begin
-      MessageDlg('UniWamp configuration could not be loaded.', mtError, [mbOK], 0);
-      Exit;
-    end;
+    Config.LoadOrCreate(FPaths);
     if MessageDlg(Format('Install %s into the www folder?', [Item.Name]),
       mtConfirmation, [mbYes, mbNo], 0) <> mrYes then
       Exit;

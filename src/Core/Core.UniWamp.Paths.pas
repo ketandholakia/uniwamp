@@ -37,6 +37,9 @@ type
     LogsDir: string;
     TmpDir: string;
     UpdatesDir: string;
+    BackupsDir: string;
+    ProjectBackupsDir: string;
+    DatabaseBackupsDir: string;
     WwwDir: string;
     VHostsDir: string;
     SslDir: string;
@@ -108,6 +111,9 @@ begin
   Result.LogsDir := TPath.Combine(Root, 'logs');
   Result.TmpDir := TPath.Combine(Root, 'tmp');
   Result.UpdatesDir := TPath.Combine(Result.TmpDir, 'updates');
+  Result.BackupsDir := TPath.Combine(Root, 'backups');
+  Result.ProjectBackupsDir := TPath.Combine(Result.BackupsDir, 'projects');
+  Result.DatabaseBackupsDir := TPath.Combine(Result.BackupsDir, 'databases');
   Result.WwwDir := TPath.Combine(Root, 'www');
   Result.VHostsDir := Result.WwwDir;
   Result.SslDir := TPath.Combine(Root, 'ssl');
@@ -162,6 +168,9 @@ begin
   EnsureDirectory(Paths.LogsDir);
   EnsureDirectory(Paths.TmpDir);
   EnsureDirectory(Paths.UpdatesDir);
+  EnsureDirectory(Paths.BackupsDir);
+  EnsureDirectory(Paths.ProjectBackupsDir);
+  EnsureDirectory(Paths.DatabaseBackupsDir);
   EnsureDirectory(Paths.WwwDir);
   EnsureDirectory(Paths.VHostsDir);
   EnsureDirectory(Paths.SslDir);

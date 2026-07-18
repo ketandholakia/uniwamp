@@ -34,6 +34,8 @@ uses
   Core.UniWamp.PackageManager,
   Core.UniWamp.PortUtils,
   Core.UniWamp.VHostManager,
+  Core.UniWamp.ProjectBackupService,
+  Core.UniWamp.DatabaseBackupService,
   Core.UniWamp.ConfigGenerator,
   Core.UniWamp.HostsFileService,
   Core.UniWamp.Interfaces,
@@ -97,6 +99,8 @@ type
     OpenVHostButton: TPanel;
     OpenVHostFolderButton: TPanel;
     OpenVHostTerminalButton: TPanel;
+    BackupProjectButton: TPanel;
+    RestoreProjectButton: TPanel;
     CopyVHostUrlButton: TPanel;
     DeleteVHostButton: TPanel;
     ActivityLogSplitter: TSplitter;
@@ -121,6 +125,8 @@ type
     CopyDiagnosticReportButton: TPanel;
     CopyActivityLogButton: TPanel;
     OpenHostsFileButton: TPanel;
+    BackupDatabaseButton: TPanel;
+    RestoreDatabaseButton: TPanel;
     ToolGroupWebLabel: TPanel;
     ToolGroupRuntimeLabel: TPanel;
     ToolGroupLogsLabel: TPanel;
@@ -143,7 +149,6 @@ type
     PnpmButton: TPanel;
     EditorButton: TPanel;
     UpdateButton: TPanel;
-
   published
     HeaderPanel: TPanel;
     MainPanel: TPanel;
@@ -204,6 +209,8 @@ type
     FVHostFilterEdit: TEdit;
     FVHostFilterClearLabel: TLabel;
     FUpdateManifestDialog: TOpenDialog;
+    FProjectBackupManifestDialog: TOpenDialog;
+    FDatabaseBackupInfoDialog: TOpenDialog;
     FHeaderCards: array[0..2] of THeaderStatusCard;
     FProgressSpinner: TProgressBar;
     FIsBusy: Boolean;
@@ -316,6 +323,10 @@ type
     procedure OpenVHostClick(Sender: TObject);
     procedure OpenVHostFolderClick(Sender: TObject);
     procedure OpenVHostTerminalClick(Sender: TObject);
+    procedure BackupProjectClick(Sender: TObject);
+    procedure RestoreProjectClick(Sender: TObject);
+    procedure BackupDatabaseClick(Sender: TObject);
+    procedure RestoreDatabaseClick(Sender: TObject);
     procedure CopyVHostUrlClick(Sender: TObject);
     procedure RefreshVHostSslClick(Sender: TObject);
     procedure ExitButtonClick(Sender: TObject);
@@ -352,6 +363,7 @@ implementation
 uses
   Winapi.ShellAPI,
   System.IOUtils,
+  System.JSON,
   System.Win.Registry,
   Core.UniWamp.ProcessManager,
   Ui.UniWamp.ApacheModulesForm,
@@ -936,12 +948,22 @@ begin
   FUpdateManifestDialog.Filter := 'Update manifest (*.json)|*.json|All files (*.*)|*.*';
   FUpdateManifestDialog.Title := 'Select update manifest';
   FUpdateManifestDialog.Options := [ofFileMustExist, ofPathMustExist, ofEnableSizing, ofHideReadOnly];
+  FProjectBackupManifestDialog := TOpenDialog.Create(Self);
+  FProjectBackupManifestDialog.Filter := 'Project backup manifest (backup.json)|backup.json|JSON files (*.json)|*.json|All files (*.*)|*.*';
+  FProjectBackupManifestDialog.Title := 'Select project backup manifest';
+  FProjectBackupManifestDialog.Options := [ofFileMustExist, ofPathMustExist, ofEnableSizing, ofHideReadOnly];
+  FDatabaseBackupInfoDialog := TOpenDialog.Create(Self);
+  FDatabaseBackupInfoDialog.Filter := 'Database backup info (backup.txt)|backup.txt|Text files (*.txt)|*.txt|All files (*.*)|*.*';
+  FDatabaseBackupInfoDialog.Title := 'Select database backup info';
+  FDatabaseBackupInfoDialog.Options := [ofFileMustExist, ofPathMustExist, ofEnableSizing, ofHideReadOnly];
   PathsMigrated := FConfig.LoadOrCreate(FPaths);
   ApplyConfiguredTheme(FConfig.ThemeStyleName);
 
   TServiceLocator.Instance.RegisterService<IConfigurationGenerator>(TConfigurationGenerator.Create(FPaths, FConfig));
   TServiceLocator.Instance.RegisterService<IHostsFileService>(THostsFileService.Create(FPaths, FConfig));
   TServiceLocator.Instance.RegisterService<IVHostManager>(TVHostManager.Create(FPaths, FConfig));
+  TServiceLocator.Instance.RegisterService<IProjectBackupService>(TProjectBackupService.Create(FPaths, FConfig));
+  TServiceLocator.Instance.RegisterService<IDatabaseBackupService>(TDatabaseBackupService.Create(FPaths, FConfig));
 
   FMainPhpVersionItems := TList<TMenuItem>.Create;
   FMainPhpProfileItems := TList<TMenuItem>.Create;
@@ -1444,6 +1466,38 @@ begin
     'Shows the hosts file UniWamp reads and updates in the default text editor.');
   OpenHostsFileButton.ShowHint := True;
   OpenHostsFileButton.OnClick := OpenHostsFileClick;
+  BackupDatabaseButton := TPanel.Create(Self);
+  BackupDatabaseButton.Parent := pnltools;
+  BackupDatabaseButton.SetBounds(587, 41, 150, 24);
+  BackupDatabaseButton.Cursor := crHandPoint;
+  BackupDatabaseButton.BevelOuter := bvNone;
+  BackupDatabaseButton.Caption := 'DB Backup';
+  BackupDatabaseButton.Color := 16053492;
+  BackupDatabaseButton.Font.Assign(GenerateSslButton.Font);
+  BackupDatabaseButton.ParentBackground := False;
+  BackupDatabaseButton.ParentFont := False;
+  BackupDatabaseButton.TabOrder := 11;
+  BackupDatabaseButton.TabStop := True;
+  BackupDatabaseButton.Hint := BuildToolPanelHint('Backup MariaDB databases',
+    'Creates a full SQL dump of all databases into the UniWamp backups folder.');
+  BackupDatabaseButton.ShowHint := True;
+  BackupDatabaseButton.OnClick := BackupDatabaseClick;
+  RestoreDatabaseButton := TPanel.Create(Self);
+  RestoreDatabaseButton.Parent := pnltools;
+  RestoreDatabaseButton.SetBounds(741, 41, 150, 24);
+  RestoreDatabaseButton.Cursor := crHandPoint;
+  RestoreDatabaseButton.BevelOuter := bvNone;
+  RestoreDatabaseButton.Caption := 'DB Restore';
+  RestoreDatabaseButton.Color := 16053492;
+  RestoreDatabaseButton.Font.Assign(GenerateSslButton.Font);
+  RestoreDatabaseButton.ParentBackground := False;
+  RestoreDatabaseButton.ParentFont := False;
+  RestoreDatabaseButton.TabOrder := 12;
+  RestoreDatabaseButton.TabStop := True;
+  RestoreDatabaseButton.Hint := BuildToolPanelHint('Restore MariaDB databases',
+    'Restores a SQL dump created by UniWamp from a backup.txt manifest.');
+  RestoreDatabaseButton.ShowHint := True;
+  RestoreDatabaseButton.OnClick := RestoreDatabaseClick;
   Panel8.Hint := BuildToolPanelHint('Open the local dashboard',
     'Only opens when Apache and MariaDB are both healthy.');
   Panel8.ShowHint := True;
@@ -1540,18 +1594,30 @@ begin
   OpenVHostTerminalButton.ShowHint := True;
   OpenVHostTerminalButton.TabStop := True;
   OpenVHostTerminalButton.TabOrder := 16;
+  BackupProjectButton.OnClick := BackupProjectClick;
+  BackupProjectButton.Hint := BuildToolPanelHint('Backup the selected project',
+    'Creates a backup bundle with project files, vHost metadata, and SSL assets when present.');
+  BackupProjectButton.ShowHint := True;
+  BackupProjectButton.TabStop := True;
+  BackupProjectButton.TabOrder := 17;
+  RestoreProjectButton.OnClick := RestoreProjectClick;
+  RestoreProjectButton.Hint := BuildToolPanelHint('Restore a project backup',
+    'Restores project files from a backup bundle and recreates the vHost entry.');
+  RestoreProjectButton.ShowHint := True;
+  RestoreProjectButton.TabStop := True;
+  RestoreProjectButton.TabOrder := 18;
   CopyVHostUrlButton.OnClick := CopyVHostUrlClick;
   CopyVHostUrlButton.Hint := BuildToolPanelHint('Copy the vHost URL',
     'Copies the selected local site address to the clipboard.');
   CopyVHostUrlButton.ShowHint := True;
   CopyVHostUrlButton.TabStop := True;
-  CopyVHostUrlButton.TabOrder := 17;
+  CopyVHostUrlButton.TabOrder := 19;
   exitbutton.OnClick := ExitButtonClick;
   exitbutton.TabStop := True;
-  exitbutton.TabOrder := 18;
+  exitbutton.TabOrder := 20;
   Panel11.OnClick := ExitButtonClick;
   Panel11.TabStop := True;
-  Panel11.TabOrder := 19;
+  Panel11.TabOrder := 21;
   EditPhpIniButton.OnClick := EditPhpIniClick;
   EditPhpIniButton.Hint := BuildToolPanelHint('Edit php.ini',
     'Opens the generated PHP configuration for the active runtime.');
@@ -1601,6 +1667,8 @@ begin
   ClearPanelIcon(CopyDiagnosticReportButton);
   ClearPanelIcon(CopyActivityLogButton);
   ClearPanelIcon(OpenHostsFileButton);
+  ClearPanelIcon(BackupDatabaseButton);
+  ClearPanelIcon(RestoreDatabaseButton);
   ClearPanelIcon(OpenPhpExtensionsButton);
   ClearPanelIcon(OpenPhpSettingsButton);
   ClearPanelIcon(OpenApacheModulesButton);
@@ -1610,6 +1678,8 @@ begin
   ApplyPanelIcon(OpenVHostButton, 'open_in_new');
   ApplyPanelIcon(OpenVHostFolderButton, 'folder_open');
   ClearPanelIcon(OpenVHostTerminalButton);
+  ApplyPanelIcon(BackupProjectButton, 'save');
+  ApplyPanelIcon(RestoreProjectButton, 'restore');
   ApplyPanelIcon(CopyVHostUrlButton, 'content_copy');
   ApplyPanelIcon(DeleteVHostButton, 'delete');
   ClearPanelIcon(OpenApacheLogButton);
@@ -1639,6 +1709,8 @@ begin
   SetButtonCaption(CopyDiagnosticReportButton, 'Copy Report');
   SetButtonCaption(CopyActivityLogButton, 'Copy Activity');
   SetButtonCaption(OpenHostsFileButton, 'Hosts File');
+  SetButtonCaption(BackupDatabaseButton, 'DB Backup');
+  SetButtonCaption(RestoreDatabaseButton, 'DB Restore');
   SetButtonCaption(OpenApacheLogButton, 'Apache Log');
   SetButtonCaption(OpenMariaLogButton, 'MariaDB Log');
   SetButtonCaption(ClearApacheLogButton, 'Clear Apache');
@@ -1651,6 +1723,8 @@ begin
   SetButtonCaption(OpenVHostButton, 'Open Selected');
   SetButtonCaption(OpenVHostFolderButton, 'Open Folder');
   SetButtonCaption(OpenVHostTerminalButton, 'Terminal');
+  SetButtonCaption(BackupProjectButton, 'Backup Project');
+  SetButtonCaption(RestoreProjectButton, 'Restore Project');
   SetButtonCaption(CopyVHostUrlButton, 'Copy URL');
   SetButtonCaption(DeleteVHostButton, 'Delete Project');
   SetButtonCaption(EditPhpIniButton, 'php.ini');
@@ -1665,6 +1739,8 @@ begin
   ClearPanelIcon(CopyDiagnosticReportButton);
   ClearPanelIcon(CopyActivityLogButton);
   ClearPanelIcon(OpenHostsFileButton);
+  ClearPanelIcon(BackupDatabaseButton);
+  ClearPanelIcon(RestoreDatabaseButton);
   ClearPanelIcon(OpenPhpExtensionsButton);
   ClearPanelIcon(OpenPhpSettingsButton);
   ClearPanelIcon(OpenApacheModulesButton);
@@ -1689,6 +1765,8 @@ begin
   SetButtonCaption(CopyDiagnosticReportButton, 'Copy Report');
   SetButtonCaption(CopyActivityLogButton, 'Copy Activity');
   SetButtonCaption(OpenHostsFileButton, 'Hosts File');
+  SetButtonCaption(BackupDatabaseButton, 'DB Backup');
+  SetButtonCaption(RestoreDatabaseButton, 'DB Restore');
   SetButtonCaption(OpenPhpExtensionsButton, 'PHP Extensions');
   SetButtonCaption(OpenPhpSettingsButton, 'PHP Settings');
   SetButtonCaption(OpenApacheModulesButton, 'Apache Modules');
@@ -1942,6 +2020,8 @@ begin
   PlaceButton(CopyDiagnosticReportButton);
   PlaceButton(CopyActivityLogButton);
   PlaceButton(OpenHostsFileButton);
+  PlaceButton(BackupDatabaseButton);
+  PlaceButton(RestoreDatabaseButton);
   PlaceButton(UpdateButton);
 end;
 
@@ -2095,6 +2175,9 @@ begin
   Item.ShortCut := ShortCut(Ord('R'), [ssCtrl]);
   Item := AddItem(MenuItem, 'Open &Terminal', OpenVHostTerminalClick);
   Item.ShortCut := ShortCut(Ord('T'), [ssCtrl, ssShift]);
+  Item := AddItem(MenuItem, '&Backup Project', BackupProjectClick);
+  Item.ShortCut := ShortCut(Ord('B'), [ssCtrl, ssShift]);
+  Item := AddItem(MenuItem, '&Restore Project', RestoreProjectClick);
   Item := AddItem(MenuItem, 'Clear &Filter', VHostFilterClearClick);
   Item.ShortCut := ShortCut(Ord('F'), [ssCtrl]);
   Item := AddItem(MenuItem, '&Copy URL', CopyVHostUrlClick);
@@ -2214,6 +2297,8 @@ begin
   FMenuIconIndices.Free;
   FIconCache.Free;
   FUpdateManifestDialog.Free;
+  FProjectBackupManifestDialog.Free;
+  FDatabaseBackupInfoDialog.Free;
   FRuntime.Free;
   FConfig.Free;
   inherited;
@@ -2705,6 +2790,8 @@ procedure TMainForm.LaunchDashboardIfHealthy;
 var
   ErrorMessage: string;
 begin
+  if not FConfig.OpenDashboardAfterStart then
+    Exit;
   if FRuntime.AreWebToolsReady(ErrorMessage) then
     FRuntime.LaunchUrl(Format('http://127.0.0.1:%d/dashboard/', [FConfig.HttpPort]))
   else
@@ -2719,14 +2806,22 @@ begin
   AddVHostButton.Enabled := True;
   OpenVHostButton.Enabled := FConfig.ApacheRunning and HasSelection;
   OpenVHostFolderButton.Enabled := HasSelection;
+  BackupProjectButton.Enabled := HasSelection;
+  RestoreProjectButton.Enabled := True;
   CopyVHostUrlButton.Enabled := HasSelection;
   DeleteVHostButton.Enabled := HasSelection;
+  BackupDatabaseButton.Enabled := FConfig.MariaDbRunning;
+  RestoreDatabaseButton.Enabled := FConfig.MariaDbRunning;
 
   StylePanelButton(AddVHostButton, True, ButtonSuccessStrongColor, ButtonPositiveColor, clWhite);
   StylePanelButton(OpenVHostButton, OpenVHostButton.Enabled, ButtonAccentColor, ButtonNeutralColor);
   StylePanelButton(OpenVHostFolderButton, OpenVHostFolderButton.Enabled, ButtonNeutralColor, ButtonNeutralColor);
+  StylePanelButton(BackupProjectButton, BackupProjectButton.Enabled, ButtonNeutralColor, ButtonNeutralColor);
+  StylePanelButton(RestoreProjectButton, RestoreProjectButton.Enabled, ButtonNeutralColor, ButtonNeutralColor);
   StylePanelButton(CopyVHostUrlButton, CopyVHostUrlButton.Enabled, ButtonNeutralColor, ButtonNeutralColor);
   StylePanelButton(DeleteVHostButton, DeleteVHostButton.Enabled, ButtonDangerStrongColor, ButtonNeutralColor, clWhite);
+  StylePanelButton(BackupDatabaseButton, BackupDatabaseButton.Enabled, ButtonSuccessStrongColor, ButtonPositiveColor, clWhite);
+  StylePanelButton(RestoreDatabaseButton, RestoreDatabaseButton.Enabled, ButtonNeutralColor, ButtonNeutralColor);
   VHostGrid.Invalidate;
 end;
 
@@ -3066,10 +3161,24 @@ procedure TMainForm.DeleteVHostByName(const ServerName: string);
 var
   ResultInfo: TRuntimeActionResult;
   RestartInfo: TRuntimeActionResult;
+  VHostManager: IVHostManager;
+  Entry: TVHostEntry;
+  ConfirmText: string;
 begin
   if ServerName = '' then
     Exit;
-  var VHostManager := TServiceLocator.Instance.GetService<IVHostManager>;
+  if FConfig.ConfirmVHostDelete then
+  begin
+    ConfirmText := Format('Delete project "%s" and remove its generated vHost config?', [ServerName]);
+    if TryGetVHostEntry(ServerName, Entry) then
+      ConfirmText := ConfirmText + sLineBreak + sLineBreak +
+        'Project folder: ' + Entry.DocumentRoot + sLineBreak +
+        'SSL certificate/key files will also be removed if this vHost uses SSL.';
+    if MessageDlg(ConfirmText, mtWarning, [mbYes, mbNo], 0) <> mrYes then
+      Exit;
+  end;
+
+  VHostManager := TServiceLocator.Instance.GetService<IVHostManager>;
   ResultInfo := VHostManager.DeleteVHost(ServerName);
   AppendStatus(ResultInfo.Message);
   if ResultInfo.Success and FConfig.ApacheRunning then
@@ -3077,7 +3186,8 @@ begin
     RestartInfo := FRuntime.RestartApache;
     AppendStatus('Apache reload after VHost delete: ' + RestartInfo.Message);
   end;
-  FConfig.Save(FPaths);
+  if ResultInfo.Success then
+    FConfig.Save(FPaths);
   RefreshStatus;
   LoadStateIntoUi;
 end;
@@ -3320,7 +3430,7 @@ begin
           ApacheStartButton.Enabled := True;
           ApacheStopButton.Enabled := True;
           ApacheRestartButton.Enabled := True;
-          if ResultInfo.Success then
+          if ResultInfo.Success and FConfig.OpenDashboardAfterStart then
             LaunchDashboardIfHealthy;
         end));
     end).Start;
@@ -3464,7 +3574,8 @@ begin
             
             FConfig.Save(FPaths);
             RefreshStatus;
-            LaunchDashboardIfHealthy;
+            if FConfig.OpenDashboardAfterStart then
+              LaunchDashboardIfHealthy;
           end));
       end).Start;
   end
@@ -3473,7 +3584,8 @@ begin
     AppendStatus('All services are already running.');
     FConfig.Save(FPaths);
     RefreshStatus;
-    LaunchDashboardIfHealthy;
+    if FConfig.OpenDashboardAfterStart then
+      LaunchDashboardIfHealthy;
   end;
 end;
 
@@ -3975,6 +4087,230 @@ begin
   end;
   ResultInfo := FRuntime.LaunchTerminalInWorkingDir(Entry.DocumentRoot);
   AppendStatus('VHost terminal: ' + ResultInfo.Message);
+end;
+
+procedure TMainForm.BackupProjectClick(Sender: TObject);
+var
+  ServerName: string;
+begin
+  if FIsBusy then
+    Exit;
+
+  ServerName := SelectedVHostServerName;
+  if ServerName = '' then
+    Exit;
+
+  ShowBusyState('Backing up project, please wait...');
+
+  TThread.CreateAnonymousThread(
+    procedure
+    var
+      BackupDirectory: string;
+      ResultInfo: TRuntimeActionResult;
+      BackupService: IProjectBackupService;
+    begin
+      BackupService := TServiceLocator.Instance.GetService<IProjectBackupService>;
+      ResultInfo := BackupService.BackupProject(ServerName, BackupDirectory);
+
+      TThread.Queue(nil, TThreadProcedure(
+        procedure
+        begin
+          HideBusyState();
+          AppendStatus(ResultInfo.Message);
+        end));
+    end).Start;
+end;
+
+procedure TMainForm.RestoreProjectClick(Sender: TObject);
+var
+  ManifestFileName: string;
+  ManifestJsonValue: TJSONValue;
+  ManifestJsonObject: TJSONObject;
+  DialogResult: TVHostDialogResult;
+  DefaultServerName: string;
+  DefaultDocumentRoot: string;
+  DefaultAliases: string;
+  DefaultEnableSsl: Boolean;
+begin
+  if FIsBusy then
+    Exit;
+
+  if not FProjectBackupManifestDialog.Execute then
+    Exit;
+  ManifestFileName := FProjectBackupManifestDialog.FileName;
+
+  ManifestJsonValue := TJSONObject.ParseJSONValue(TFile.ReadAllText(ManifestFileName, TEncoding.UTF8));
+  try
+    if not (ManifestJsonValue is TJSONObject) then
+    begin
+      AppendStatus('Project restore failed: backup manifest must be a JSON object.');
+      Exit;
+    end;
+    ManifestJsonObject := TJSONObject(ManifestJsonValue);
+    DefaultServerName := Trim(ManifestJsonObject.GetValue<string>('serverName', ''));
+    DefaultDocumentRoot := Trim(ManifestJsonObject.GetValue<string>('documentRoot', ''));
+    DefaultDocumentRoot := StringReplace(DefaultDocumentRoot, '/', '\', [rfReplaceAll]);
+    if (DefaultDocumentRoot <> '') and not TPath.IsPathRooted(DefaultDocumentRoot) then
+      DefaultDocumentRoot := TPath.Combine(FPaths.AppRoot, DefaultDocumentRoot);
+    DefaultAliases := Trim(ManifestJsonObject.GetValue<string>('serverAliases', ''));
+    DefaultEnableSsl := ManifestJsonObject.GetValue<Boolean>('enableSsl', False);
+  finally
+    ManifestJsonValue.Free;
+  end;
+
+  DialogResult := TVHostDialog.Execute(Self, FPaths.VHostsDir, DefaultServerName,
+    DefaultDocumentRoot, DefaultAliases, DefaultEnableSsl);
+  if not DialogResult.Accepted then
+    Exit;
+
+  ShowBusyState('Restoring project, please wait...');
+
+  TThread.CreateAnonymousThread(
+    procedure
+    var
+      RestoredServerName: string;
+      ResultInfo: TRuntimeActionResult;
+      RestartInfo: TRuntimeActionResult;
+      BackupService: IProjectBackupService;
+      ApacheWasRunning: Boolean;
+    begin
+      BackupService := TServiceLocator.Instance.GetService<IProjectBackupService>;
+      ApacheWasRunning := FConfig.ApacheRunning;
+      ResultInfo := BackupService.RestoreProject(
+        ManifestFileName,
+        DialogResult.ServerName,
+        DialogResult.DocumentRoot,
+        DialogResult.ServerAliases,
+        DialogResult.EnableSsl,
+        RestoredServerName);
+
+      if ResultInfo.Success and ApacheWasRunning then
+        RestartInfo := FRuntime.RestartApache;
+
+      TThread.Queue(nil, TThreadProcedure(
+        procedure
+        begin
+          HideBusyState();
+          AppendStatus(ResultInfo.Message);
+          if ResultInfo.Success and ApacheWasRunning then
+            AppendStatus('Apache reload after project restore: ' + RestartInfo.Message);
+          if ResultInfo.Success then
+            FConfig.Save(FPaths);
+          RefreshStatus;
+          LoadStateIntoUi;
+        end));
+    end).Start;
+end;
+
+procedure TMainForm.BackupDatabaseClick(Sender: TObject);
+begin
+  if FIsBusy then
+    Exit;
+
+  ShowBusyState('Backing up databases, please wait...');
+
+  TThread.CreateAnonymousThread(
+    procedure
+    var
+      BackupDirectory: string;
+      ResultInfo: TRuntimeActionResult;
+      BackupService: IDatabaseBackupService;
+    begin
+      BackupService := TServiceLocator.Instance.GetService<IDatabaseBackupService>;
+      ResultInfo := BackupService.BackupAllDatabases(BackupDirectory);
+
+      TThread.Queue(nil, TThreadProcedure(
+        procedure
+        begin
+          HideBusyState();
+          AppendStatus(ResultInfo.Message);
+      end));
+    end).Start;
+end;
+
+procedure TMainForm.RestoreDatabaseClick(Sender: TObject);
+var
+  BackupInfoText: string;
+  BackupLines: TArray<string>;
+  BackupLine: string;
+  BackupKey: string;
+  BackupValue: string;
+  I: Integer;
+  EqualsPos: Integer;
+  BackupDirectory: string;
+  DumpFileName: string;
+  Checksum: string;
+  PreviewText: string;
+begin
+  if FIsBusy then
+    Exit;
+
+  if not FDatabaseBackupInfoDialog.Execute then
+    Exit;
+
+  BackupDirectory := ExtractFileDir(FDatabaseBackupInfoDialog.FileName);
+  BackupInfoText := TFile.ReadAllText(FDatabaseBackupInfoDialog.FileName, TEncoding.UTF8);
+  BackupLines := BackupInfoText.Split([sLineBreak], TStringSplitOptions.ExcludeEmpty);
+  DumpFileName := '';
+  Checksum := '';
+  for I := Low(BackupLines) to High(BackupLines) do
+  begin
+    BackupLine := Trim(BackupLines[I]);
+    if BackupLine = '' then
+      Continue;
+    BackupKey := '';
+    BackupValue := '';
+    EqualsPos := Pos('=', BackupLine);
+    if EqualsPos <= 1 then
+    begin
+      AppendStatus('Database restore failed: invalid backup manifest line.');
+      Exit;
+    end;
+    BackupKey := LowerCase(Trim(Copy(BackupLine, 1, EqualsPos - 1)));
+    BackupValue := Trim(Copy(BackupLine, EqualsPos + 1, MaxInt));
+    if BackupKey = 'dumpfile' then
+      DumpFileName := BackupValue
+    else if BackupKey = 'sha256' then
+      Checksum := BackupValue;
+  end;
+  if (DumpFileName = '') or (Checksum = '') then
+  begin
+    AppendStatus('Database restore failed: backup manifest is incomplete.');
+    Exit;
+  end;
+
+  PreviewText := 'Restore preview:' + sLineBreak +
+    'Backup folder: ' + BackupDirectory + sLineBreak +
+    'Manifest: ' + FDatabaseBackupInfoDialog.FileName + sLineBreak +
+    'SQL dump: ' + TPath.Combine(BackupDirectory, DumpFileName) + sLineBreak +
+    'SHA-256: ' + Checksum + sLineBreak + sLineBreak +
+    'This will replace the current MariaDB data with the selected backup.' + sLineBreak +
+    'All current databases will be overwritten. Continue?';
+
+  if MessageDlg(PreviewText,
+    mtWarning, [mbYes, mbNo], 0) <> mrYes then
+    Exit;
+
+  ShowBusyState('Restoring databases, please wait...');
+
+  TThread.CreateAnonymousThread(
+    procedure
+    var
+      ResultInfo: TRuntimeActionResult;
+      BackupService: IDatabaseBackupService;
+    begin
+      BackupService := TServiceLocator.Instance.GetService<IDatabaseBackupService>;
+      ResultInfo := BackupService.RestoreDatabase(FDatabaseBackupInfoDialog.FileName);
+
+      TThread.Queue(nil, TThreadProcedure(
+        procedure
+        begin
+          HideBusyState();
+          AppendStatus(ResultInfo.Message);
+          RefreshStatus;
+          LoadStateIntoUi;
+        end));
+    end).Start;
 end;
 
 procedure TMainForm.CopyVHostUrlClick(Sender: TObject);

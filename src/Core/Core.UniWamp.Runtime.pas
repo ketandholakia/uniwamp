@@ -56,6 +56,8 @@ type
     procedure ClearMariaDbState;
     procedure FailApacheStart(const ErrorMessage: string);
     procedure FailMariaDbStart(const ErrorMessage: string);
+    function PushPhpRuntimeToPath(const PhpDir: string; out OldPath: string): Boolean;
+    procedure RestorePath(const OldPath: string);
 
     function ValidateApachePorts(out ErrorMessage: string): Boolean;
     function ValidateApacheConfiguration(out ErrorMessage: string): Boolean;
@@ -254,6 +256,28 @@ end;
 function TUniWampRuntime.ApacheProcessId: Cardinal;
 begin
   Result := ApacheRuntimePid;
+end;
+
+function TUniWampRuntime.PushPhpRuntimeToPath(const PhpDir: string; out OldPath: string): Boolean;
+var
+  NewPath: string;
+begin
+  OldPath := GetEnvironmentVariable('PATH');
+  Result := Trim(PhpDir) <> '';
+  if not Result then
+    Exit;
+
+  NewPath := PhpDir;
+  if DirectoryExists(TPath.Combine(PhpDir, 'ext')) then
+    NewPath := NewPath + ';' + TPath.Combine(PhpDir, 'ext');
+  if Trim(OldPath) <> '' then
+    NewPath := NewPath + ';' + OldPath;
+  Result := SetEnvironmentVariable('PATH', PChar(NewPath));
+end;
+
+procedure TUniWampRuntime.RestorePath(const OldPath: string);
+begin
+  SetEnvironmentVariable('PATH', PChar(OldPath));
 end;
 
 function TUniWampRuntime.MariaDbExe: string;
@@ -1486,6 +1510,7 @@ var
   StartResult: TProcessStartResult;
   ErrorMessage: string;
   VHostManager: TVHostManager;
+  OldPath: string;
 begin
   if FConfig.ApacheRunning and not ApacheIsRunning then
   begin
@@ -1547,10 +1572,21 @@ begin
     Exit;
   end;
   AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'apache-error.log'), 'Starting Apache: ' + ApacheExe);
-  StartResult := TProcessManager.StartDetached(
-    ApacheExe,
-    '-f "' + FPaths.ApacheHttpdConfFile + '"',
-    FPaths.ApacheBinDir);
+  if not PushPhpRuntimeToPath(SelectedPhpDir, OldPath) then
+  begin
+    FailApacheStart('Unable to prepare PHP runtime environment for Apache.');
+    Result.Success := False;
+    Result.Message := 'Unable to prepare PHP runtime environment for Apache.';
+    Exit;
+  end;
+  try
+    StartResult := TProcessManager.StartDetached(
+      ApacheExe,
+      '-f "' + FPaths.ApacheHttpdConfFile + '"',
+      FPaths.ApacheBinDir);
+  finally
+    RestorePath(OldPath);
+  end;
 
   Result.Success := StartResult.Success;
   if StartResult.Success then

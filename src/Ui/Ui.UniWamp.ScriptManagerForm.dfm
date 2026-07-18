@@ -115,6 +115,14 @@ object ScriptManagerForm: TScriptManagerForm
         Caption = 'Clear filters'
         TabOrder = 4
       end
+      object FShowInstallTerminalCheck: TCheckBox
+        Left = 678
+        Top = 88
+        Width = 180
+        Height = 19
+        Caption = 'Show install terminal'
+        TabOrder = 5
+      end
     end
     object FMainPanel: TPanel
       Left = 12
