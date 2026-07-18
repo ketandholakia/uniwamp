@@ -1,2 +1,2 @@
-1#define InstallerProfileName "Minimum"
+#define InstallerProfileName "Minimum"
 #include "UniWamp.Common.issinc"

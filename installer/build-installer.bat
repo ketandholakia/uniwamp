@@ -23,7 +23,7 @@ if not exist "UniWampAssets.res" (
   "%BDS%\bin\brcc32.exe" UniWampAssets.rc -foUniWampAssets.res
   if errorlevel 1 exit /b 1
 )
-msbuild UniWamp.dproj /t:Build /p:Config=Debug /p:Platform=Win32 /p:DCC_ExeOutput=tmpbuild\bin /p:DCC_DcuOutput=tmpbuild\dcu
+msbuild UniWamp.dproj /t:Build /p:Config=Release /p:Platform=Win32 /p:DCC_ExeOutput=tmpbuild\bin /p:DCC_DcuOutput=tmpbuild\dcu
 if errorlevel 1 exit /b 1
 popd
 

@@ -190,11 +190,11 @@ To build the installer on a machine with Delphi and Inno Setup installed:
 
 The build script generates five installer files:
 
-- `UniWamp-Php82-Setup-<version>.exe`
-- `UniWamp-Php83-Setup-<version>.exe`
-- `UniWamp-Php84-Setup-<version>.exe`
-- `UniWamp-Php85-Setup-<version>.exe`
-- `UniWamp-Full-Setup-<version>.exe`
+- `UniWamp-Php82-Setup-v0.1.0-alpha.exe`
+- `UniWamp-Php83-Setup-v0.1.0-alpha.exe`
+- `UniWamp-Php84-Setup-v0.1.0-alpha.exe`
+- `UniWamp-Php85-Setup-v0.1.0-alpha.exe`
+- `UniWamp-Full-Setup-v0.1.0-alpha.exe`
 
 Profile scope:
 

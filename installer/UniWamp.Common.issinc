@@ -1,13 +1,14 @@
 #define MyAppName "UniWamp"
 #define MyAppExeName "UniWamp.exe"
-#define MyAppVersion GetFileVersion("..\src\tmpbuild\bin\UniWamp.exe")
+#define MyAppVersion "0.1.0.0"
+#define MyAppDisplayVersion "v0.1.0-alpha"
 #define BundledNodeVersion "node-v22.23.1-win-x64"
 
 [Setup]
 AppId={{B1E4A0B5-4D8E-4D2A-8D1B-9D7D2A77F3C1}
 AppName={#MyAppName}
-AppVersion={#MyAppVersion}
-AppVerName={#MyAppName} {#MyAppVersion}
+AppVersion={#MyAppDisplayVersion}
+AppVerName={#MyAppName} {#MyAppDisplayVersion}
 AppPublisher=UniWamp
 DefaultDirName={userdocs}\UniWamp
 DefaultGroupName=UniWamp
@@ -16,7 +17,7 @@ DisableDirPage=no
 AllowNoIcons=yes
 PrivilegesRequired=lowest
 OutputDir=Output
-OutputBaseFilename=UniWamp-{#InstallerProfileName}-Setup-{#MyAppVersion}
+OutputBaseFilename=UniWamp-{#InstallerProfileName}-Setup-{#MyAppDisplayVersion}
 SetupIconFile=..\src\UniWamp_Icon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2/ultra64
@@ -29,6 +30,7 @@ DisableStartupPrompt=yes
 UsePreviousAppDir=yes
 UsePreviousGroup=yes
 VersionInfoVersion={#MyAppVersion}
+VersionInfoProductVersion={#MyAppVersion}
 VersionInfoDescription=UniWamp portable WAMP dashboard
 
 [Languages]
