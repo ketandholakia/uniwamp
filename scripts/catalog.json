@@ -108,7 +108,7 @@
           "timeoutMs": 600000
         },
         {
-          "type": "create_database",
+          "type": "create_database_user",
           "destination": "${projectName}"
         }
       ]
@@ -207,7 +207,7 @@
       "id": "opencart",
       "name": "OpenCart",
       "category": "E-commerce CMS",
-      "summary": "Clone the official OpenCart repository into a project folder.",
+      "summary": "Clone OpenCart, create its database, and run the non-interactive installer.",
       "homepage": "https://www.opencart.com/",
       "license": "GPL-3.0-or-later",
       "version": "latest",
@@ -218,6 +218,17 @@
           "arguments": "clone --depth 1 https://github.com/opencart/opencart.git ${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 900000
+        },
+        {
+          "type": "create_database_user",
+          "destination": "${projectName}"
+        },
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${www}/${projectName}/upload/install/cli_install.php install --username admin --email admin@${projectName}.local --password ${adminPassword} --http_server http://${projectName}/ --language en-gb --db_driver mysqli --db_hostname ${dbHost} --db_username ${dbUser} --db_password ${dbPassword} --db_database ${dbName} --db_port ${dbPort} --db_prefix oc_",
+          "workingDirectory": "${www}/${projectName}/upload/install",
+          "timeoutMs": 300000
         }
       ]
     },
@@ -430,7 +441,7 @@
       "id": "woocommerce",
       "name": "WooCommerce",
       "category": "E-commerce CMS",
-      "summary": "Download WordPress core and install WooCommerce with WP-CLI.",
+      "summary": "Download WordPress, wire up the database, install WordPress, then install WooCommerce with WP-CLI.",
       "homepage": "https://woocommerce.com/",
       "license": "GPL-3.0-or-later",
       "version": "latest",
@@ -440,11 +451,29 @@
           "destination": "${www}/${projectName}"
         },
         {
+          "type": "create_database_user",
+          "destination": "${projectName}"
+        },
+        {
           "type": "run",
           "executable": "${php}",
           "arguments": "${tools}/wp-cli/wp-cli.phar core download --path=${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 600000
+        },
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/wp-cli/wp-cli.phar config create --path=${www}/${projectName} --dbname=${dbName} --dbuser=${dbUser} --dbpass=${dbPassword} --dbhost=${dbHost}:${dbPort} --skip-check",
+          "workingDirectory": "${www}",
+          "timeoutMs": 120000
+        },
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/wp-cli/wp-cli.phar core install --path=${www}/${projectName} --url=http://${projectName}/ --title=${projectName} --admin_user=admin --admin_email=admin@${projectName}.local --skip-email",
+          "workingDirectory": "${www}",
+          "timeoutMs": 300000
         },
         {
           "type": "run",
@@ -459,7 +488,7 @@
       "id": "wordpress",
       "name": "WordPress",
       "category": "CMS",
-      "summary": "Download the latest WordPress core into a project folder with WP-CLI.",
+      "summary": "Download WordPress core, create its database, and run WP-CLI's non-interactive installer.",
       "homepage": "https://wordpress.org/",
       "license": "GPL-2.0-or-later",
       "version": "latest",
@@ -469,11 +498,29 @@
           "destination": "${www}/${projectName}"
         },
         {
+          "type": "create_database_user",
+          "destination": "${projectName}"
+        },
+        {
           "type": "run",
           "executable": "${php}",
           "arguments": "${tools}/wp-cli/wp-cli.phar core download --path=${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 600000
+        },
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/wp-cli/wp-cli.phar config create --path=${www}/${projectName} --dbname=${dbName} --dbuser=${dbUser} --dbpass=${dbPassword} --dbhost=${dbHost}:${dbPort} --skip-check",
+          "workingDirectory": "${www}",
+          "timeoutMs": 120000
+        },
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/wp-cli/wp-cli.phar core install --path=${www}/${projectName} --url=http://${projectName}/ --title=${projectName} --admin_user=admin --admin_email=admin@${projectName}.local --skip-email",
+          "workingDirectory": "${www}",
+          "timeoutMs": 300000
         }
       ]
     }

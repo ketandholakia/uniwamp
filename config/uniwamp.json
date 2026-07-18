@@ -82,22 +82,6 @@
   },
   "vhosts": [
     {
-      "serverName": "myproject2",
-      "serverAliases": "",
-      "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\myproject2",
-      "enableSsl": false,
-      "sslCertFile": "",
-      "sslKeyFile": ""
-    },
-    {
-      "serverName": "lara22",
-      "serverAliases": "",
-      "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\lara22",
-      "enableSsl": false,
-      "sslCertFile": "",
-      "sslKeyFile": ""
-    },
-    {
       "serverName": "lara44",
       "serverAliases": "",
       "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\lara44\\public",
@@ -122,25 +106,25 @@
       "sslKeyFile": ""
     },
     {
-      "serverName": "lara111",
+      "serverName": "laraveltest",
       "serverAliases": "",
-      "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\lara111\\public",
+      "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\laraveltest\\public",
       "enableSsl": false,
       "sslCertFile": "",
       "sslKeyFile": ""
     },
     {
-      "serverName": "ketan",
+      "serverName": "backdropcms",
       "serverAliases": "",
-      "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\ketan\\public",
+      "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\backdropcms",
       "enableSsl": false,
       "sslCertFile": "",
       "sslKeyFile": ""
     },
     {
-      "serverName": "laralara",
+      "serverName": "concretecms",
       "serverAliases": "",
-      "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\laralara\\public",
+      "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\concretecms\\public",
       "enableSsl": false,
       "sslCertFile": "",
       "sslKeyFile": ""

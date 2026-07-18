@@ -888,6 +888,10 @@ end;
 procedure TScriptManagerForm.InstallSelectedAsync(const Item: TScriptCatalogItem; const ProjectName: string;
   Config: TUniWampConfig);
 begin
+  TDirectory.CreateDirectory(FPaths.LogsDir);
+  FInstallLogFile := TPath.Combine(FPaths.LogsDir,
+    Format('install-%s-%s.log', [ProjectName, FormatDateTime('yyyymmdd-hhnnss', Now)]));
+  TFile.WriteAllText(FInstallLogFile, '', TEncoding.UTF8);
   SetInstalling(True);
   AppendOutput('Starting install for ' + Item.Name + ' into ' + TPath.Combine(FPaths.WwwDir, ProjectName));
   TThread.CreateAnonymousThread(
@@ -916,7 +920,7 @@ begin
       ProjectPath := TPath.Combine(FPaths.WwwDir, ProjectName);
       NeedsDatabase := False;
       for Step in Item.Steps do
-        if SameText(Step.StepType, 'create_database') then
+        if SameText(Step.StepType, 'create_database') or SameText(Step.StepType, 'create_database_user') then
         begin
           NeedsDatabase := True;
           Break;
@@ -957,7 +961,9 @@ begin
               VHostManager := TServiceLocator.Instance.GetService<IVHostManager>;
               VHostDocumentRoot := ProjectPath;
               if TDirectory.Exists(TPath.Combine(ProjectPath, 'public')) then
-                VHostDocumentRoot := TPath.Combine(ProjectPath, 'public');
+                VHostDocumentRoot := TPath.Combine(ProjectPath, 'public')
+              else if TDirectory.Exists(TPath.Combine(ProjectPath, 'upload')) then
+                VHostDocumentRoot := TPath.Combine(ProjectPath, 'upload');
               VHostResult := VHostManager.AddVHost(ProjectName, VHostDocumentRoot, '', False);
               AppendOutput(VHostResult.Message);
               if not VHostResult.Success then
@@ -1210,6 +1216,8 @@ end;
 
 initialization
   RegisterClass(TPanel);
+  RegisterClass(TSplitter);
+  RegisterClass(TBevel);
   RegisterClass(TLabel);
   RegisterClass(TButton);
   RegisterClass(TEdit);
