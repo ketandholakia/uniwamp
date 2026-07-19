@@ -3,13 +3,13 @@ unit Core.UniWamp.ScriptEngine;
 interface
 
 uses
-  Core.UniWamp.Paths,
   Core.UniWamp.ProcessManager,
+  Core.UniWamp.Paths,
   Core.UniWamp.ScriptCatalog,
   System.SysUtils;
 
 type
-  TScriptOutputEvent = Core.UniWamp.ProcessManager.TProcessOutputEvent;
+  TScriptOutputEvent = TProcessOutputEvent;
 
   TScriptExecutionResult = record
     Success: Boolean;
@@ -25,6 +25,10 @@ type
     FDbUser: string;
     FDbPassword: string;
     FAdminPassword: string;
+    FCachedPhpExe: string;
+    FPhpExeCached: Boolean;
+    FCachedDbPort: Integer;
+    FDbPortCached: Boolean;
     function SelectedPhpExe: string;
     function PhpCliPrefix(const PhpExe: string): string;
     function MariaDbAdminExe: string;
@@ -45,7 +49,7 @@ type
     constructor Create(const Paths: TAppPaths);
     function PhpRuntimeDescription: string;
     function Execute(const Item: TScriptCatalogItem; const ProjectName: string;
-      const OnOutput: TScriptOutputEvent = nil): TScriptExecutionResult;
+      const OnOutput: TScriptOutputEvent = nil; const CreateDatabase: Boolean = True): TScriptExecutionResult;
   end;
 
 implementation
@@ -107,6 +111,9 @@ var
   FallbackVersions: TArray<string>;
   I: Integer;
 begin
+  if FPhpExeCached then
+    Exit(FCachedPhpExe);
+
   Result := '';
   FallbackVersions := TArray<string>.Create('php85', 'php84', 'php83', 'php82');
   ConfigFile := TPath.Combine(FPaths.ConfigDir, 'uniwamp.json');
@@ -123,7 +130,11 @@ begin
         begin
           Candidate := TPath.Combine(TPath.Combine(FPaths.PhpDir, Version), 'php.exe');
           if TFile.Exists(Candidate) then
-            Exit(Candidate);
+          begin
+            FCachedPhpExe := Candidate;
+            FPhpExeCached := True;
+            Exit(FCachedPhpExe);
+          end;
         end;
       end;
     finally
@@ -134,8 +145,15 @@ begin
   begin
     Candidate := TPath.Combine(TPath.Combine(FPaths.PhpDir, FallbackVersions[I]), 'php.exe');
     if TFile.Exists(Candidate) then
-      Exit(Candidate);
+    begin
+      FCachedPhpExe := Candidate;
+      FPhpExeCached := True;
+      Exit(FCachedPhpExe);
+    end;
   end;
+  { Deliberately not caching the "nothing found" case: a missing PHP runtime is an
+    unusual/error condition, and re-checking disk each time costs nothing extra in
+    that path while letting a runtime fixed mid-session be picked up without a restart. }
 end;
 
 function TScriptEngine.PhpCliPrefix(const PhpExe: string): string;
@@ -167,20 +185,24 @@ var
   JsonValue: TJSONValue;
   JsonObject: TJSONObject;
 begin
+  if FDbPortCached then
+    Exit(FCachedDbPort);
   Result := 3307;
   ConfigFile := TPath.Combine(FPaths.ConfigDir, 'uniwamp.json');
-  if not TFile.Exists(ConfigFile) then
-    Exit;
-  JsonValue := TJSONObject.ParseJSONValue(TFile.ReadAllText(ConfigFile, TEncoding.UTF8));
-  if not Assigned(JsonValue) then
-    Exit;
-  try
-    JsonObject := JsonValue as TJSONObject;
-    if Assigned(JsonObject) then
-      Result := JsonObject.GetValue<Integer>('databasePort');
-  finally
-    JsonValue.Free;
+  if TFile.Exists(ConfigFile) then
+  begin
+    JsonValue := TJSONObject.ParseJSONValue(TFile.ReadAllText(ConfigFile, TEncoding.UTF8));
+    if Assigned(JsonValue) then
+    try
+      JsonObject := JsonValue as TJSONObject;
+      if Assigned(JsonObject) then
+        Result := JsonObject.GetValue<Integer>('databasePort');
+    finally
+      JsonValue.Free;
+    end;
   end;
+  FCachedDbPort := Result;
+  FDbPortCached := True;
 end;
 
 function TScriptEngine.MariaDbRootPassword: string;
@@ -205,7 +227,7 @@ var
   RawBytes: TBytes;
   I: Integer;
 begin
-  { TGUID.NewGuid is backed by the OS CSPRNG (CoCreateGuid on Windows) — an adequate
+  { TGUID.NewGuid is backed by the OS CSPRNG (CoCreateGuid on Windows) - an adequate
     source of randomness for a locally-generated dev-database password. Each GUID
     contributes 16 raw bytes; pull as many GUIDs as needed for CharCount. }
   Result := '';
@@ -449,17 +471,21 @@ begin
   if Step.StepType = 'create_database_user' then
   begin
     Output := '';
-    { Destination carries the database name; the username reuses it (MySQL usernames are
-      capped at 32 chars, so it is truncated) since project names are already restricted
-      to a safe charset by ValidateProjectName before they ever reach the engine. }
+    (* The database name is whatever the catalog entry configures (conventionally
+       "${projectName}_db" so it reads clearly in phpMyAdmin/Adminer next to other
+       schemas). The username is deliberately derived from the raw project name, not
+       from the database name string - otherwise a "_db"-suffixed database would also
+       produce a "_db"-suffixed username, which is just noise. MySQL usernames are
+       capped at 32 chars; project names are already restricted to a safe charset by
+       ValidateProjectName before they ever reach the engine. *)
     DestinationPath := ExpandTokens(Step.Destination, Item, ProjectName);
-    if not CreateDatabaseUser(DestinationPath, Copy(DestinationPath, 1, 32),
+    if not CreateDatabaseUser(DestinationPath, Copy(ProjectName, 1, 32),
       GenerateRandomPassword(24), Output) then
       Exit(False);
     FAdminPassword := GenerateRandomPassword(16);
     if Assigned(OnOutput) then
       OnOutput(Format('Created database "%s" and user "%s". Generated admin password: %s ' +
-        '(shown once here and nowhere else unless the catalog entry writes it to a config file — save it now).',
+        '(shown once here and nowhere else unless the catalog entry writes it to a config file - save it now).',
         [FDbName, FDbUser, FAdminPassword]));
     Exit(True);
   end;
@@ -467,7 +493,7 @@ begin
 end;
 
 function TScriptEngine.Execute(const Item: TScriptCatalogItem; const ProjectName: string;
-  const OnOutput: TScriptOutputEvent): TScriptExecutionResult;
+  const OnOutput: TScriptOutputEvent; const CreateDatabase: Boolean): TScriptExecutionResult;
 var
   I: Integer;
   StepOutput: string;
@@ -483,6 +509,17 @@ begin
   try
     for I := Low(Item.Steps) to High(Item.Steps) do
     begin
+      if Item.Steps[I].RequiresDatabase and not CreateDatabase then
+      begin
+        (* "Create database" is unchecked: skip this step (and anything else marked
+           requiresDatabase) entirely rather than running it with empty ${dbName}/
+           ${dbUser}/${dbPassword} tokens, which would just produce a broken command. *)
+        Inc(Result.CompletedSteps);
+        if Assigned(OnOutput) then
+          OnOutput(Format('Skipped step %d (%s) - database creation is disabled for this install.',
+            [I + 1, Item.Steps[I].StepType]));
+        Continue;
+      end;
       if not RunStep(Item.Steps[I], Item, ProjectName, StepOutput, OnOutput) then
       begin
         Result.Message := Format('Step %d failed.', [I + 1]);
@@ -490,11 +527,11 @@ begin
         Exit;
       end;
       Inc(Result.CompletedSteps);
-      { 'run' steps now stream their output live, chunk by chunk, via the OnOutput
-        callback passed straight into RunAndCaptureOutput. Re-emitting the full
-        StepOutput here would print everything a second time. Other step types
-        (extract_zip, copy_tree, download, create_database, ...) don't stream, so
-        they still need this one-shot dump. }
+      (* 'run' steps now stream their output live, chunk by chunk, via the OnOutput
+         callback passed straight into RunAndCaptureOutput. Re-emitting the full
+         StepOutput here would print everything a second time. Other step types
+         (extract_zip, copy_tree, download, create_database, ...) don't stream, so
+         they still need this one-shot dump. *)
       if Assigned(OnOutput) and (Trim(StepOutput) <> '') and
         not SameText(Item.Steps[I].StepType, 'run') then
         OnOutput(StepOutput);
@@ -502,7 +539,11 @@ begin
         Result.Output := Result.Output + StepOutput + sLineBreak;
     end;
     Result.Success := True;
-    Result.Message := Format('%s completed successfully.', [Item.Name]);
+    if CreateDatabase then
+      Result.Message := Format('%s completed successfully.', [Item.Name])
+    else
+      Result.Message := Format('%s scaffolded (no database was created - install steps that ' +
+        'need one were skipped).', [Item.Name]);
   except
     on E: Exception do
     begin

@@ -59,6 +59,9 @@ type
     FDetailVersionBadge: TPanel;
     FDetailVersionValue: TLabel;
     FDetailMethodValue: TLabel;
+    FDetailDatabaseValue: TLabel;
+    FDetailHomepageValue: TLabel;
+    FSelectedItemHomepage: string;
     FDetailInstallButton: TButton;
     FCloseButton: TButton;
     FInstalling: Boolean;
@@ -73,6 +76,7 @@ type
     FPendingCompletionSuccess: Boolean;
     FProgressBar: TProgressBar;
     FShowInstallTerminalCheck: TCheckBox;
+    FCreateDatabaseCheck: TCheckBox;
     FInstallLogFile: string;
     procedure Populate;
     procedure BindControls;
@@ -102,6 +106,7 @@ type
     function IsCategoryExpanded(const Category: string): Boolean;
     function GetInstallMethodText(const Item: TScriptCatalogItem): string;
     function IsEcommerceCategory(const Category: string): Boolean;
+    function ResolveProjectDocumentRoot(const ProjectPath: string; out RelativeRoot: string): string;
     procedure ToggleCategory(const Category: string);
     procedure InstallSelectedAsync(const Item: TScriptCatalogItem; const ProjectName: string;
       Config: TUniWampConfig);
@@ -114,6 +119,7 @@ type
     class procedure Execute(AOwner: TComponent; const Paths: TAppPaths); static;
   published
     procedure InstallClick(Sender: TObject);
+    procedure DetailHomepageValueClick(Sender: TObject);
     procedure CloseClick(Sender: TObject);
     procedure GridDblClick(Sender: TObject);
     procedure GridMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
@@ -234,6 +240,14 @@ begin
     FDetailVersionValue := FindComponent('FDetailVersionValue') as TLabel;
   if not Assigned(FDetailMethodValue) then
     FDetailMethodValue := FindComponent('FDetailMethodValue') as TLabel;
+  if not Assigned(FDetailDatabaseValue) then
+    FDetailDatabaseValue := FindComponent('FDetailDatabaseValue') as TLabel;
+  if not Assigned(FDetailHomepageValue) then
+  begin
+    FDetailHomepageValue := FindComponent('FDetailHomepageValue') as TLabel;
+    if Assigned(FDetailHomepageValue) then
+      FDetailHomepageValue.OnClick := DetailHomepageValueClick;
+  end;
   if not Assigned(FDetailInstallButton) then
     FDetailInstallButton := FindComponent('FDetailInstallButton') as TButton;
   if not Assigned(FCloseButton) then
@@ -392,6 +406,23 @@ var
 begin
   LowerCategory := LowerCase(Trim(Category));
   Result := ContainsText(LowerCategory, 'e-commerce') or ContainsText(LowerCategory, 'commerce');
+end;
+
+function TScriptManagerForm.ResolveProjectDocumentRoot(const ProjectPath: string; out RelativeRoot: string): string;
+const
+  CandidateRoots: array[0..4] of string = ('public', 'upload', 'webroot', 'web', 'www');
+var
+  Candidate: string;
+begin
+  Result := ProjectPath;
+  RelativeRoot := '';
+  for Candidate in CandidateRoots do
+    if TDirectory.Exists(TPath.Combine(ProjectPath, Candidate)) then
+    begin
+      Result := TPath.Combine(ProjectPath, Candidate);
+      RelativeRoot := Candidate;
+      Exit;
+    end;
 end;
 
 procedure TScriptManagerForm.ToggleCategory(const Category: string);
@@ -699,6 +730,13 @@ begin
   DrawText(ACanvas.Handle, PChar(Text), Length(Text), TextRect, Flags);
 end;
 
+procedure TScriptManagerForm.DetailHomepageValueClick(Sender: TObject);
+begin
+  if Trim(FSelectedItemHomepage) = '' then
+    Exit;
+  ShellExecute(Handle, 'open', PChar(FSelectedItemHomepage), nil, nil, SW_SHOWNORMAL);
+end;
+
 procedure TScriptManagerForm.UpdateSelectionDetails;
 var
   Item: TScriptCatalogItem;
@@ -720,7 +758,17 @@ begin
     FDetailSummaryLabel.Caption := 'Pick a row from the catalog to see details here.';
     FDetailVersionValue.Caption := '-';
     FDetailMethodValue.Caption := '-';
+    if Assigned(FDetailDatabaseValue) then
+      FDetailDatabaseValue.Caption := '-';
+    if Assigned(FDetailHomepageValue) then
+    begin
+      FDetailHomepageValue.Caption := '-';
+      FDetailHomepageValue.Hint := '';
+    end;
+    FSelectedItemHomepage := '';
     FDetailInstallButton.Caption := 'Install selected';
+    if Assigned(FCreateDatabaseCheck) then
+      FCreateDatabaseCheck.Enabled := True;
     Exit;
   end;
 
@@ -747,6 +795,38 @@ begin
   FDetailSummaryLabel.Caption := Item.Summary;
   FDetailVersionValue.Caption := Item.Version;
   FDetailMethodValue.Caption := GetInstallMethodText(Item);
+  if Assigned(FDetailDatabaseValue) then
+  begin
+    if Item.RequiresDatabase then
+      FDetailDatabaseValue.Caption := 'Required'
+    else
+      FDetailDatabaseValue.Caption := 'Not needed';
+  end;
+  if Assigned(FCreateDatabaseCheck) then
+  begin
+    FCreateDatabaseCheck.Enabled := Item.RequiresDatabase;
+    if not Item.RequiresDatabase then
+      FCreateDatabaseCheck.Checked := False;
+  end;
+  FSelectedItemHomepage := Trim(Item.Homepage);
+  if Assigned(FDetailHomepageValue) then
+  begin
+    if FSelectedItemHomepage <> '' then
+    begin
+      FDetailHomepageValue.Caption := FSelectedItemHomepage;
+      if Trim(Item.License) <> '' then
+        FDetailHomepageValue.Hint := 'License: ' + Item.License
+      else
+        FDetailHomepageValue.Hint := '';
+      FDetailHomepageValue.ShowHint := Trim(Item.License) <> '';
+    end
+    else
+    begin
+      FDetailHomepageValue.Caption := '-';
+      FDetailHomepageValue.Hint := '';
+      FDetailHomepageValue.ShowHint := False;
+    end;
+  end;
   FDetailInstallButton.Caption := 'Install ' + Item.Name;
 end;
 
@@ -887,7 +967,10 @@ end;
 
 procedure TScriptManagerForm.InstallSelectedAsync(const Item: TScriptCatalogItem; const ProjectName: string;
   Config: TUniWampConfig);
+var
+  CreateDatabase: Boolean;
 begin
+  CreateDatabase := (not Assigned(FCreateDatabaseCheck)) or FCreateDatabaseCheck.Checked;
   TDirectory.CreateDirectory(FPaths.LogsDir);
   FInstallLogFile := TPath.Combine(FPaths.LogsDir,
     Format('install-%s-%s.log', [ProjectName, FormatDateTime('yyyymmdd-hhnnss', Now)]));
@@ -910,6 +993,7 @@ begin
       Step: TScriptStep;
       InstallSucceeded: Boolean;
       VHostDocumentRoot: string;
+      RelativeDocumentRoot: string;
       ApacheWasRunning: Boolean;
       RestartInfo: TRuntimeActionResult;
     begin
@@ -918,13 +1002,17 @@ begin
       FPendingCompletionOutput := '';
       FPendingCompletionSuccess := False;
       ProjectPath := TPath.Combine(FPaths.WwwDir, ProjectName);
+      { Only start/require MariaDB if the checkbox is on AND the recipe actually has a
+        DB-creation step. Unchecking it skips that step (and everything downstream that
+        depends on it) inside Engine.Execute, so there's nothing here that needs MariaDB. }
       NeedsDatabase := False;
-      for Step in Item.Steps do
-        if SameText(Step.StepType, 'create_database') or SameText(Step.StepType, 'create_database_user') then
-        begin
-          NeedsDatabase := True;
-          Break;
-        end;
+      if CreateDatabase then
+        for Step in Item.Steps do
+          if SameText(Step.StepType, 'create_database') or SameText(Step.StepType, 'create_database_user') then
+          begin
+            NeedsDatabase := True;
+            Break;
+          end;
 
       Runtime := nil;
       try
@@ -943,11 +1031,13 @@ begin
           Engine := TScriptEngine.Create(FPaths);
           try
             AppendOutput('PHP runtime: ' + Engine.PhpRuntimeDescription);
+            if not CreateDatabase then
+              AppendOutput('Database creation is disabled for this install — steps that need one will be skipped.');
             ExecutionResult := Engine.Execute(Item, ProjectName,
               procedure(const Text: string)
               begin
                 AppendOutput(Text);
-              end);
+              end, CreateDatabase);
           finally
             Engine.Free;
           end;
@@ -955,15 +1045,11 @@ begin
           if ExecutionResult.Success then
           begin
             AppendOutput(ExecutionResult.Message);
-            ReloadConfig := TUniWampConfig.Create;
-            try
-              ReloadConfig.LoadOrCreate(FPaths);
-              VHostManager := TServiceLocator.Instance.GetService<IVHostManager>;
-              VHostDocumentRoot := ProjectPath;
-              if TDirectory.Exists(TPath.Combine(ProjectPath, 'public')) then
-                VHostDocumentRoot := TPath.Combine(ProjectPath, 'public')
-              else if TDirectory.Exists(TPath.Combine(ProjectPath, 'upload')) then
-                VHostDocumentRoot := TPath.Combine(ProjectPath, 'upload');
+              ReloadConfig := TUniWampConfig.Create;
+              try
+                ReloadConfig.LoadOrCreate(FPaths);
+                VHostManager := TServiceLocator.Instance.GetService<IVHostManager>;
+              VHostDocumentRoot := ResolveProjectDocumentRoot(ProjectPath, RelativeDocumentRoot);
               VHostResult := VHostManager.AddVHost(ProjectName, VHostDocumentRoot, '', False);
               AppendOutput(VHostResult.Message);
               if not VHostResult.Success then
@@ -994,8 +1080,13 @@ begin
               end;
               AppendOutput('Open the site at: ' + Format('http://%s:%d/',
                 [ProjectName, ReloadConfig.HttpPort]));
-              if not SameText(VHostDocumentRoot, ProjectPath) then
-                AppendOutput('Document root set to /public for this framework.');
+              if RelativeDocumentRoot <> '' then
+                AppendOutput('Document root set to /' + RelativeDocumentRoot + ' for this framework.');
+              if CreateDatabase and (Trim(Item.AdminPath) <> '') then
+                AppendOutput('Admin login: ' + Format('http://%s:%d%s',
+                  [ProjectName, ReloadConfig.HttpPort, Item.AdminPath]));
+              if CreateDatabase and (Trim(Item.PostInstallNotes) <> '') then
+                AppendOutput(Item.PostInstallNotes);
               FPendingCompletionMessage := ExecutionResult.Message;
               FPendingCompletionSuccess := True;
               InstallSucceeded := True;
@@ -1216,8 +1307,6 @@ end;
 
 initialization
   RegisterClass(TPanel);
-  RegisterClass(TSplitter);
-  RegisterClass(TBevel);
   RegisterClass(TLabel);
   RegisterClass(TButton);
   RegisterClass(TEdit);

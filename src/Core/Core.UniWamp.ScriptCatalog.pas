@@ -18,6 +18,7 @@ type
     Url: string;
     Content: string;
     TimeoutMs: Cardinal;
+    RequiresDatabase: Boolean;
   end;
 
   TScriptCatalogItem = record
@@ -28,6 +29,9 @@ type
     Homepage: string;
     License: string;
     Version: string;
+    AdminPath: string;
+    PostInstallNotes: string;
+    RequiresDatabase: Boolean;
     Steps: TArray<TScriptStep>;
   end;
 
@@ -38,6 +42,8 @@ type
       const Name: string; const DefaultValue: string = ''): string; static;
     class function IntegerValue(const ObjectValue: TJSONObject;
       const Name: string; const DefaultValue: Integer = 0): Integer; static;
+    class function BooleanValue(const ObjectValue: TJSONObject;
+      const Name: string; const DefaultValue: Boolean = False): Boolean; static;
     class function ParseItem(const Value: TJSONValue): TScriptCatalogItem; static;
     class function ParseStep(const Value: TJSONValue): TScriptStep; static;
     procedure SortItems;
@@ -71,6 +77,19 @@ begin
   Result := StrToIntDef(StringValue(ObjectValue, Name), DefaultValue);
 end;
 
+class function TScriptCatalog.BooleanValue(const ObjectValue: TJSONObject;
+  const Name: string; const DefaultValue: Boolean): Boolean;
+var
+  Value: TJSONValue;
+begin
+  Result := DefaultValue;
+  if not Assigned(ObjectValue) then
+    Exit;
+  Value := ObjectValue.GetValue(Name);
+  if Value is TJSONBool then
+    Result := TJSONBool(Value).AsBoolean;
+end;
+
 class function TScriptCatalog.ParseStep(const Value: TJSONValue): TScriptStep;
 var
   ObjectValue: TJSONObject;
@@ -84,6 +103,7 @@ begin
   Result.Url := '';
   Result.Content := '';
   Result.TimeoutMs := 0;
+  Result.RequiresDatabase := False;
   ObjectValue := Value as TJSONObject;
   if not Assigned(ObjectValue) then
     Exit;
@@ -96,6 +116,13 @@ begin
   Result.Url := StringValue(ObjectValue, 'url');
   Result.Content := StringValue(ObjectValue, 'content');
   Result.TimeoutMs := IntegerValue(ObjectValue, 'timeoutMs');
+  (* create_database / create_database_user obviously require a database regardless of
+     whether the catalog entry bothers to say so. Any other step (e.g. the "wp config
+     create" / "wp core install" / cli_install.php run steps that consume ${dbName} etc.)
+     must opt in explicitly via "requiresDatabase": true, since most "run" steps don't. *)
+  Result.RequiresDatabase := (Result.StepType = 'create_database') or
+    (Result.StepType = 'create_database_user') or
+    BooleanValue(ObjectValue, 'requiresDatabase');
 end;
 
 class function TScriptCatalog.ParseItem(const Value: TJSONValue): TScriptCatalogItem;
@@ -111,6 +138,9 @@ begin
   Result.Homepage := '';
   Result.License := '';
   Result.Version := '';
+  Result.AdminPath := '';
+  Result.PostInstallNotes := '';
+  Result.RequiresDatabase := False;
   SetLength(Result.Steps, 0);
   ObjectValue := Value as TJSONObject;
   if not Assigned(ObjectValue) then
@@ -122,6 +152,8 @@ begin
   Result.Homepage := StringValue(ObjectValue, 'homepage');
   Result.License := StringValue(ObjectValue, 'license');
   Result.Version := StringValue(ObjectValue, 'version');
+  Result.AdminPath := StringValue(ObjectValue, 'adminPath');
+  Result.PostInstallNotes := StringValue(ObjectValue, 'postInstallNotes');
   StepsValue := ObjectValue.GetValue<TJSONArray>('install');
   if Assigned(StepsValue) then
   begin
@@ -129,6 +161,15 @@ begin
     for I := 0 to StepsValue.Count - 1 do
       Result.Steps[I] := ParseStep(StepsValue.Items[I]);
   end;
+  { Item-level convenience flag: true if any step in the recipe needs a database.
+    Lets the UI show a "Database required" badge / auto-manage the checkbox state
+    without re-scanning Steps itself every time. }
+  for I := Low(Result.Steps) to High(Result.Steps) do
+    if Result.Steps[I].RequiresDatabase then
+    begin
+      Result.RequiresDatabase := True;
+      Break;
+    end;
 end;
 
 procedure TScriptCatalog.SortItems;

@@ -56,6 +56,42 @@
       ]
     },
     {
+      "id": "cakephp",
+      "name": "CakePHP",
+      "category": "PHP Framework",
+      "summary": "Create a CakePHP application with Composer.",
+      "homepage": "https://cakephp.org/",
+      "license": "MIT",
+      "version": "recommended",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar create-project --prefer-dist cakephp/app ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 600000
+        }
+      ]
+    },
+    {
+      "id": "codeigniter",
+      "name": "CodeIgniter",
+      "category": "PHP Framework",
+      "summary": "Create a CodeIgniter application starter with Composer.",
+      "homepage": "https://codeigniter.com/",
+      "license": "MIT",
+      "version": "recommended",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar create-project codeigniter4/appstarter ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 600000
+        }
+      ]
+    },
+    {
       "id": "concrete-cms",
       "name": "Concrete CMS",
       "category": "CMS",
@@ -99,6 +135,8 @@
       "homepage": "https://www.drupal.org/",
       "license": "GPL-2.0-or-later",
       "version": "recommended",
+      "adminPath": "",
+      "postInstallNotes": "A scoped database and user were created, but Drupal's own installer has not been run (this catalog entry does not bundle drush). Open the site in a browser to finish setup through Drupal's web installer, using the generated database name/user/password shown in the install log.",
       "install": [
         {
           "type": "run",
@@ -109,7 +147,48 @@
         },
         {
           "type": "create_database_user",
-          "destination": "${projectName}"
+          "destination": "${projectName}_db"
+        }
+      ]
+    },
+    {
+      "id": "ecotone-lite",
+      "name": "Ecotone Lite",
+      "category": "PHP Framework",
+      "summary": "Create a minimal PSR-4 Composer project and install Ecotone Lite.",
+      "homepage": "https://docs.ecotone.tech/install-php-service-bus",
+      "license": "MIT",
+      "version": "recommended",
+      "postInstallNotes": "Ecotone Lite is framework-agnostic rather than a full MVC web framework. UniWAMP created a minimal Composer project with PSR-4 autoloading, installed ecotone/lite-application, and added a placeholder /public/index.php so the vhost resolves cleanly. Add your application classes under src and bootstrap Ecotone Lite per the official installation guide.",
+      "install": [
+        {
+          "type": "create_directory",
+          "destination": "${www}/${projectName}"
+        },
+        {
+          "type": "create_directory",
+          "destination": "${www}/${projectName}/src"
+        },
+        {
+          "type": "create_directory",
+          "destination": "${www}/${projectName}/public"
+        },
+        {
+          "type": "write_file",
+          "destination": "${www}/${projectName}/composer.json",
+          "content": "{\n  \"name\": \"uniwamp/${projectName}\",\n  \"type\": \"project\",\n  \"require\": {\n    \"php\": \">=8.1\",\n    \"ecotone/lite-application\": \"*\"\n  },\n  \"autoload\": {\n    \"psr-4\": {\n      \"App\\\\\": \"src/\"\n    }\n  },\n  \"minimum-stability\": \"stable\",\n  \"prefer-stable\": true\n}\n"
+        },
+        {
+          "type": "write_file",
+          "destination": "${www}/${projectName}/public/index.php",
+          "content": "<?php\n\ndeclare(strict_types=1);\n\nheader('Content-Type: text/plain; charset=utf-8');\n\necho \"Ecotone Lite project created.\\n\";\necho \"Add your application classes under src and bootstrap Ecotone Lite according to the official docs.\\n\";\n"
+        },
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar install --no-interaction",
+          "workingDirectory": "${www}/${projectName}",
+          "timeoutMs": 600000
         }
       ]
     },
@@ -168,6 +247,24 @@
       ]
     },
     {
+      "id": "laminas",
+      "name": "Laminas MVC",
+      "category": "PHP Framework",
+      "summary": "Create a Laminas MVC skeleton application with Composer.",
+      "homepage": "https://getlaminas.org/",
+      "license": "BSD-3-Clause",
+      "version": "recommended",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar create-project -s dev laminas/laminas-mvc-skeleton ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 600000
+        }
+      ]
+    },
+    {
       "id": "magento-open-source",
       "name": "Magento Open Source",
       "category": "E-commerce CMS",
@@ -211,6 +308,8 @@
       "homepage": "https://www.opencart.com/",
       "license": "GPL-3.0-or-later",
       "version": "latest",
+      "adminPath": "/admin",
+      "postInstallNotes": "Store admin is at /admin. Log in with username 'admin' and the generated admin password printed in the install log above (shown once \u2014 save it now).",
       "install": [
         {
           "type": "run",
@@ -221,14 +320,41 @@
         },
         {
           "type": "create_database_user",
-          "destination": "${projectName}"
+          "destination": "${projectName}_db"
         },
         {
           "type": "run",
           "executable": "${php}",
           "arguments": "${www}/${projectName}/upload/install/cli_install.php install --username admin --email admin@${projectName}.local --password ${adminPassword} --http_server http://${projectName}/ --language en-gb --db_driver mysqli --db_hostname ${dbHost} --db_username ${dbUser} --db_password ${dbPassword} --db_database ${dbName} --db_port ${dbPort} --db_prefix oc_",
           "workingDirectory": "${www}/${projectName}/upload/install",
-          "timeoutMs": 300000
+          "timeoutMs": 300000,
+          "requiresDatabase": true
+        }
+      ]
+    },
+    {
+      "id": "phalcon-vokuro",
+      "name": "Phalcon Vokuro",
+      "category": "PHP Framework",
+      "summary": "Clone the official Vokuro sample application and install its Composer dependencies.",
+      "homepage": "https://github.com/phalcon/vokuro",
+      "license": "BSD-3-Clause",
+      "version": "latest",
+      "postInstallNotes": "Phalcon is not a normal userland-only framework. The official docs require the Phalcon PHP extension to be installed and loaded before the app will run cleanly. Vokuro also expects local configuration in .env plus database setup and migrations. After install, review docs/installation.md in the project, copy resources/.env.example to .env, configure MariaDB credentials, and then run the Vokuro migration and seed commands. This entry gives you the sample app source and Composer dependencies, but Phalcon runtime setup remains manual.",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${tools}/git/bin/git.exe",
+          "arguments": "clone --depth 1 https://github.com/phalcon/vokuro.git ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 900000
+        },
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar install --no-interaction",
+          "workingDirectory": "${www}/${projectName}",
+          "timeoutMs": 900000
         }
       ]
     },
@@ -269,6 +395,24 @@
       ]
     },
     {
+      "id": "nette",
+      "name": "Nette",
+      "category": "PHP Framework",
+      "summary": "Create a Nette web project with Composer.",
+      "homepage": "https://nette.org/",
+      "license": "BSD-3-Clause",
+      "version": "recommended",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar create-project nette/web-project ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 600000
+        }
+      ]
+    },
+    {
       "id": "silverstripe",
       "name": "Silverstripe CMS",
       "category": "CMS",
@@ -301,6 +445,24 @@
           "arguments": "clone --depth 1 https://github.com/statamic/statamic.git ${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 900000
+        }
+      ]
+    },
+    {
+      "id": "spiral",
+      "name": "Spiral",
+      "category": "PHP Framework",
+      "summary": "Create a Spiral application skeleton with Composer.",
+      "homepage": "https://spiral.dev/",
+      "license": "MIT",
+      "version": "recommended",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar create-project spiral/app ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 600000
         }
       ]
     },
@@ -353,6 +515,24 @@
           "type": "run",
           "executable": "${php}",
           "arguments": "${tools}/composer/composer.phar create-project symfony/skeleton ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 600000
+        }
+      ]
+    },
+    {
+      "id": "tempest",
+      "name": "Tempest",
+      "category": "PHP Framework",
+      "summary": "Create a Tempest application with Composer.",
+      "homepage": "https://tempestphp.com/",
+      "license": "MIT",
+      "version": "recommended",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar create-project tempest/app ${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 600000
         }
@@ -438,6 +618,24 @@
       ]
     },
     {
+      "id": "yii2",
+      "name": "Yii 2",
+      "category": "PHP Framework",
+      "summary": "Create a Yii 2 basic application template with Composer.",
+      "homepage": "https://www.yiiframework.com/",
+      "license": "BSD-3-Clause",
+      "version": "recommended",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar create-project yiisoft/yii2-app-basic ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 600000
+        }
+      ]
+    },
+    {
       "id": "woocommerce",
       "name": "WooCommerce",
       "category": "E-commerce CMS",
@@ -445,6 +643,8 @@
       "homepage": "https://woocommerce.com/",
       "license": "GPL-3.0-or-later",
       "version": "latest",
+      "adminPath": "/wp-admin",
+      "postInstallNotes": "Log in with username 'admin' and the password WP-CLI generated during install (printed once in the install log above). WooCommerce's setup wizard runs on first admin login.",
       "install": [
         {
           "type": "create_directory",
@@ -452,7 +652,7 @@
         },
         {
           "type": "create_database_user",
-          "destination": "${projectName}"
+          "destination": "${projectName}_db"
         },
         {
           "type": "run",
@@ -466,21 +666,24 @@
           "executable": "${php}",
           "arguments": "${tools}/wp-cli/wp-cli.phar config create --path=${www}/${projectName} --dbname=${dbName} --dbuser=${dbUser} --dbpass=${dbPassword} --dbhost=${dbHost}:${dbPort} --skip-check",
           "workingDirectory": "${www}",
-          "timeoutMs": 120000
+          "timeoutMs": 120000,
+          "requiresDatabase": true
         },
         {
           "type": "run",
           "executable": "${php}",
           "arguments": "${tools}/wp-cli/wp-cli.phar core install --path=${www}/${projectName} --url=http://${projectName}/ --title=${projectName} --admin_user=admin --admin_email=admin@${projectName}.local --skip-email",
           "workingDirectory": "${www}",
-          "timeoutMs": 300000
+          "timeoutMs": 300000,
+          "requiresDatabase": true
         },
         {
           "type": "run",
           "executable": "${php}",
           "arguments": "${tools}/wp-cli/wp-cli.phar plugin install woocommerce --activate --path=${www}/${projectName}",
           "workingDirectory": "${www}",
-          "timeoutMs": 600000
+          "timeoutMs": 600000,
+          "requiresDatabase": true
         }
       ]
     },
@@ -492,6 +695,8 @@
       "homepage": "https://wordpress.org/",
       "license": "GPL-2.0-or-later",
       "version": "latest",
+      "adminPath": "/wp-admin",
+      "postInstallNotes": "Log in with username 'admin' and the password WP-CLI generated during install (printed once in the install log above \u2014 it is not saved anywhere else by this tool).",
       "install": [
         {
           "type": "create_directory",
@@ -499,7 +704,7 @@
         },
         {
           "type": "create_database_user",
-          "destination": "${projectName}"
+          "destination": "${projectName}_db"
         },
         {
           "type": "run",
@@ -513,14 +718,16 @@
           "executable": "${php}",
           "arguments": "${tools}/wp-cli/wp-cli.phar config create --path=${www}/${projectName} --dbname=${dbName} --dbuser=${dbUser} --dbpass=${dbPassword} --dbhost=${dbHost}:${dbPort} --skip-check",
           "workingDirectory": "${www}",
-          "timeoutMs": 120000
+          "timeoutMs": 120000,
+          "requiresDatabase": true
         },
         {
           "type": "run",
           "executable": "${php}",
           "arguments": "${tools}/wp-cli/wp-cli.phar core install --path=${www}/${projectName} --url=http://${projectName}/ --title=${projectName} --admin_user=admin --admin_email=admin@${projectName}.local --skip-email",
           "workingDirectory": "${www}",
-          "timeoutMs": 300000
+          "timeoutMs": 300000,
+          "requiresDatabase": true
         }
       ]
     }
