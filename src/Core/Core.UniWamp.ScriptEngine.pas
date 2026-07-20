@@ -11,6 +11,12 @@ uses
 type
   TScriptOutputEvent = TProcessOutputEvent;
 
+  TScriptPreflightResult = record
+    Success: Boolean;
+    Summary: string;
+    ErrorMessage: string;
+  end;
+
   TScriptExecutionResult = record
     Success: Boolean;
     CompletedSteps: Integer;
@@ -30,11 +36,17 @@ type
     FCachedDbPort: Integer;
     FDbPortCached: Boolean;
     function SelectedPhpExe: string;
+    function SelectedNodeExe: string;
+    function ApacheExe: string;
     function PhpCliPrefix(const PhpExe: string): string;
     function MariaDbAdminExe: string;
     function MariaDbClientExe: string;
     function DatabasePort: Integer;
     function MariaDbRootPassword: string;
+    function ProbeVersion(const ExecutablePath, Arguments, WorkingDirectory: string;
+      const Prefix: string = ''): string;
+    class function ExtractVersionToken(const Value: string): string; static;
+    class function CompareVersions(const LeftVersion, RightVersion: string): Integer; static;
     function GenerateRandomPassword(const CharCount: Integer): string;
     function CreateDatabase(const DatabaseName: string; out Output: string): Boolean;
     function CreateDatabaseUser(const DatabaseName, Username, Password: string;
@@ -48,6 +60,12 @@ type
   public
     constructor Create(const Paths: TAppPaths);
     function PhpRuntimeDescription: string;
+    function SelectedPhpVersion: string;
+    function SelectedNodeVersion: string;
+    function SelectedMariaDbVersion: string;
+    function SelectedApacheVersion: string;
+    function ValidateRequirements(const Item: TScriptCatalogItem;
+      const CreateDatabase: Boolean): TScriptPreflightResult;
     function Execute(const Item: TScriptCatalogItem; const ProjectName: string;
       const OnOutput: TScriptOutputEvent = nil; const CreateDatabase: Boolean = True): TScriptExecutionResult;
   end;
@@ -62,6 +80,10 @@ uses
   System.IOUtils,
   System.Net.HttpClient,
   System.Net.URLClient,
+  System.Math,
+  System.StrUtils,
+  System.RegularExpressions,
+  System.Generics.Collections,
   System.Zip;
 
 constructor TScriptEngine.Create(const Paths: TAppPaths);
@@ -99,6 +121,12 @@ begin
   if Version <> '' then
     Exit(Format('PHP runtime %s (%s)', [Version, PhpExe]));
   Result := 'PHP runtime: ' + PhpExe;
+end;
+
+function TScriptEngine.SelectedPhpVersion: string;
+begin
+  Result := ProbeVersion(SelectedPhpExe, '-r "echo PHP_VERSION;"', FPaths.AppRoot,
+    PhpCliPrefix(SelectedPhpExe));
 end;
 
 function TScriptEngine.SelectedPhpExe: string;
@@ -154,6 +182,53 @@ begin
   { Deliberately not caching the "nothing found" case: a missing PHP runtime is an
     unusual/error condition, and re-checking disk each time costs nothing extra in
     that path while letting a runtime fixed mid-session be picked up without a restart. }
+end;
+
+function TScriptEngine.SelectedNodeExe: string;
+var
+  Candidate: string;
+  Directories: TArray<string>;
+  SearchDirectory: string;
+  BestCandidate: string;
+begin
+  Result := '';
+  if not TDirectory.Exists(FPaths.NodeDir) then
+    Exit;
+
+  Candidate := TPath.Combine(FPaths.NodeDir, 'node.exe');
+  if TFile.Exists(Candidate) then
+    Exit(Candidate);
+
+  Directories := TDirectory.GetDirectories(FPaths.NodeDir, '*', TSearchOption.soTopDirectoryOnly);
+  BestCandidate := '';
+  for SearchDirectory in Directories do
+  begin
+    Candidate := TPath.Combine(SearchDirectory, 'node.exe');
+    if TFile.Exists(Candidate) and
+      ((BestCandidate = '') or (CompareText(SearchDirectory, ExtractFileDir(BestCandidate)) > 0)) then
+      BestCandidate := Candidate;
+  end;
+  Result := BestCandidate;
+end;
+
+function TScriptEngine.SelectedNodeVersion: string;
+begin
+  Result := ProbeVersion(SelectedNodeExe, '--version', FPaths.AppRoot);
+end;
+
+function TScriptEngine.ApacheExe: string;
+begin
+  Result := TPath.Combine(FPaths.ApacheBinDir, 'httpd.exe');
+end;
+
+function TScriptEngine.SelectedApacheVersion: string;
+begin
+  Result := ProbeVersion(ApacheExe, '-v', FPaths.ApacheBinDir);
+end;
+
+function TScriptEngine.SelectedMariaDbVersion: string;
+begin
+  Result := ProbeVersion(MariaDbClientExe, '--version', FPaths.MariaDbBinDir);
 end;
 
 function TScriptEngine.PhpCliPrefix(const PhpExe: string): string;
@@ -240,6 +315,65 @@ begin
       Result := Result + Alphabet[(RawBytes[I] mod Length(Alphabet)) + 1];
   end;
   Result := Copy(Result, 1, CharCount);
+end;
+
+function TScriptEngine.ProbeVersion(const ExecutablePath, Arguments,
+  WorkingDirectory: string; const Prefix: string): string;
+var
+  Output: string;
+  FullArguments: string;
+begin
+  Result := '';
+  if (ExecutablePath = '') or not TFile.Exists(ExecutablePath) then
+    Exit;
+  FullArguments := Trim(Prefix + ' ' + Arguments);
+  if not TProcessManager.RunAndCaptureOutput(ExecutablePath, FullArguments, WorkingDirectory, Output, 15000) then
+    Exit;
+  Result := ExtractVersionToken(Output);
+end;
+
+class function TScriptEngine.ExtractVersionToken(const Value: string): string;
+var
+  Match: TMatch;
+begin
+  Result := '';
+  Match := TRegEx.Match(Value, '(\d+(?:\.\d+)+)');
+  if Match.Success then
+    Result := Match.Groups[1].Value;
+end;
+
+class function TScriptEngine.CompareVersions(const LeftVersion,
+  RightVersion: string): Integer;
+var
+  LeftParts: TArray<string>;
+  RightParts: TArray<string>;
+  I: Integer;
+  LeftPart: Integer;
+  RightPart: Integer;
+  MaxParts: Integer;
+begin
+  if SameText(Trim(LeftVersion), Trim(RightVersion)) then
+    Exit(0);
+
+  LeftParts := SplitString(ExtractVersionToken(LeftVersion), '.');
+  RightParts := SplitString(ExtractVersionToken(RightVersion), '.');
+  MaxParts := Max(Length(LeftParts), Length(RightParts));
+  for I := 0 to MaxParts - 1 do
+  begin
+    if I < Length(LeftParts) then
+      LeftPart := StrToIntDef(LeftParts[I], 0)
+    else
+      LeftPart := 0;
+    if I < Length(RightParts) then
+      RightPart := StrToIntDef(RightParts[I], 0)
+    else
+      RightPart := 0;
+    if LeftPart < RightPart then
+      Exit(-1);
+    if LeftPart > RightPart then
+      Exit(1);
+  end;
+  Result := 0;
 end;
 
 function TScriptEngine.CreateDatabase(const DatabaseName: string; out Output: string): Boolean;
@@ -550,6 +684,106 @@ begin
       Result.Message := E.Message;
       Result.Output := StepOutput;
     end;
+  end;
+end;
+
+function TScriptEngine.ValidateRequirements(const Item: TScriptCatalogItem;
+  const CreateDatabase: Boolean): TScriptPreflightResult;
+var
+  Details: TStringList;
+  Errors: TStringList;
+  InstalledVersion: string;
+  MissingVersionText: string;
+begin
+  Result.Success := True;
+  Result.Summary := '';
+  Result.ErrorMessage := '';
+  Details := TStringList.Create;
+  Errors := TStringList.Create;
+  try
+    MissingVersionText := 'not detected';
+
+    InstalledVersion := SelectedPhpVersion;
+    if InstalledVersion = '' then
+      Details.Add('PHP: not detected')
+    else
+      Details.Add('PHP: ' + InstalledVersion);
+    if Trim(Item.Requirements.PhpMinVersion) <> '' then
+    begin
+      Details[Details.Count - 1] := Details[Details.Count - 1] +
+        ' (minimum ' + Item.Requirements.PhpMinVersion + ')';
+      if (InstalledVersion = '') or
+         (CompareVersions(InstalledVersion, Item.Requirements.PhpMinVersion) < 0) then
+        Errors.Add(Format('%s requires PHP %s or newer. Installed: %s.',
+          [Item.Name, Item.Requirements.PhpMinVersion, IfThen(InstalledVersion = '', MissingVersionText, InstalledVersion)]));
+    end;
+
+    if Trim(Item.Requirements.NodeMinVersion) <> '' then
+    begin
+      InstalledVersion := SelectedNodeVersion;
+      if InstalledVersion = '' then
+        Details.Add('Node.js: not detected')
+      else
+        Details.Add('Node.js: ' + InstalledVersion);
+      Details[Details.Count - 1] := Details[Details.Count - 1] +
+        ' (minimum ' + Item.Requirements.NodeMinVersion + ')';
+      if (InstalledVersion = '') or
+         (CompareVersions(InstalledVersion, Item.Requirements.NodeMinVersion) < 0) then
+        Errors.Add(Format('%s requires Node.js %s or newer. Installed: %s.',
+          [Item.Name, Item.Requirements.NodeMinVersion, IfThen(InstalledVersion = '', MissingVersionText, InstalledVersion)]));
+    end;
+
+    if Trim(Item.Requirements.ApacheMinVersion) <> '' then
+    begin
+      InstalledVersion := SelectedApacheVersion;
+      if InstalledVersion = '' then
+        Details.Add('Apache: not detected')
+      else
+        Details.Add('Apache: ' + InstalledVersion);
+      Details[Details.Count - 1] := Details[Details.Count - 1] +
+        ' (minimum ' + Item.Requirements.ApacheMinVersion + ')';
+      if (InstalledVersion = '') or
+         (CompareVersions(InstalledVersion, Item.Requirements.ApacheMinVersion) < 0) then
+        Errors.Add(Format('%s requires Apache %s or newer. Installed: %s.',
+          [Item.Name, Item.Requirements.ApacheMinVersion, IfThen(InstalledVersion = '', MissingVersionText, InstalledVersion)]));
+    end;
+
+    if CreateDatabase and (Item.RequiresDatabase or (Trim(Item.Requirements.MariaDbMinVersion) <> '')) then
+    begin
+      InstalledVersion := SelectedMariaDbVersion;
+      if InstalledVersion = '' then
+        Details.Add('MariaDB: not detected')
+      else
+        Details.Add('MariaDB: ' + InstalledVersion);
+      if Trim(Item.Requirements.MariaDbMinVersion) <> '' then
+      begin
+        Details[Details.Count - 1] := Details[Details.Count - 1] +
+          ' (minimum ' + Item.Requirements.MariaDbMinVersion + ')';
+        if (InstalledVersion = '') or
+           (CompareVersions(InstalledVersion, Item.Requirements.MariaDbMinVersion) < 0) then
+          Errors.Add(Format('%s requires MariaDB %s or newer. Installed: %s.',
+            [Item.Name, Item.Requirements.MariaDbMinVersion, IfThen(InstalledVersion = '', MissingVersionText, InstalledVersion)]));
+      end
+      else if InstalledVersion = '' then
+        Errors.Add(Format('%s needs MariaDB tools for the database setup steps, but no MariaDB client was detected.',
+          [Item.Name]));
+    end;
+
+    if Trim(Item.Requirements.Notes) <> '' then
+      Details.Add('Notes: ' + Item.Requirements.Notes);
+
+    if Details.Count = 0 then
+      Details.Add('No explicit minimum requirements are declared for this script.');
+
+    Result.Summary := Trim(Details.Text);
+    if Errors.Count > 0 then
+    begin
+      Result.Success := False;
+      Result.ErrorMessage := Trim(Errors.Text);
+    end;
+  finally
+    Details.Free;
+    Errors.Free;
   end;
 end;
 

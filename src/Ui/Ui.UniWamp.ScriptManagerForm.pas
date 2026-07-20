@@ -1,4 +1,4 @@
-unit Ui.UniWamp.ScriptManagerForm;
+﻿unit Ui.UniWamp.ScriptManagerForm;
 
 interface
 
@@ -30,84 +30,62 @@ const
   WM_INIT_SCRIPT_MANAGER = WM_APP + 201;
 
 type
-  TScriptGridRowKind = (rgHeader, rgItem);
-
-  TScriptGridRow = record
-    Kind: TScriptGridRowKind;
-    ItemIndex: Integer;
-    Category: string;
-    ItemCount: Integer;
-  end;
-
   TScriptManagerForm = class(TForm)
+    pnlfooter: TPanel;
+    FOutputPanel: TPanel;
+    FOutputHeaderPanel: TPanel;
+    FOutputTitleLabel: TLabel;
+    FOutputMemo: TMemo;
+    FFooterPanel: TPanel;
+    FInstallButton: TButton;
+    FCloseButton: TButton;
+    FStatusLabel: TLabel;
   private
     FPaths: TAppPaths;
     FCatalog: TObject;
     FGrid: TStringGrid;
-    FOutputMemo: TMemo;
-    FStatusLabel: TLabel;
     FSearchEdit: TEdit;
     FCategoryCombo: TComboBox;
     FCmsOnlyCheck: TCheckBox;
     FEcommerceOnlyCheck: TCheckBox;
     FClearFilterButton: TButton;
-    FDetailLogoImage: TImage;
-    FDetailTitleLabel: TLabel;
-    FDetailCategoryLabel: TLabel;
-    FDetailCategoryBadge: TPanel;
-    FDetailSummaryLabel: TLabel;
-    FDetailVersionBadge: TPanel;
-    FDetailVersionValue: TLabel;
-    FDetailMethodValue: TLabel;
-    FDetailDatabaseValue: TLabel;
-    FDetailHomepageValue: TLabel;
-    FSelectedItemHomepage: string;
-    FDetailInstallButton: TButton;
-    FCloseButton: TButton;
     FInstalling: Boolean;
     FInitialized: Boolean;
     FViewInitialized: Boolean;
-    FHeaderClickPending: Boolean;
-    FVisibleRows: TArray<TScriptGridRow>;
-    FCategoryExpanded: TDictionary<string, Boolean>;
+    FVisibleRows: TArray<Integer>;
     FPendingOutputText: string;
     FPendingCompletionMessage: string;
     FPendingCompletionOutput: string;
     FPendingCompletionSuccess: Boolean;
+    FKeepInstallOutput: Boolean;
     FProgressBar: TProgressBar;
-    FShowInstallTerminalCheck: TCheckBox;
     FCreateDatabaseCheck: TCheckBox;
     FInstallLogFile: string;
     procedure Populate;
     procedure BindControls;
     procedure PopulateCategoryFilter;
     procedure PopulateGrid;
-    procedure SyncCategoryExpansion;
     procedure SetGridHeader;
     procedure AppendOutput(const Text: string);
     procedure WriteInstallLogLine(const Text: string);
-    procedure OpenInstallTerminal;
     procedure SyncAppendOutput;
     procedure SyncInstallFinished;
     procedure SetInstalling(const Value: Boolean);
     procedure UpdateStatusText;
     procedure UpdateSelectionDetails;
-    procedure UpdateDetailLogo(const Glyph: string; BackColor, TextColor: TColor);
+    procedure ShowSelectedItemDetails;
     procedure DrawBadge(ACanvas: TCanvas; const ARect: TRect; const Text: string;
       BackColor, BorderColor, TextColor: TColor; AlignRight: Boolean = False);
+    function BuildItemDetailsText(const Item: TScriptCatalogItem): string;
     function AskProjectName(const DefaultValue: string; out ProjectName: string): Boolean;
     function SelectedCatalogItem(out Item: TScriptCatalogItem): Boolean;
     function ItemMatchesFilters(const Item: TScriptCatalogItem): Boolean;
     function ItemMatchesQuickFilters(const Item: TScriptCatalogItem): Boolean;
     function SelectedCategory: string;
     function GetRowItemIndex(const Row: Integer): Integer;
-    function GetRowKind(const Row: Integer): TScriptGridRowKind;
-    function GetRowCategory(const Row: Integer): string;
-    function IsCategoryExpanded(const Category: string): Boolean;
     function GetInstallMethodText(const Item: TScriptCatalogItem): string;
     function IsEcommerceCategory(const Category: string): Boolean;
     function ResolveProjectDocumentRoot(const ProjectPath: string; out RelativeRoot: string): string;
-    procedure ToggleCategory(const Category: string);
     procedure InstallSelectedAsync(const Item: TScriptCatalogItem; const ProjectName: string;
       Config: TUniWampConfig);
   protected
@@ -119,11 +97,10 @@ type
     class procedure Execute(AOwner: TComponent; const Paths: TAppPaths); static;
   published
     procedure InstallClick(Sender: TObject);
-    procedure DetailHomepageValueClick(Sender: TObject);
     procedure CloseClick(Sender: TObject);
     procedure GridDblClick(Sender: TObject);
-    procedure GridMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
     procedure GridClick(Sender: TObject);
+    procedure GridMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
     procedure GridSelectCell(Sender: TObject; ACol, ARow: Integer; var CanSelect: Boolean);
     procedure GridDrawCell(Sender: TObject; ACol, ARow: Integer; Rect: TRect; State: TGridDrawState);
     procedure FilterChanged(Sender: TObject);
@@ -165,7 +142,6 @@ constructor TScriptManagerForm.Create(AOwner: TComponent; const Paths: TAppPaths
 begin
   inherited Create(AOwner);
   FPaths := Paths;
-  FCategoryExpanded := TDictionary<string, Boolean>.Create;
   FCatalog := TScriptCatalog.LoadFromFile(TPath.Combine(FPaths.AppRoot, 'scripts\catalog.json'));
 end;
 
@@ -178,7 +154,7 @@ begin
   BindControls;
   if not Assigned(FGrid) or not Assigned(FSearchEdit) or not Assigned(FCategoryCombo) or
      not Assigned(FCmsOnlyCheck) or not Assigned(FEcommerceOnlyCheck) or
-     not Assigned(FClearFilterButton) or not Assigned(FDetailInstallButton) or
+     not Assigned(FClearFilterButton) or not Assigned(FInstallButton) or
      not Assigned(FCloseButton) or not Assigned(FStatusLabel) then
     Exit;
   FSearchEdit.OnChange := FilterChanged;
@@ -188,10 +164,10 @@ begin
   FClearFilterButton.OnClick := ClearFilterClick;
   FGrid.OnClick := GridClick;
   FGrid.OnDblClick := GridDblClick;
+  FGrid.OnMouseUp := GridMouseUp;
   FGrid.OnDrawCell := GridDrawCell;
-  FGrid.OnMouseDown := GridMouseDown;
   FGrid.OnSelectCell := GridSelectCell;
-  FDetailInstallButton.OnClick := InstallClick;
+  FInstallButton.OnClick := InstallClick;
   FCloseButton.OnClick := CloseClick;
 
   FProgressBar := TProgressBar.Create(Self);
@@ -224,32 +200,10 @@ begin
     FEcommerceOnlyCheck := FindComponent('FEcommerceOnlyCheck') as TCheckBox;
   if not Assigned(FClearFilterButton) then
     FClearFilterButton := FindComponent('FClearFilterButton') as TButton;
-  if not Assigned(FDetailLogoImage) then
-    FDetailLogoImage := FindComponent('FDetailLogoImage') as TImage;
-  if not Assigned(FDetailTitleLabel) then
-    FDetailTitleLabel := FindComponent('FDetailTitleLabel') as TLabel;
-  if not Assigned(FDetailCategoryLabel) then
-    FDetailCategoryLabel := FindComponent('FDetailCategoryLabel') as TLabel;
-  if not Assigned(FDetailCategoryBadge) then
-    FDetailCategoryBadge := FindComponent('FDetailCategoryBadge') as TPanel;
-  if not Assigned(FDetailSummaryLabel) then
-    FDetailSummaryLabel := FindComponent('FDetailSummaryLabel') as TLabel;
-  if not Assigned(FDetailVersionBadge) then
-    FDetailVersionBadge := FindComponent('FDetailVersionBadge') as TPanel;
-  if not Assigned(FDetailVersionValue) then
-    FDetailVersionValue := FindComponent('FDetailVersionValue') as TLabel;
-  if not Assigned(FDetailMethodValue) then
-    FDetailMethodValue := FindComponent('FDetailMethodValue') as TLabel;
-  if not Assigned(FDetailDatabaseValue) then
-    FDetailDatabaseValue := FindComponent('FDetailDatabaseValue') as TLabel;
-  if not Assigned(FDetailHomepageValue) then
-  begin
-    FDetailHomepageValue := FindComponent('FDetailHomepageValue') as TLabel;
-    if Assigned(FDetailHomepageValue) then
-      FDetailHomepageValue.OnClick := DetailHomepageValueClick;
-  end;
-  if not Assigned(FDetailInstallButton) then
-    FDetailInstallButton := FindComponent('FDetailInstallButton') as TButton;
+  if not Assigned(FCreateDatabaseCheck) then
+    FCreateDatabaseCheck := FindComponent('FCreateDatabaseCheck') as TCheckBox;
+  if not Assigned(FInstallButton) then
+    FInstallButton := FindComponent('FInstallButton') as TButton;
   if not Assigned(FCloseButton) then
     FCloseButton := FindComponent('FCloseButton') as TButton;
 end;
@@ -264,7 +218,6 @@ end;
 
 destructor TScriptManagerForm.Destroy;
 begin
-  FCategoryExpanded.Free;
   FCatalog.Free;
   inherited;
 end;
@@ -286,7 +239,9 @@ begin
   FGrid.Cells[0, 0] := 'Name';
   FGrid.Cells[1, 0] := 'Category';
   FGrid.Cells[2, 0] := 'Summary';
-  FGrid.Cells[3, 0] := 'Version';
+  FGrid.Cells[3, 0] := 'License';
+  FGrid.Cells[4, 0] := 'Version';
+  FGrid.Cells[5, 0] := 'Actions';
 end;
 
 procedure TScriptManagerForm.PopulateCategoryFilter;
@@ -322,23 +277,6 @@ begin
     FCategoryCombo.ItemIndex := 0;
   finally
     Categories.Free;
-  end;
-end;
-
-procedure TScriptManagerForm.SyncCategoryExpansion;
-var
-  Catalog: TScriptCatalog;
-  I: Integer;
-  Category: string;
-begin
-  if not Assigned(FCategoryExpanded) then
-    Exit;
-  Catalog := TScriptCatalog(FCatalog);
-  for I := 0 to High(Catalog.Items) do
-  begin
-    Category := Trim(Catalog.Items[I].Category);
-    if (Category <> '') and not FCategoryExpanded.ContainsKey(Category) then
-      FCategoryExpanded.Add(Category, True);
   end;
 end;
 
@@ -393,13 +331,6 @@ begin
     ContainsText(Item.License, FilterText);
 end;
 
-function TScriptManagerForm.IsCategoryExpanded(const Category: string): Boolean;
-begin
-  Result := True;
-  if not FCategoryExpanded.TryGetValue(Category, Result) then
-    Result := True;
-end;
-
 function TScriptManagerForm.IsEcommerceCategory(const Category: string): Boolean;
 var
   LowerCategory: string;
@@ -425,24 +356,10 @@ begin
     end;
 end;
 
-procedure TScriptManagerForm.ToggleCategory(const Category: string);
-var
-  Expanded: Boolean;
-begin
-  if not FCategoryExpanded.TryGetValue(Category, Expanded) then
-    Expanded := True;
-  FCategoryExpanded.AddOrSetValue(Category, not Expanded);
-  PopulateGrid;
-end;
-
 procedure TScriptManagerForm.PopulateGrid;
 var
   Catalog: TScriptCatalog;
-  CategoryList: TStringList;
-  CategoryCounts: TDictionary<string, Integer>;
-  VisibleRowCount: Integer;
   I: Integer;
-  J: Integer;
   Item: TScriptCatalogItem;
   SavedSelection: string;
   SelectedRow: Integer;
@@ -455,121 +372,62 @@ begin
   if SelectedCatalogItem(Item) then
     SavedSelection := Item.Id;
 
-  CategoryList := TStringList.Create;
-  CategoryCounts := TDictionary<string, Integer>.Create;
-  try
-    CategoryList.Sorted := True;
-    CategoryList.Duplicates := dupIgnore;
-    CategoryList.CaseSensitive := False;
-    for I := 0 to High(Catalog.Items) do
-      if ItemMatchesFilters(Catalog.Items[I]) then
-      begin
-        CategoryList.Add(Catalog.Items[I].Category);
-        if CategoryCounts.ContainsKey(Catalog.Items[I].Category) then
-          CategoryCounts[Catalog.Items[I].Category] := CategoryCounts[Catalog.Items[I].Category] + 1
-        else
-          CategoryCounts.Add(Catalog.Items[I].Category, 1);
-      end;
-
-    SetLength(FVisibleRows, 0);
-    MatchCount := 0;
-    for I := 0 to CategoryList.Count - 1 do
+  SetLength(FVisibleRows, 0);
+  MatchCount := 0;
+  for I := 0 to High(Catalog.Items) do
+    if ItemMatchesFilters(Catalog.Items[I]) then
     begin
-      for J := 0 to High(Catalog.Items) do
-      begin
-        Item := Catalog.Items[J];
-        if not SameText(Item.Category, CategoryList[I]) then
-          Continue;
-        if not ItemMatchesFilters(Item) then
-          Continue;
-
-        if (Length(FVisibleRows) = 0) or not SameText(FVisibleRows[High(FVisibleRows)].Category, Item.Category) then
-        begin
-          SetLength(FVisibleRows, Length(FVisibleRows) + 1);
-          FVisibleRows[High(FVisibleRows)].Kind := rgHeader;
-          FVisibleRows[High(FVisibleRows)].ItemIndex := -1;
-          FVisibleRows[High(FVisibleRows)].Category := Item.Category;
-          if CategoryCounts.ContainsKey(Item.Category) then
-            FVisibleRows[High(FVisibleRows)].ItemCount := CategoryCounts[Item.Category]
-          else
-            FVisibleRows[High(FVisibleRows)].ItemCount := 0;
-        end;
-
-        if not IsCategoryExpanded(Item.Category) then
-          Continue;
-
-        SetLength(FVisibleRows, Length(FVisibleRows) + 1);
-        FVisibleRows[High(FVisibleRows)].Kind := rgItem;
-        FVisibleRows[High(FVisibleRows)].ItemIndex := J;
-        FVisibleRows[High(FVisibleRows)].Category := Item.Category;
-        Inc(MatchCount);
-      end;
+      SetLength(FVisibleRows, Length(FVisibleRows) + 1);
+      FVisibleRows[High(FVisibleRows)] := I;
+      Inc(MatchCount);
     end;
 
-    VisibleRowCount := Length(FVisibleRows) + 1;
-    if VisibleRowCount < 2 then
-      VisibleRowCount := 2;
-    FGrid.RowCount := VisibleRowCount;
-
-    for I := 1 to FGrid.RowCount - 1 do
-    begin
-      FGrid.Cells[0, I] := '';
-      FGrid.Cells[1, I] := '';
-      FGrid.Cells[2, I] := '';
-      FGrid.Cells[3, I] := '';
-    end;
-
-    for I := 0 to High(FVisibleRows) do
-    begin
-      if FVisibleRows[I].Kind = rgHeader then
-      begin
-        if IsCategoryExpanded(FVisibleRows[I].Category) then
-          FGrid.Cells[0, I + 1] := Format('[-] %s (%d)', [FVisibleRows[I].Category, FVisibleRows[I].ItemCount])
-        else
-          FGrid.Cells[0, I + 1] := Format('[+] %s (%d)', [FVisibleRows[I].Category, FVisibleRows[I].ItemCount]);
-        Continue;
-      end;
-
-      Item := Catalog.Items[FVisibleRows[I].ItemIndex];
-      FGrid.Cells[0, I + 1] := Item.Name;
-      FGrid.Cells[1, I + 1] := Item.Category;
-      FGrid.Cells[2, I + 1] := Item.Summary;
-      FGrid.Cells[3, I + 1] := Item.Version;
-    end;
-
-    SelectedRow := -1;
-    if SavedSelection <> '' then
-    begin
-      for I := 0 to High(FVisibleRows) do
-      begin
-        if (FVisibleRows[I].Kind = rgItem) and SameText(Catalog.Items[FVisibleRows[I].ItemIndex].Id, SavedSelection) then
-        begin
-          SelectedRow := I + 1;
-          Break;
-        end;
-      end;
-    end;
-    if SelectedRow < 1 then
-    begin
-      for I := 0 to High(FVisibleRows) do
-        if FVisibleRows[I].Kind = rgItem then
-        begin
-          SelectedRow := I + 1;
-          Break;
-        end;
-    end;
-    if SelectedRow > 0 then
-      FGrid.Row := SelectedRow;
-
-    if MatchCount = 0 then
-      FStatusLabel.Caption := 'No scripts match the current filters.'
-    else
-      UpdateStatusText;
-    UpdateSelectionDetails;
-  finally
-    CategoryCounts.Free;
-    CategoryList.Free;
+  FGrid.RowCount := Max(Length(FVisibleRows) + 1, 2);
+  SetGridHeader;
+  for I := 1 to FGrid.RowCount - 1 do
+  begin
+    FGrid.Cells[0, I] := '';
+    FGrid.Cells[1, I] := '';
+    FGrid.Cells[2, I] := '';
+    FGrid.Cells[3, I] := '';
+    FGrid.Cells[4, I] := '';
+    FGrid.Cells[5, I] := '';
   end;
+
+  for I := 0 to High(FVisibleRows) do
+  begin
+    Item := Catalog.Items[FVisibleRows[I]];
+    FGrid.Cells[0, I + 1] := Item.Name;
+    FGrid.Cells[1, I + 1] := Item.Category;
+    FGrid.Cells[2, I + 1] := Item.Summary;
+    FGrid.Cells[3, I + 1] := Item.License;
+    FGrid.Cells[4, I + 1] := Item.Version;
+    if Trim(Item.Homepage) <> '' then
+      FGrid.Cells[5, I + 1] := 'Open'
+    else
+      FGrid.Cells[5, I + 1] := '-';
+  end;
+
+  SelectedRow := -1;
+  if SavedSelection <> '' then
+    for I := 0 to High(FVisibleRows) do
+      if SameText(Catalog.Items[FVisibleRows[I]].Id, SavedSelection) then
+      begin
+        SelectedRow := I + 1;
+        Break;
+      end;
+
+  if (SelectedRow < 1) and (Length(FVisibleRows) > 0) then
+    SelectedRow := 1;
+
+  if SelectedRow > 0 then
+    FGrid.Row := SelectedRow;
+
+  if MatchCount = 0 then
+    FStatusLabel.Caption := 'No scripts match the current filters.'
+  else
+    UpdateStatusText;
+  UpdateSelectionDetails;
 end;
 
 procedure TScriptManagerForm.Populate;
@@ -578,7 +436,6 @@ begin
   if not Assigned(FGrid) or not Assigned(FStatusLabel) then
     Exit;
   PopulateCategoryFilter;
-  SyncCategoryExpansion;
   PopulateGrid;
   UpdateSelectionDetails;
 end;
@@ -587,6 +444,7 @@ procedure TScriptManagerForm.FilterChanged(Sender: TObject);
 begin
   if FInstalling then
     Exit;
+  FKeepInstallOutput := False;
   PopulateGrid;
 end;
 
@@ -594,6 +452,7 @@ procedure TScriptManagerForm.QuickFilterChanged(Sender: TObject);
 begin
   if FInstalling then
     Exit;
+  FKeepInstallOutput := False;
   PopulateGrid;
 end;
 
@@ -601,6 +460,7 @@ procedure TScriptManagerForm.ClearFilterClick(Sender: TObject);
 begin
   if FInstalling then
     Exit;
+  FKeepInstallOutput := False;
   FSearchEdit.Text := '';
   FCategoryCombo.ItemIndex := 0;
   FCmsOnlyCheck.Checked := False;
@@ -622,11 +482,8 @@ begin
     CategoryCount.Duplicates := dupIgnore;
     for I := 0 to High(FVisibleRows) do
     begin
-      if FVisibleRows[I].Kind = rgItem then
-      begin
-        Inc(ItemCount);
-        CategoryCount.Add(FVisibleRows[I].Category);
-      end;
+      Inc(ItemCount);
+      CategoryCount.Add(TScriptCatalog(FCatalog).Items[FVisibleRows[I]].Category);
     end;
     if ItemCount = 0 then
       FStatusLabel.Caption := 'No scripts match the current filters.'
@@ -635,13 +492,6 @@ begin
   finally
     CategoryCount.Free;
   end;
-end;
-
-function TScriptManagerForm.GetRowCategory(const Row: Integer): string;
-begin
-  Result := '';
-  if (Row > 0) and (Row <= Length(FVisibleRows)) then
-    Result := FVisibleRows[Row - 1].Category;
 end;
 
 function TScriptManagerForm.GetInstallMethodText(const Item: TScriptCatalogItem): string;
@@ -668,35 +518,6 @@ begin
       Exit('Composer');
     if Pos('git', LowerCase(Step.Executable)) > 0 then
       Exit('Git clone');
-  end;
-end;
-
-procedure TScriptManagerForm.UpdateDetailLogo(const Glyph: string; BackColor, TextColor: TColor);
-var
-  Bitmap: TBitmap;
-  DrawRect: TRect;
-begin
-  if not Assigned(FDetailLogoImage) then
-    Exit;
-  Bitmap := TBitmap.Create;
-  try
-    Bitmap.SetSize(118, 118);
-    Bitmap.Canvas.Brush.Color := clWindow;
-    Bitmap.Canvas.FillRect(Rect(0, 0, 118, 118));
-    Bitmap.Canvas.Brush.Style := bsSolid;
-    Bitmap.Canvas.Brush.Color := BackColor;
-    Bitmap.Canvas.Pen.Color := BadgeBlueBorder;
-    Bitmap.Canvas.Ellipse(6, 6, 112, 112);
-    Bitmap.Canvas.Font.Name := 'Segoe UI Semibold';
-    Bitmap.Canvas.Font.Size := 40;
-    Bitmap.Canvas.Font.Style := [fsBold];
-    Bitmap.Canvas.Font.Color := TextColor;
-    Bitmap.Canvas.Brush.Style := bsClear;
-    DrawRect := Rect(0, 0, 118, 118);
-    DrawText(Bitmap.Canvas.Handle, PChar(Glyph), Length(Glyph), DrawRect, DT_CENTER or DT_VCENTER or DT_SINGLELINE);
-    FDetailLogoImage.Picture.Assign(Bitmap);
-  finally
-    Bitmap.Free;
   end;
 end;
 
@@ -730,124 +551,113 @@ begin
   DrawText(ACanvas.Handle, PChar(Text), Length(Text), TextRect, Flags);
 end;
 
-procedure TScriptManagerForm.DetailHomepageValueClick(Sender: TObject);
-begin
-  if Trim(FSelectedItemHomepage) = '' then
-    Exit;
-  ShellExecute(Handle, 'open', PChar(FSelectedItemHomepage), nil, nil, SW_SHOWNORMAL);
-end;
-
 procedure TScriptManagerForm.UpdateSelectionDetails;
 var
   Item: TScriptCatalogItem;
-  HasItem: Boolean;
-  CategoryLabel: string;
 begin
-  if not Assigned(FDetailLogoImage) or not Assigned(FDetailTitleLabel) or
-     not Assigned(FDetailCategoryLabel) or not Assigned(FDetailSummaryLabel) or
-     not Assigned(FDetailVersionValue) or not Assigned(FDetailMethodValue) or
-     not Assigned(FDetailInstallButton) or not Assigned(FDetailCategoryBadge) or
-     not Assigned(FDetailVersionBadge) then
+  if not Assigned(FInstallButton) then
     Exit;
-  HasItem := SelectedCatalogItem(Item);
-  if not HasItem then
+  if not SelectedCatalogItem(Item) then
   begin
-    UpdateDetailLogo('?', BadgeBlueBack, BadgeBlueText);
-    FDetailTitleLabel.Caption := 'Select a script';
-    FDetailCategoryLabel.Caption := 'No item selected';
-    FDetailSummaryLabel.Caption := 'Pick a row from the catalog to see details here.';
-    FDetailVersionValue.Caption := '-';
-    FDetailMethodValue.Caption := '-';
-    if Assigned(FDetailDatabaseValue) then
-      FDetailDatabaseValue.Caption := '-';
-    if Assigned(FDetailHomepageValue) then
-    begin
-      FDetailHomepageValue.Caption := '-';
-      FDetailHomepageValue.Hint := '';
-    end;
-    FSelectedItemHomepage := '';
-    FDetailInstallButton.Caption := 'Install selected';
+    FInstallButton.Caption := 'Install selected';
+    FInstallButton.Enabled := False;
     if Assigned(FCreateDatabaseCheck) then
+    begin
       FCreateDatabaseCheck.Enabled := True;
+      FCreateDatabaseCheck.Checked := True;
+    end;
+    if not FKeepInstallOutput then
+      ShowSelectedItemDetails;
     Exit;
   end;
 
-  UpdateDetailLogo(UpperCase(Copy(Item.Name, 1, 1)),
-    IfThen(IsEcommerceCategory(Item.Category), BadgeGrayBack, BadgeBlueBack),
-    IfThen(IsEcommerceCategory(Item.Category), BadgeGrayText, BadgeBlueText));
-  FDetailTitleLabel.Caption := Item.Name;
-  CategoryLabel := Item.Category;
-  if CategoryLabel = '' then
-    CategoryLabel := 'General';
-  FDetailCategoryLabel.Caption := CategoryLabel;
-  if IsEcommerceCategory(CategoryLabel) then
-  begin
-    FDetailCategoryBadge.Color := BadgeGrayBack;
-    FDetailCategoryLabel.Font.Color := BadgeGrayText;
-  end
-  else
-  begin
-    FDetailCategoryBadge.Color := BadgeBlueBack;
-    FDetailCategoryLabel.Font.Color := BadgeBlueText;
-  end;
-  FDetailVersionBadge.Color := BadgeGrayBack;
-  FDetailVersionValue.Font.Color := BadgeGrayText;
-  FDetailSummaryLabel.Caption := Item.Summary;
-  FDetailVersionValue.Caption := Item.Version;
-  FDetailMethodValue.Caption := GetInstallMethodText(Item);
-  if Assigned(FDetailDatabaseValue) then
-  begin
-    if Item.RequiresDatabase then
-      FDetailDatabaseValue.Caption := 'Required'
-    else
-      FDetailDatabaseValue.Caption := 'Not needed';
-  end;
+  FInstallButton.Caption := 'Install ' + Item.Name;
+  FInstallButton.Enabled := not FInstalling;
   if Assigned(FCreateDatabaseCheck) then
   begin
     FCreateDatabaseCheck.Enabled := Item.RequiresDatabase;
     if not Item.RequiresDatabase then
-      FCreateDatabaseCheck.Checked := False;
+      FCreateDatabaseCheck.Checked := False
+    else if not FCreateDatabaseCheck.Enabled then
+      FCreateDatabaseCheck.Checked := True;
   end;
-  FSelectedItemHomepage := Trim(Item.Homepage);
-  if Assigned(FDetailHomepageValue) then
-  begin
-    if FSelectedItemHomepage <> '' then
-    begin
-      FDetailHomepageValue.Caption := FSelectedItemHomepage;
-      if Trim(Item.License) <> '' then
-        FDetailHomepageValue.Hint := 'License: ' + Item.License
-      else
-        FDetailHomepageValue.Hint := '';
-      FDetailHomepageValue.ShowHint := Trim(Item.License) <> '';
-    end
+  ShowSelectedItemDetails;
+end;
+
+function TScriptManagerForm.BuildItemDetailsText(const Item: TScriptCatalogItem): string;
+var
+  Lines: TStringList;
+begin
+  Lines := TStringList.Create;
+  try
+    Lines.Add(Item.Name);
+    Lines.Add(StringOfChar('=', Length(Item.Name)));
+    if Trim(Item.Category) <> '' then
+      Lines.Add('Category: ' + Item.Category);
+    if Trim(Item.Summary) <> '' then
+      Lines.Add('Summary: ' + Item.Summary);
+    if Trim(Item.Version) <> '' then
+      Lines.Add('Package version: ' + Item.Version);
+    if Trim(Item.License) <> '' then
+      Lines.Add('License: ' + Item.License);
+    if Trim(Item.Homepage) <> '' then
+      Lines.Add('Homepage: ' + Item.Homepage);
+    Lines.Add('Install method: ' + GetInstallMethodText(Item));
+    if Item.RequiresDatabase then
+      Lines.Add('Database: required for the full install flow')
     else
+      Lines.Add('Database: not required by the catalog recipe');
+
+    Lines.Add('');
+    Lines.Add('Minimum requirements');
+    Lines.Add('--------------------');
+    if Trim(Item.Requirements.PhpMinVersion) <> '' then
+      Lines.Add('PHP >= ' + Item.Requirements.PhpMinVersion);
+    if Trim(Item.Requirements.NodeMinVersion) <> '' then
+      Lines.Add('Node.js >= ' + Item.Requirements.NodeMinVersion);
+    if Trim(Item.Requirements.MariaDbMinVersion) <> '' then
+      Lines.Add('MariaDB >= ' + Item.Requirements.MariaDbMinVersion);
+    if Trim(Item.Requirements.ApacheMinVersion) <> '' then
+      Lines.Add('Apache >= ' + Item.Requirements.ApacheMinVersion);
+    if Trim(Item.Requirements.Notes) <> '' then
+      Lines.Add('Notes: ' + Item.Requirements.Notes);
+    if (Trim(Item.Requirements.PhpMinVersion) = '') and
+       (Trim(Item.Requirements.NodeMinVersion) = '') and
+       (Trim(Item.Requirements.MariaDbMinVersion) = '') and
+       (Trim(Item.Requirements.ApacheMinVersion) = '') and
+       (Trim(Item.Requirements.Notes) = '') then
+      Lines.Add('No explicit minimum requirements are declared for this script yet.');
+
+    if Trim(Item.PostInstallNotes) <> '' then
     begin
-      FDetailHomepageValue.Caption := '-';
-      FDetailHomepageValue.Hint := '';
-      FDetailHomepageValue.ShowHint := False;
+      Lines.Add('');
+      Lines.Add('Post-install notes');
+      Lines.Add('------------------');
+      Lines.Add(Item.PostInstallNotes);
     end;
+
+    Result := Lines.Text;
+  finally
+    Lines.Free;
   end;
-  FDetailInstallButton.Caption := 'Install ' + Item.Name;
+end;
+
+procedure TScriptManagerForm.ShowSelectedItemDetails;
+var
+  Item: TScriptCatalogItem;
+begin
+  if FInstalling or FKeepInstallOutput or not Assigned(FOutputMemo) then
+    Exit;
+  if SelectedCatalogItem(Item) then
+    FOutputMemo.Text := BuildItemDetailsText(Item)
+  else
+    FOutputMemo.Text := 'Select a script to view its minimum requirements and installation details.';
 end;
 
 procedure TScriptManagerForm.AppendOutput(const Text: string);
 begin
   FPendingOutputText := Text;
   TThread.Synchronize(nil, SyncAppendOutput);
-end;
-
-procedure TScriptManagerForm.OpenInstallTerminal;
-var
-  LogTailCommand: string;
-  CmdExe: string;
-begin
-  if Trim(FInstallLogFile) = '' then
-    Exit;
-  CmdExe := 'cmd.exe';
-  LogTailCommand := Format('/K powershell -NoExit -Command "Get-Content -Path ''%s'' -Wait"',
-    [FInstallLogFile]);
-  if ShellExecute(Handle, 'open', PChar(CmdExe), PChar(LogTailCommand), nil, SW_SHOWNORMAL) <= 32 then
-    Exit;
 end;
 
 procedure TScriptManagerForm.WriteInstallLogLine(const Text: string);
@@ -897,10 +707,8 @@ end;
 procedure TScriptManagerForm.SetInstalling(const Value: Boolean);
 begin
   FInstalling := Value;
-  if Assigned(FDetailInstallButton) then
-    FDetailInstallButton.Enabled := not Value;
-  if Value and Assigned(FShowInstallTerminalCheck) and FShowInstallTerminalCheck.Checked then
-    OpenInstallTerminal;
+  if Assigned(FInstallButton) then
+    FInstallButton.Enabled := not Value;
   if Assigned(FGrid) then
     FGrid.Enabled := not Value;
   if Assigned(FSearchEdit) then
@@ -913,7 +721,9 @@ begin
     FEcommerceOnlyCheck.Enabled := not Value;
   if Assigned(FClearFilterButton) then
     FClearFilterButton.Enabled := not Value;
-  
+  if Assigned(FCreateDatabaseCheck) then
+    FCreateDatabaseCheck.Enabled := not Value;
+
   if Assigned(FProgressBar) then
   begin
     if not Value then
@@ -922,6 +732,9 @@ begin
       FProgressBar.Position := 0;
     end;
   end;
+
+  if not Value then
+    UpdateSelectionDetails;
 end;
 
 function TScriptManagerForm.AskProjectName(const DefaultValue: string; out ProjectName: string): Boolean;
@@ -934,18 +747,11 @@ begin
     ProjectName := Trim(Value);
 end;
 
-function TScriptManagerForm.GetRowKind(const Row: Integer): TScriptGridRowKind;
-begin
-  Result := rgHeader;
-  if (Row > 0) and (Row <= Length(FVisibleRows)) then
-    Result := FVisibleRows[Row - 1].Kind;
-end;
-
 function TScriptManagerForm.GetRowItemIndex(const Row: Integer): Integer;
 begin
   Result := -1;
-  if (Row > 0) and (Row <= Length(FVisibleRows)) and (FVisibleRows[Row - 1].Kind = rgItem) then
-    Result := FVisibleRows[Row - 1].ItemIndex;
+  if (Row > 0) and (Row <= Length(FVisibleRows)) then
+    Result := FVisibleRows[Row - 1];
 end;
 
 function TScriptManagerForm.SelectedCatalogItem(out Item: TScriptCatalogItem): Boolean;
@@ -975,6 +781,7 @@ begin
   FInstallLogFile := TPath.Combine(FPaths.LogsDir,
     Format('install-%s-%s.log', [ProjectName, FormatDateTime('yyyymmdd-hhnnss', Now)]));
   TFile.WriteAllText(FInstallLogFile, '', TEncoding.UTF8);
+  FKeepInstallOutput := True;
   SetInstalling(True);
   AppendOutput('Starting install for ' + Item.Name + ' into ' + TPath.Combine(FPaths.WwwDir, ProjectName));
   TThread.CreateAnonymousThread(
@@ -1125,6 +932,9 @@ var
   ErrorMessage: string;
   Engine: TScriptEngine;
   Config: TUniWampConfig;
+  CreateDatabase: Boolean;
+  InstallMessage: string;
+  Preflight: TScriptPreflightResult;
 begin
   if FInstalling then
     Exit;
@@ -1158,6 +968,8 @@ begin
   Engine := TScriptEngine.Create(FPaths);
   try
     PhpDescription := Engine.PhpRuntimeDescription;
+    Preflight := Engine.ValidateRequirements(Item,
+      (not Assigned(FCreateDatabaseCheck)) or FCreateDatabaseCheck.Checked);
   finally
     Engine.Free;
   end;
@@ -1166,14 +978,34 @@ begin
     MessageDlg(PhpDescription, mtError, [mbOK], 0);
     Exit;
   end;
+  if not Preflight.Success then
+  begin
+    MessageDlg('Pre-install check failed.' + sLineBreak + sLineBreak +
+      Preflight.ErrorMessage + sLineBreak + sLineBreak +
+      'Detected environment:' + sLineBreak + Preflight.Summary,
+      mtError, [mbOK], 0);
+    Exit;
+  end;
   Config := TUniWampConfig.Create;
   try
     Config.LoadOrCreate(FPaths);
+    CreateDatabase := (not Assigned(FCreateDatabaseCheck)) or FCreateDatabaseCheck.Checked;
     if MessageDlg(Format('Install %s into the www folder?', [Item.Name]),
       mtConfirmation, [mbYes, mbNo], 0) <> mrYes then
       Exit;
-    MessageDlg(Format('%s will run with %s and create %s.', [Item.Name, PhpDescription, ProjectPath]),
-      mtInformation, [mbOK], 0);
+    InstallMessage := Format('%s will run with %s and install into %s.',
+      [Item.Name, PhpDescription, ProjectPath]);
+    if Trim(Preflight.Summary) <> '' then
+      InstallMessage := InstallMessage + sLineBreak + sLineBreak +
+        'Pre-install check passed:' + sLineBreak + Preflight.Summary;
+    if Item.RequiresDatabase then
+    begin
+      if CreateDatabase then
+        InstallMessage := InstallMessage + sLineBreak + 'Database creation is enabled for this install.'
+      else
+        InstallMessage := InstallMessage + sLineBreak + 'Database creation is disabled; database-dependent steps will be skipped.';
+    end;
+    MessageDlg(InstallMessage, mtInformation, [mbOK], 0);
     FOutputMemo.Clear;
     InstallSelectedAsync(Item, ProjectName, Config);
     Config := nil;
@@ -1184,42 +1016,32 @@ end;
 
 procedure TScriptManagerForm.GridDblClick(Sender: TObject);
 begin
-  if FHeaderClickPending then
-  begin
-    FHeaderClickPending := False;
-    Exit;
-  end;
+  FKeepInstallOutput := False;
   InstallClick(Sender);
 end;
 
 procedure TScriptManagerForm.GridClick(Sender: TObject);
 begin
+  FKeepInstallOutput := False;
   UpdateSelectionDetails;
 end;
 
-procedure TScriptManagerForm.GridMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X,
-  Y: Integer);
+procedure TScriptManagerForm.GridMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 var
   Col: Longint;
   Row: Longint;
-  Category: string;
+  Item: TScriptCatalogItem;
 begin
   if Button <> mbLeft then
     Exit;
   FGrid.MouseToCell(X, Y, Col, Row);
-  if (Row <= 0) or (Row > Length(FVisibleRows)) then
+  if (Col <> 5) or (Row <= 0) then
     Exit;
-  if GetRowKind(Row) <> rgHeader then
-  begin
-    FHeaderClickPending := False;
+  if not SelectedCatalogItem(Item) then
     Exit;
-  end;
-  Category := GetRowCategory(Row);
-  if Category <> '' then
-  begin
-    FHeaderClickPending := True;
-    ToggleCategory(Category);
-  end;
+  if Trim(Item.Homepage) = '' then
+    Exit;
+  ShellExecute(Handle, 'open', PChar(Item.Homepage), nil, nil, SW_SHOWNORMAL);
 end;
 
 procedure TScriptManagerForm.GridDrawCell(Sender: TObject; ACol, ARow: Integer; Rect: TRect; State: TGridDrawState);
@@ -1228,9 +1050,6 @@ var
   CellText: string;
   TextRect: TRect;
   Flags: Longint;
-  RowKind: TScriptGridRowKind;
-  BadgeBack: TColor;
-  UseGrayBadge: Boolean;
 begin
   Grid := Sender as TStringGrid;
   CellText := Grid.Cells[ACol, ARow];
@@ -1243,61 +1062,42 @@ begin
   end
   else
   begin
-    RowKind := GetRowKind(ARow);
-    if RowKind = rgHeader then
-    begin
-      Grid.Canvas.Brush.Color := GridGroupBack;
-      Grid.Canvas.Font.Color := GridGroupText;
-      Grid.Canvas.Font.Style := [fsBold];
-      if ACol = 0 then
-        Grid.Canvas.Font.Color := GridGroupText;
-    end
+    if gdSelected in State then
+      Grid.Canvas.Brush.Color := GridRowSelected
+    else if Odd(ARow) then
+      Grid.Canvas.Brush.Color := GridRowOdd
     else
-    begin
-      if gdSelected in State then
-        Grid.Canvas.Brush.Color := GridRowSelected
-      else if Odd(ARow) then
-        Grid.Canvas.Brush.Color := GridRowOdd
-      else
-        Grid.Canvas.Brush.Color := GridRowEven;
-      Grid.Canvas.Font.Color := clWindowText;
-      Grid.Canvas.Font.Style := [];
-    end;
+      Grid.Canvas.Brush.Color := GridRowEven;
+    Grid.Canvas.Font.Color := clWindowText;
+    Grid.Canvas.Font.Style := [];
   end;
 
   Grid.Canvas.FillRect(Rect);
-  if (ARow > 0) and (GetRowKind(ARow) = rgItem) then
+  if ARow > 0 then
   begin
-    if ACol = 1 then
-    begin
-      BadgeBack := BadgeBlueBack;
-      UseGrayBadge := IsEcommerceCategory(CellText);
-      if UseGrayBadge then
-        BadgeBack := BadgeGrayBack;
-      DrawBadge(Grid.Canvas, Rect, CellText, BadgeBack,
-        IfThen(UseGrayBadge, BadgeGrayBorder, BadgeBlueBorder),
-        IfThen(UseGrayBadge, BadgeGrayText, BadgeBlueText), False);
-      Exit;
-    end;
-    if ACol = 3 then
+    if ACol = 4 then
     begin
       DrawBadge(Grid.Canvas, Rect, CellText, BadgeGrayBack, BadgeGrayBorder, BadgeGrayText, True);
+      Exit;
+    end;
+    if ACol = 5 then
+    begin
+      if CellText = 'Open' then
+        DrawBadge(Grid.Canvas, Rect, CellText, BadgeBlueBack, BadgeBlueBorder, BadgeBlueText, False);
       Exit;
     end;
   end;
   TextRect := Rect;
   InflateRect(TextRect, -8, -2);
   Flags := DT_LEFT or DT_VCENTER or DT_SINGLELINE or DT_END_ELLIPSIS;
-  if ACol = 3 then
+  if ACol in [4, 5] then
     Flags := Flags or DT_RIGHT;
-  if (ARow > 0) and (GetRowKind(ARow) = rgHeader) and (ACol > 0) then
-    CellText := '';
   DrawText(Grid.Canvas.Handle, PChar(CellText), Length(CellText), TextRect, Flags);
 end;
 
 procedure TScriptManagerForm.GridSelectCell(Sender: TObject; ACol, ARow: Integer; var CanSelect: Boolean);
 begin
-  CanSelect := (ARow > 0) and (GetRowKind(ARow) = rgItem);
+  CanSelect := ARow > 0;
 end;
 
 procedure TScriptManagerForm.CloseClick(Sender: TObject);
@@ -1307,6 +1107,7 @@ end;
 
 initialization
   RegisterClass(TPanel);
+  RegisterClass(TSplitter);
   RegisterClass(TLabel);
   RegisterClass(TButton);
   RegisterClass(TEdit);

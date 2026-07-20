@@ -8,6 +8,14 @@ uses
   System.SysUtils;
 
 type
+  TScriptRequirements = record
+    PhpMinVersion: string;
+    NodeMinVersion: string;
+    MariaDbMinVersion: string;
+    ApacheMinVersion: string;
+    Notes: string;
+  end;
+
   TScriptStep = record
     StepType: string;
     Source: string;
@@ -32,6 +40,7 @@ type
     AdminPath: string;
     PostInstallNotes: string;
     RequiresDatabase: Boolean;
+    Requirements: TScriptRequirements;
     Steps: TArray<TScriptStep>;
   end;
 
@@ -44,6 +53,7 @@ type
       const Name: string; const DefaultValue: Integer = 0): Integer; static;
     class function BooleanValue(const ObjectValue: TJSONObject;
       const Name: string; const DefaultValue: Boolean = False): Boolean; static;
+    class function ParseRequirements(const Value: TJSONValue): TScriptRequirements; static;
     class function ParseItem(const Value: TJSONValue): TScriptCatalogItem; static;
     class function ParseStep(const Value: TJSONValue): TScriptStep; static;
     procedure SortItems;
@@ -125,6 +135,25 @@ begin
     BooleanValue(ObjectValue, 'requiresDatabase');
 end;
 
+class function TScriptCatalog.ParseRequirements(const Value: TJSONValue): TScriptRequirements;
+var
+  ObjectValue: TJSONObject;
+begin
+  Result.PhpMinVersion := '';
+  Result.NodeMinVersion := '';
+  Result.MariaDbMinVersion := '';
+  Result.ApacheMinVersion := '';
+  Result.Notes := '';
+  ObjectValue := Value as TJSONObject;
+  if not Assigned(ObjectValue) then
+    Exit;
+  Result.PhpMinVersion := StringValue(ObjectValue, 'phpMinVersion');
+  Result.NodeMinVersion := StringValue(ObjectValue, 'nodeMinVersion');
+  Result.MariaDbMinVersion := StringValue(ObjectValue, 'mariaDbMinVersion');
+  Result.ApacheMinVersion := StringValue(ObjectValue, 'apacheMinVersion');
+  Result.Notes := StringValue(ObjectValue, 'notes');
+end;
+
 class function TScriptCatalog.ParseItem(const Value: TJSONValue): TScriptCatalogItem;
 var
   ObjectValue: TJSONObject;
@@ -141,6 +170,7 @@ begin
   Result.AdminPath := '';
   Result.PostInstallNotes := '';
   Result.RequiresDatabase := False;
+  Result.Requirements := Default(TScriptRequirements);
   SetLength(Result.Steps, 0);
   ObjectValue := Value as TJSONObject;
   if not Assigned(ObjectValue) then
@@ -154,6 +184,7 @@ begin
   Result.Version := StringValue(ObjectValue, 'version');
   Result.AdminPath := StringValue(ObjectValue, 'adminPath');
   Result.PostInstallNotes := StringValue(ObjectValue, 'postInstallNotes');
+  Result.Requirements := ParseRequirements(ObjectValue.GetValue('requirements'));
   StepsValue := ObjectValue.GetValue<TJSONArray>('install');
   if Assigned(StepsValue) then
   begin

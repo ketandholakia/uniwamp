@@ -11,7 +11,16 @@ Each item uses these fields:
 - `id` - stable folder-friendly identifier
 - `name`, `category`, `summary` - display metadata
 - `homepage`, `license`, `version` - attribution and package information
+- `requirements` - optional minimum environment requirements shown in the UI and enforced by pre-install checks
 - `install` - ordered execution steps
+
+`requirements` supports these optional fields:
+
+- `phpMinVersion`
+- `nodeMinVersion`
+- `mariaDbMinVersion`
+- `apacheMinVersion`
+- `notes`
 
 Supported step types:
 

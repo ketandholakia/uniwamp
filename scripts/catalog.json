@@ -2,6 +2,44 @@
   "schemaVersion": 1,
   "items": [
     {
+      "id": "akaunting",
+      "name": "Akaunting",
+      "category": "Accounting",
+      "summary": "Clone Akaunting, create its database, install Composer dependencies, and run its non-interactive installer.",
+      "homepage": "https://akaunting.com/",
+      "license": "BSL",
+      "version": "latest",
+      "postInstallNotes": "Log in with email `admin@${projectName}.local` and the generated admin password shown in the install log above. Akaunting's upstream installation guide also includes `npm install` and `npm run dev`; run those inside the project if you need to rebuild frontend assets locally.",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${tools}/git/bin/git.exe",
+          "arguments": "clone --depth 1 https://github.com/akaunting/akaunting.git ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 900000
+        },
+        {
+          "type": "create_database_user",
+          "destination": "${projectName}_db"
+        },
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar install --no-interaction",
+          "workingDirectory": "${www}/${projectName}",
+          "timeoutMs": 900000
+        },
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "artisan install --db-name=${dbName} --db-username=${dbUser} --db-password=${dbPassword} --admin-email=admin@${projectName}.local --admin-password=${adminPassword}",
+          "workingDirectory": "${www}/${projectName}",
+          "timeoutMs": 900000,
+          "requiresDatabase": true
+        }
+      ]
+    },
+    {
       "id": "automad",
       "name": "Automad",
       "category": "Flat-file CMS",
@@ -16,6 +54,41 @@
           "arguments": "${tools}/composer/composer.phar create-project automad/automad ${www}/${projectName} 1.10.9",
           "workingDirectory": "${www}",
           "timeoutMs": 600000
+        }
+      ]
+    },
+    {
+      "id": "aureuserp",
+      "name": "Aureus ERP",
+      "category": "ERP",
+      "summary": "Clone Aureus ERP, create its database, and install Composer dependencies.",
+      "homepage": "https://aureuserp.com/",
+      "license": "MIT",
+      "version": "latest",
+      "requirements": {
+        "phpMinVersion": "8.3",
+        "nodeMinVersion": "18",
+        "notes": "Upstream documents MySQL 8.0+ or SQLite 3.8.3+ alongside Composer 2.x."
+      },
+      "postInstallNotes": "Aureus ERP requires PHP 8.3+ and Node.js 18+. UniWAMP cloned the project, created a scoped database and user, and installed PHP dependencies. Before first use, review the generated database credentials shown in the install log, configure the project as needed, then run `php artisan erp:install` inside the project directory to complete the ERP setup.",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${tools}/git/bin/git.exe",
+          "arguments": "clone --depth 1 https://github.com/aureuserp/aureuserp.git ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 900000
+        },
+        {
+          "type": "create_database_user",
+          "destination": "${projectName}_db"
+        },
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar install --no-interaction",
+          "workingDirectory": "${www}/${projectName}",
+          "timeoutMs": 900000
         }
       ]
     },
@@ -193,6 +266,36 @@
       ]
     },
     {
+      "id": "erpsaas",
+      "name": "ERPSAAS",
+      "category": "ERP",
+      "summary": "Clone ERPSAAS, create its database, and install Composer dependencies.",
+      "homepage": "https://github.com/andrewdwallo/erpsaas",
+      "license": "MIT",
+      "version": "latest",
+      "postInstallNotes": "ERPSAAS follows a standard Laravel setup and also requires Node.js tooling for frontend assets. UniWAMP cloned the project, created a scoped database and user, and installed PHP dependencies. Before first use, copy `.env.example` to `.env`, configure the generated database credentials shown in the install log, run `php artisan key:generate`, run `php artisan migrate`, then install and build frontend assets with `npm install`, `php artisan filament:assets`, and `npm run build`. Optional sample data can be loaded with `php artisan db:seed`.",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${tools}/git/bin/git.exe",
+          "arguments": "clone --depth 1 https://github.com/andrewdwallo/erpsaas.git ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 900000
+        },
+        {
+          "type": "create_database_user",
+          "destination": "${projectName}_db"
+        },
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar install --no-interaction",
+          "workingDirectory": "${www}/${projectName}",
+          "timeoutMs": 900000
+        }
+      ]
+    },
+    {
       "id": "grav",
       "name": "Grav",
       "category": "Flat-file CMS",
@@ -207,6 +310,93 @@
           "arguments": "${tools}/composer/composer.phar create-project getgrav/grav ${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 600000
+        }
+      ]
+    },
+    {
+      "id": "invoiceninja",
+      "name": "Invoice Ninja",
+      "category": "Invoicing",
+      "summary": "Clone Invoice Ninja, create its database, and install Composer dependencies.",
+      "homepage": "https://invoiceninja.com/",
+      "license": "Elastic License",
+      "version": "latest",
+      "postInstallNotes": "Invoice Ninja is source-available rather than open source. Upstream recommends deploying from a stable release tag rather than a development branch. UniWAMP cloned the repository, created a scoped database and user, and installed PHP dependencies. Before first use, copy `.env.example` to `.env`, configure the generated database credentials shown in the install log, set your `APP_KEY`, and open `/setup` in a browser to finish configuration. Optional sample data can be loaded with `php artisan migrate:fresh --seed && php artisan db:seed && php artisan ninja:create-test-data`.",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${tools}/git/bin/git.exe",
+          "arguments": "clone --depth 1 https://github.com/invoiceninja/invoiceninja.git ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 900000
+        },
+        {
+          "type": "create_database_user",
+          "destination": "${projectName}_db"
+        },
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar install -o --no-dev --no-interaction",
+          "workingDirectory": "${www}/${projectName}",
+          "timeoutMs": 900000
+        }
+      ]
+    },
+    {
+      "id": "invoiceplane",
+      "name": "InvoicePlane",
+      "category": "Invoicing",
+      "summary": "Clone InvoicePlane, create its database, and install Composer dependencies.",
+      "homepage": "https://www.invoiceplane.com/",
+      "license": "MIT",
+      "version": "latest",
+      "postInstallNotes": "InvoicePlane's production install flow uses its web installer. UniWAMP cloned the project, created a scoped database and user, and installed PHP dependencies. Before first use, copy `ipconfig.php.example` to `ipconfig.php`, set the base URL and the generated database credentials shown in the install log, then open `/index.php/setup` in a browser to finish installation.",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${tools}/git/bin/git.exe",
+          "arguments": "clone --depth 1 https://github.com/InvoicePlane/InvoicePlane.git ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 900000
+        },
+        {
+          "type": "create_database_user",
+          "destination": "${projectName}_db"
+        },
+        {
+          "type": "run",
+          "executable": "${php}",
+          "arguments": "${tools}/composer/composer.phar install --no-interaction",
+          "workingDirectory": "${www}/${projectName}",
+          "timeoutMs": 900000
+        }
+      ]
+    },
+    {
+      "id": "invoiceshelf",
+      "name": "InvoiceShelf",
+      "category": "Invoicing",
+      "summary": "Clone InvoiceShelf and create its database for a manual Laravel-style setup.",
+      "homepage": "https://invoiceshelf.com/",
+      "license": "AGPL-3.0",
+      "version": "latest",
+      "requirements": {
+        "phpMinVersion": "8.4",
+        "notes": "Upstream docs support Docker or manual installation and list MySQL, MariaDB, PostgreSQL, or SQLite as supported databases."
+      },
+      "postInstallNotes": "InvoiceShelf currently documents both Docker and manual installation, and upstream generally recommends Docker. UniWAMP cloned the source and created a scoped database and user. To continue with the manual path, copy `.env.example` to `.env`, configure the generated database credentials shown in the install log, run `composer install`, `npm install`, `npm run dev` (or your preferred production asset build), `php artisan key:generate`, and `php artisan migrate`.",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${tools}/git/bin/git.exe",
+          "arguments": "clone --depth 1 https://github.com/InvoiceShelf/InvoiceShelf.git ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 900000
+        },
+        {
+          "type": "create_database_user",
+          "destination": "${projectName}_db"
         }
       ]
     },
@@ -427,6 +617,25 @@
           "arguments": "${tools}/composer/composer.phar create-project silverstripe/installer ${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 600000
+        }
+      ]
+    },
+    {
+      "id": "solidinvoice",
+      "name": "SolidInvoice",
+      "category": "Invoicing",
+      "summary": "Clone the SolidInvoice source for a manual self-hosted setup.",
+      "homepage": "https://solidinvoice.co/",
+      "license": "MIT",
+      "version": "latest",
+      "postInstallNotes": "SolidInvoice's current quick-start guide emphasizes Docker or standalone binaries for self-hosting. UniWAMP cloned the source tree into your project folder. If you want to run it from source inside UniWAMP, follow the upstream self-hosted documentation for the current Symfony-based setup and database configuration, or use the official Docker image instead.",
+      "install": [
+        {
+          "type": "run",
+          "executable": "${tools}/git/bin/git.exe",
+          "arguments": "clone --depth 1 https://github.com/SolidInvoice/SolidInvoice.git ${www}/${projectName}",
+          "workingDirectory": "${www}",
+          "timeoutMs": 900000
         }
       ]
     },
