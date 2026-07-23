@@ -20,7 +20,7 @@ object AppSettingsForm: TAppSettingsForm
     Height = 92
     Align = alTop
     BevelOuter = bvNone
-    Color = 6229470
+    Color = 6240798
     ParentBackground = False
     TabOrder = 0
     object FTitleLabel: TLabel
@@ -43,7 +43,7 @@ object AppSettingsForm: TAppSettingsForm
       Height = 14
       Caption = 'Edit the core UniWamp configuration that drives the dashboard and generated runtime files.'
       Font.Charset = DEFAULT_CHARSET
-      Font.Color = 13689820
+      Font.Color = 15722452
       Font.Height = -10
       Font.Name = 'Segoe UI'
       Font.Style = []

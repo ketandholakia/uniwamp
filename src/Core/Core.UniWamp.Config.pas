@@ -15,11 +15,30 @@ type
     EnableSsl: Boolean;
     SslCertFile: string;
     SslKeyFile: string;
+    PinnedSyncUploadProfile: string;
+    PinnedSyncDownloadProfile: string;
   end;
 
   TPhpRuntime = record
     Name: string;
     Directory: string;
+  end;
+
+  TSyncProfile = record
+    Name: string;
+    Backend: string;
+    Direction: string;
+    ExecutablePath: string;
+    DefaultTestVHost: string;
+    PreSyncCommand: string;
+    PostSyncCommand: string;
+    RemoteName: string;
+    RemotePath: string;
+    LocalPath: string;
+    WorkingDirectory: string;
+    DeleteEnabled: Boolean;
+    DryRunByDefault: Boolean;
+    Excludes: TArray<string>;
   end;
 
   TUniWampConfig = class
@@ -30,6 +49,7 @@ type
     FPhpExtensions: TList<string>;
     FPhpSettings: TDictionary<string, string>;
     FNodeVersions: TList<string>;
+    FSyncProfiles: TList<TSyncProfile>;
   public
     HttpPort: Integer;
     HttpsPort: Integer;
@@ -54,6 +74,8 @@ type
     LastMariaDbError: string;
     LastHostsSyncStatus: string;
     LastMigrationMessage: string;
+    LastSyncUploadProfile: string;
+    LastSyncDownloadProfile: string;
     constructor Create;
     destructor Destroy; override;
     function LoadOrCreate(const Paths: TAppPaths): Boolean;
@@ -69,6 +91,10 @@ type
     procedure SetPhpSettingValue(const Name, Value: string);
     procedure ReplaceNodeVersions(const Versions: TArray<string>);
     function NodeVersions: TArray<string>;
+    function SyncProfiles: TArray<TSyncProfile>;
+    procedure ReplaceSyncProfiles(const Items: TArray<TSyncProfile>);
+    procedure AddOrUpdateSyncProfile(const Item: TSyncProfile);
+    procedure DeleteSyncProfile(const Name: string);
     function VHosts: TArray<TVHostEntry>;
     procedure ReplaceVHosts(const Items: TArray<TVHostEntry>);
     procedure AddOrUpdateVHost(const Item: TVHostEntry);
@@ -212,6 +238,39 @@ begin
     Result := TJSONArray(Value);
 end;
 
+function NormalizeSyncProfile(const Profile: TSyncProfile): TSyncProfile;
+var
+  I: Integer;
+  NormalizedExcludes: TList<string>;
+  Value: string;
+begin
+  Result := Profile;
+  Result.Name := Trim(Profile.Name);
+  Result.Backend := LowerCase(Trim(Profile.Backend));
+  Result.Direction := LowerCase(Trim(Profile.Direction));
+  Result.ExecutablePath := Trim(Profile.ExecutablePath);
+  Result.DefaultTestVHost := Trim(Profile.DefaultTestVHost);
+  Result.PreSyncCommand := Trim(Profile.PreSyncCommand);
+  Result.PostSyncCommand := Trim(Profile.PostSyncCommand);
+  Result.RemoteName := Trim(Profile.RemoteName);
+  Result.RemotePath := Trim(Profile.RemotePath);
+  Result.LocalPath := Trim(Profile.LocalPath);
+  Result.WorkingDirectory := Trim(Profile.WorkingDirectory);
+
+  NormalizedExcludes := TList<string>.Create;
+  try
+    for I := Low(Profile.Excludes) to High(Profile.Excludes) do
+    begin
+      Value := Trim(Profile.Excludes[I]);
+      if Value <> '' then
+        NormalizedExcludes.Add(Value);
+    end;
+    Result.Excludes := NormalizedExcludes.ToArray;
+  finally
+    NormalizedExcludes.Free;
+  end;
+end;
+
 constructor TUniWampConfig.Create;
 begin
   inherited Create;
@@ -221,10 +280,12 @@ begin
   FPhpExtensions := TList<string>.Create;
   FPhpSettings := TDictionary<string, string>.Create;
   FNodeVersions := TList<string>.Create;
+  FSyncProfiles := TList<TSyncProfile>.Create;
 end;
 
 destructor TUniWampConfig.Destroy;
 begin
+  FSyncProfiles.Free;
   FNodeVersions.Free;
   FPhpSettings.Free;
   FPhpExtensions.Free;
@@ -302,9 +363,12 @@ begin
   LastMariaDbError := '';
   LastHostsSyncStatus := 'Hosts status unknown';
   LastMigrationMessage := '';
+  LastSyncUploadProfile := '';
+  LastSyncDownloadProfile := '';
   MariaDbRootPassword := '';
   ThemeStyleName := '';
   FVHosts.Clear;
+  FSyncProfiles.Clear;
   FApacheModules.Clear;
   for Item in DefaultApacheModules do
     FApacheModules.Add(Item);
@@ -338,8 +402,12 @@ var
   PhpExtensionsArray: TJSONArray;
   PhpSettingsObject: TJSONObject;
   VHostArray: TJSONArray;
+  SyncProfilesArray: TJSONArray;
+  ExcludesArray: TJSONArray;
   I: Integer;
+  J: Integer;
   Entry: TVHostEntry;
+  SyncProfile: TSyncProfile;
   Obj: TJSONObject;
   OldAppRoot: string;
   LegacyRootFound: Boolean;
@@ -408,6 +476,8 @@ begin
     LastApacheError := ReadStringOrDefault(Root, 'lastApacheError', '');
     LastMariaDbError := ReadStringOrDefault(Root, 'lastMariaDbError', '');
     LastHostsSyncStatus := ReadStringOrDefault(Root, 'lastHostsSyncStatus', LastHostsSyncStatus);
+    LastSyncUploadProfile := ReadStringOrDefault(Root, 'lastSyncUploadProfile', '');
+    LastSyncDownloadProfile := ReadStringOrDefault(Root, 'lastSyncDownloadProfile', '');
     MariaDbRootPassword := ReadStringOrDefault(Root, 'mariaDbRootPassword', MariaDbRootPassword);
     LegacyPasswordValue := Root.GetValue('mariaDbRootPassword');
 
@@ -456,8 +526,44 @@ begin
         Entry.EnableSsl := ReadBooleanOrDefault(Obj, 'enableSsl', False);
         Entry.SslCertFile := ReadStringOrDefault(Obj, 'sslCertFile', '');
         Entry.SslKeyFile := ReadStringOrDefault(Obj, 'sslKeyFile', '');
+        Entry.PinnedSyncUploadProfile := ReadStringOrDefault(Obj, 'pinnedSyncUploadProfile', '');
+        Entry.PinnedSyncDownloadProfile := ReadStringOrDefault(Obj, 'pinnedSyncDownloadProfile', '');
         if Entry.ServerName <> '' then
           FVHosts.Add(Entry);
+      end;
+
+    FSyncProfiles.Clear;
+    SyncProfilesArray := ReadArrayOrNil(Root, 'syncProfiles');
+    if Assigned(SyncProfilesArray) then
+      for I := 0 to SyncProfilesArray.Count - 1 do
+      begin
+        Obj := SyncProfilesArray.Items[I] as TJSONObject;
+        if not Assigned(Obj) then
+          Continue;
+        SyncProfile.Name := ReadStringOrDefault(Obj, 'name', '');
+        SyncProfile.Backend := ReadStringOrDefault(Obj, 'backend', 'rclone');
+        SyncProfile.Direction := ReadStringOrDefault(Obj, 'direction', 'upload');
+        SyncProfile.ExecutablePath := ReadStringOrDefault(Obj, 'executablePath', '');
+        SyncProfile.DefaultTestVHost := ReadStringOrDefault(Obj, 'defaultTestVHost', '');
+        SyncProfile.PreSyncCommand := ReadStringOrDefault(Obj, 'preSyncCommand', '');
+        SyncProfile.PostSyncCommand := ReadStringOrDefault(Obj, 'postSyncCommand', '');
+        SyncProfile.RemoteName := ReadStringOrDefault(Obj, 'remoteName', '');
+        SyncProfile.RemotePath := ReadStringOrDefault(Obj, 'remotePath', '');
+        SyncProfile.LocalPath := ReadStringOrDefault(Obj, 'localPath', '');
+        SyncProfile.WorkingDirectory := ReadStringOrDefault(Obj, 'workingDirectory', '');
+        SyncProfile.DeleteEnabled := ReadBooleanOrDefault(Obj, 'deleteEnabled', False);
+        SyncProfile.DryRunByDefault := ReadBooleanOrDefault(Obj, 'dryRunByDefault', True);
+        SetLength(SyncProfile.Excludes, 0);
+        ExcludesArray := ReadArrayOrNil(Obj, 'excludes');
+        if Assigned(ExcludesArray) then
+        begin
+          SetLength(SyncProfile.Excludes, ExcludesArray.Count);
+          for J := 0 to ExcludesArray.Count - 1 do
+            SyncProfile.Excludes[J] := ExcludesArray.Items[J].Value;
+        end;
+        SyncProfile := NormalizeSyncProfile(SyncProfile);
+        if SyncProfile.Name <> '' then
+          FSyncProfiles.Add(SyncProfile);
       end;
 
     Migrated := False;
@@ -541,6 +647,31 @@ begin
       FVHosts[I] := Entry;
     end;
 
+    for I := 0 to FSyncProfiles.Count - 1 do
+    begin
+      SyncProfile := FSyncProfiles[I];
+      if (SyncProfile.LocalPath <> '') and not TPath.IsPathRooted(SyncProfile.LocalPath) then
+      begin
+        SyncProfile.LocalPath := ResolveConfiguredPath(SyncProfile.LocalPath, Paths.AppRoot);
+        Inc(MigratedCount);
+        Migrated := True;
+      end;
+      if (SyncProfile.WorkingDirectory <> '') and not TPath.IsPathRooted(SyncProfile.WorkingDirectory) then
+      begin
+        SyncProfile.WorkingDirectory := ResolveConfiguredPath(SyncProfile.WorkingDirectory, Paths.AppRoot);
+        Inc(MigratedCount);
+        Migrated := True;
+      end;
+      if (SyncProfile.ExecutablePath <> '') and not TPath.IsPathRooted(SyncProfile.ExecutablePath) and
+        (Pos('\', SyncProfile.ExecutablePath) > 0) then
+      begin
+        SyncProfile.ExecutablePath := ResolveConfiguredPath(SyncProfile.ExecutablePath, Paths.AppRoot);
+        Inc(MigratedCount);
+        Migrated := True;
+      end;
+      FSyncProfiles[I] := NormalizeSyncProfile(SyncProfile);
+    end;
+
     OldAppRoot := '';
     LegacyRootFound := False;
     if TryExtractLegacyRoot(DocumentRoot, 'www', OldAppRoot) and
@@ -622,6 +753,40 @@ begin
         Migrated := True;
       end;
 
+      for I := 0 to FSyncProfiles.Count - 1 do
+      begin
+        SyncProfile := FSyncProfiles[I];
+
+        OriginalValue := SyncProfile.LocalPath;
+        UpdatedValue := ReplacePathPrefix(SyncProfile.LocalPath, OldAppRoot, Paths.AppRoot);
+        if not SameText(NormalizePortablePath(OriginalValue), NormalizePortablePath(UpdatedValue)) then
+        begin
+          SyncProfile.LocalPath := UpdatedValue;
+          Inc(MigratedCount);
+          Migrated := True;
+        end;
+
+        OriginalValue := SyncProfile.WorkingDirectory;
+        UpdatedValue := ReplacePathPrefix(SyncProfile.WorkingDirectory, OldAppRoot, Paths.AppRoot);
+        if not SameText(NormalizePortablePath(OriginalValue), NormalizePortablePath(UpdatedValue)) then
+        begin
+          SyncProfile.WorkingDirectory := UpdatedValue;
+          Inc(MigratedCount);
+          Migrated := True;
+        end;
+
+        OriginalValue := SyncProfile.ExecutablePath;
+        UpdatedValue := ReplacePathPrefix(SyncProfile.ExecutablePath, OldAppRoot, Paths.AppRoot);
+        if not SameText(NormalizePortablePath(OriginalValue), NormalizePortablePath(UpdatedValue)) then
+        begin
+          SyncProfile.ExecutablePath := UpdatedValue;
+          Inc(MigratedCount);
+          Migrated := True;
+        end;
+
+        FSyncProfiles[I] := NormalizeSyncProfile(SyncProfile);
+      end;
+
       if Migrated then
         LastMigrationMessage := Format(
           'Migrated %d path(s) from %s to %s.',
@@ -660,8 +825,12 @@ var
   PhpExtensionsArray: TJSONArray;
   PhpSettingsObject: TJSONObject;
   VHostArray: TJSONArray;
+  SyncProfilesArray: TJSONArray;
+  ExcludesArray: TJSONArray;
   Item: string;
+  ExcludePattern: string;
   Entry: TVHostEntry;
+  SyncProfile: TSyncProfile;
   Obj: TJSONObject;
   JsonText: string;
   TempFile: string;
@@ -691,6 +860,8 @@ begin
     Root.AddPair('lastApacheError', LastApacheError);
     Root.AddPair('lastMariaDbError', LastMariaDbError);
     Root.AddPair('lastHostsSyncStatus', LastHostsSyncStatus);
+    Root.AddPair('lastSyncUploadProfile', LastSyncUploadProfile);
+    Root.AddPair('lastSyncDownloadProfile', LastSyncDownloadProfile);
 
   var ApacheModulesArray := TJSONArray.Create;
     for Item in FApacheModules do
@@ -722,9 +893,36 @@ begin
       Obj.AddPair('enableSsl', TJSONBool.Create(Entry.EnableSsl));
       Obj.AddPair('sslCertFile', Entry.SslCertFile);
       Obj.AddPair('sslKeyFile', Entry.SslKeyFile);
+      Obj.AddPair('pinnedSyncUploadProfile', Entry.PinnedSyncUploadProfile);
+      Obj.AddPair('pinnedSyncDownloadProfile', Entry.PinnedSyncDownloadProfile);
       VHostArray.Add(Obj);
     end;
     Root.AddPair('vhosts', VHostArray);
+
+    SyncProfilesArray := TJSONArray.Create;
+    for SyncProfile in FSyncProfiles do
+    begin
+      Obj := TJSONObject.Create;
+      Obj.AddPair('name', SyncProfile.Name);
+      Obj.AddPair('backend', SyncProfile.Backend);
+      Obj.AddPair('direction', SyncProfile.Direction);
+      Obj.AddPair('executablePath', SyncProfile.ExecutablePath);
+      Obj.AddPair('defaultTestVHost', SyncProfile.DefaultTestVHost);
+      Obj.AddPair('preSyncCommand', SyncProfile.PreSyncCommand);
+      Obj.AddPair('postSyncCommand', SyncProfile.PostSyncCommand);
+      Obj.AddPair('remoteName', SyncProfile.RemoteName);
+      Obj.AddPair('remotePath', SyncProfile.RemotePath);
+      Obj.AddPair('localPath', SyncProfile.LocalPath);
+      Obj.AddPair('workingDirectory', SyncProfile.WorkingDirectory);
+      Obj.AddPair('deleteEnabled', TJSONBool.Create(SyncProfile.DeleteEnabled));
+      Obj.AddPair('dryRunByDefault', TJSONBool.Create(SyncProfile.DryRunByDefault));
+      ExcludesArray := TJSONArray.Create;
+      for ExcludePattern in SyncProfile.Excludes do
+        ExcludesArray.Add(ExcludePattern);
+      Obj.AddPair('excludes', ExcludesArray);
+      SyncProfilesArray.Add(Obj);
+    end;
+    Root.AddPair('syncProfiles', SyncProfilesArray);
 
     JsonText := Root.Format(2);
     TempFile := Paths.AppConfigFile + '.tmp';
@@ -810,6 +1008,51 @@ end;
 function TUniWampConfig.NodeVersions: TArray<string>;
 begin
   Result := FNodeVersions.ToArray;
+end;
+
+function TUniWampConfig.SyncProfiles: TArray<TSyncProfile>;
+begin
+  Result := FSyncProfiles.ToArray;
+end;
+
+procedure TUniWampConfig.ReplaceSyncProfiles(const Items: TArray<TSyncProfile>);
+var
+  I: Integer;
+  Profile: TSyncProfile;
+begin
+  FSyncProfiles.Clear;
+  for I := Low(Items) to High(Items) do
+  begin
+    Profile := NormalizeSyncProfile(Items[I]);
+    if Profile.Name <> '' then
+      FSyncProfiles.Add(Profile);
+  end;
+end;
+
+procedure TUniWampConfig.AddOrUpdateSyncProfile(const Item: TSyncProfile);
+var
+  I: Integer;
+  Profile: TSyncProfile;
+begin
+  Profile := NormalizeSyncProfile(Item);
+  if Profile.Name = '' then
+    Exit;
+  for I := 0 to FSyncProfiles.Count - 1 do
+    if SameText(FSyncProfiles[I].Name, Profile.Name) then
+    begin
+      FSyncProfiles[I] := Profile;
+      Exit;
+    end;
+  FSyncProfiles.Add(Profile);
+end;
+
+procedure TUniWampConfig.DeleteSyncProfile(const Name: string);
+var
+  I: Integer;
+begin
+  for I := FSyncProfiles.Count - 1 downto 0 do
+    if SameText(FSyncProfiles[I].Name, Name) then
+      FSyncProfiles.Delete(I);
 end;
 
 function TUniWampConfig.VHosts: TArray<TVHostEntry>;

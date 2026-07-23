@@ -63,6 +63,8 @@ begin
   Entry.EnableSsl := False;
   Entry.SslCertFile := '';
   Entry.SslKeyFile := '';
+  Entry.PinnedSyncUploadProfile := '';
+  Entry.PinnedSyncDownloadProfile := '';
   for Item in FConfig.VHosts do
     if SameText(Item.ServerName, ServerName) then
     begin
@@ -157,7 +159,6 @@ var
   ManifestJson: TJSONObject;
   VHostJson: TJSONObject;
 begin
-  Result := False;
   RootRelativeDocumentRoot := Entry.DocumentRoot;
   if IsPathUnderRoot(Entry.DocumentRoot, FPaths.AppRoot) then
     RootRelativeDocumentRoot := ExtractRelativePath(IncludeTrailingPathDelimiter(FPaths.AppRoot), Entry.DocumentRoot);
@@ -180,7 +181,7 @@ begin
     VHostJson := VHostEntryToJson(Entry);
     ManifestJson.AddPair('vhost', VHostJson);
     TFile.WriteAllText(TPath.Combine(BackupDir, MetadataFileName), ManifestJson.Format, TEncoding.UTF8);
-    Result := True;
+    Exit(True);
   finally
     ManifestJson.Free;
   end;

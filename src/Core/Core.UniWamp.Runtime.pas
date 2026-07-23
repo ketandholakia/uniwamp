@@ -544,6 +544,10 @@ var
 begin
   GitExe := BundledToolExecutable(FPaths.GitDir, 'git.exe');
   if GitExe = '' then
+    GitExe := BundledToolExecutable(TPath.Combine(FPaths.GitDir, 'cmd'), 'git.exe');
+  if GitExe = '' then
+    GitExe := BundledToolExecutable(TPath.Combine(FPaths.GitDir, 'bin'), 'git.exe');
+  if GitExe = '' then
   begin
     FilePart := nil;
     BufferSize := SearchPath(nil, 'git.exe', nil, Length(Buffer), Buffer, FilePart);

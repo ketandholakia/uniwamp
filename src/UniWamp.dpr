@@ -25,6 +25,7 @@ uses
   Core.UniWamp.VHostManager in 'Core\Core.UniWamp.VHostManager.pas',
   Core.UniWamp.ProjectBackupService in 'Core\Core.UniWamp.ProjectBackupService.pas',
   Core.UniWamp.DatabaseBackupService in 'Core\Core.UniWamp.DatabaseBackupService.pas',
+  Core.UniWamp.SyncService in 'Core\Core.UniWamp.SyncService.pas',
   Core.UniWamp.HostsFileService in 'Core\Core.UniWamp.HostsFileService.pas',
   Core.UniWamp.BackupTypes in 'Core\Core.UniWamp.BackupTypes.pas',
   Core.UniWamp.TemplateRenderer in 'Core\Core.UniWamp.TemplateRenderer.pas',

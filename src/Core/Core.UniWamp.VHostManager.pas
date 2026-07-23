@@ -154,6 +154,8 @@ begin
   Entry.EnableSsl := False;
   Entry.SslCertFile := '';
   Entry.SslKeyFile := '';
+  Entry.PinnedSyncUploadProfile := '';
+  Entry.PinnedSyncDownloadProfile := '';
   for VHost in FConfig.VHosts do
     if SameText(VHost.ServerName, ServerName) then
     begin

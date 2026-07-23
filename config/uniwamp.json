@@ -18,9 +18,11 @@
   "mariaDbPid": 0,
   "apacheRunning": false,
   "mariaDbRunning": false,
-  "lastApacheError": "Apache did not start listening on port 8080 within 30 seconds.",
+  "lastApacheError": "",
   "lastMariaDbError": "",
   "lastHostsSyncStatus": "Hosts synced",
+  "lastSyncUploadProfile": "",
+  "lastSyncDownloadProfile": "",
   "apacheEnabledModules": [
     "mod_access_compat.so",
     "mod_alias.so",
@@ -87,7 +89,9 @@
       "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\lara44\\public",
       "enableSsl": false,
       "sslCertFile": "",
-      "sslKeyFile": ""
+      "sslKeyFile": "",
+      "pinnedSyncUploadProfile": "",
+      "pinnedSyncDownloadProfile": ""
     },
     {
       "serverName": "lara31",
@@ -95,7 +99,9 @@
       "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\lara31\\public",
       "enableSsl": false,
       "sslCertFile": "",
-      "sslKeyFile": ""
+      "sslKeyFile": "",
+      "pinnedSyncUploadProfile": "",
+      "pinnedSyncDownloadProfile": ""
     },
     {
       "serverName": "lara55",
@@ -103,7 +109,9 @@
       "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\lara55\\public",
       "enableSsl": false,
       "sslCertFile": "",
-      "sslKeyFile": ""
+      "sslKeyFile": "",
+      "pinnedSyncUploadProfile": "",
+      "pinnedSyncDownloadProfile": ""
     },
     {
       "serverName": "laraveltest",
@@ -111,7 +119,9 @@
       "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\laraveltest\\public",
       "enableSsl": false,
       "sslCertFile": "",
-      "sslKeyFile": ""
+      "sslKeyFile": "",
+      "pinnedSyncUploadProfile": "",
+      "pinnedSyncDownloadProfile": ""
     },
     {
       "serverName": "backdropcms",
@@ -119,7 +129,9 @@
       "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\backdropcms",
       "enableSsl": false,
       "sslCertFile": "",
-      "sslKeyFile": ""
+      "sslKeyFile": "",
+      "pinnedSyncUploadProfile": "",
+      "pinnedSyncDownloadProfile": ""
     },
     {
       "serverName": "concretecms",
@@ -127,7 +139,61 @@
       "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\concretecms\\public",
       "enableSsl": false,
       "sslCertFile": "",
-      "sslKeyFile": ""
+      "sslKeyFile": "",
+      "pinnedSyncUploadProfile": "",
+      "pinnedSyncDownloadProfile": ""
+    },
+    {
+      "serverName": "automad",
+      "serverAliases": "",
+      "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\automad",
+      "enableSsl": false,
+      "sslCertFile": "",
+      "sslKeyFile": "",
+      "pinnedSyncUploadProfile": "",
+      "pinnedSyncDownloadProfile": ""
+    },
+    {
+      "serverName": "automad2",
+      "serverAliases": "",
+      "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\automad2",
+      "enableSsl": false,
+      "sslCertFile": "",
+      "sslKeyFile": "",
+      "pinnedSyncUploadProfile": "",
+      "pinnedSyncDownloadProfile": ""
+    },
+    {
+      "serverName": "backgropcms",
+      "serverAliases": "",
+      "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\backgropcms",
+      "enableSsl": false,
+      "sslCertFile": "",
+      "sslKeyFile": "",
+      "pinnedSyncUploadProfile": "",
+      "pinnedSyncDownloadProfile": ""
+    },
+    {
+      "serverName": "vittixcms",
+      "serverAliases": "",
+      "documentRoot": "D:\\ketan\\github\\vittixCMS",
+      "enableSsl": false,
+      "sslCertFile": "",
+      "sslKeyFile": "",
+      "pinnedSyncUploadProfile": "",
+      "pinnedSyncDownloadProfile": ""
+    },
+    {
+      "serverName": "solidinvoice",
+      "serverAliases": "",
+      "documentRoot": "D:\\ketan\\github\\uniwamp\\www\\solidinvoice\\public",
+      "enableSsl": false,
+      "sslCertFile": "",
+      "sslKeyFile": "",
+      "pinnedSyncUploadProfile": "",
+      "pinnedSyncDownloadProfile": ""
     }
+  ],
+  "syncProfiles": [
   ]
 }

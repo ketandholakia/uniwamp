@@ -96,28 +96,6 @@ begin
   Result.Binding := '';
   Result.State := '';
 
-  if WSAStartup($0202, WsaData) <> 0 then
-    Exit;
-  try
-    Sock := socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if Sock <> INVALID_SOCKET then
-    try
-      ZeroMemory(@Addr, SizeOf(Addr));
-      Addr.sin_family := AF_INET;
-      Addr.sin_addr.S_addr := INADDR_ANY;
-      Addr.sin_port := htons(Port);
-      if bind(Sock, PSockAddr(@Addr)^, SizeOf(Addr)) = 0 then
-      begin
-        Result.Available := True;
-        Exit;
-      end;
-    finally
-      closesocket(Sock);
-    end;
-  finally
-    WSACleanup;
-  end;
-
   if not TProcessManager.RunAndCaptureOutput(
     IncludeTrailingPathDelimiter(System32Directory) + 'netstat.exe',
     '-ano -p tcp',
@@ -156,6 +134,28 @@ begin
   finally
     Tokens.Free;
     Lines.Free;
+  end;
+
+  if WSAStartup($0202, WsaData) <> 0 then
+    Exit;
+  try
+    Sock := socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if Sock <> INVALID_SOCKET then
+    try
+      ZeroMemory(@Addr, SizeOf(Addr));
+      Addr.sin_family := AF_INET;
+      Addr.sin_addr.S_addr := inet_addr(PAnsiChar(AnsiString('127.0.0.1')));
+      Addr.sin_port := htons(Port);
+      if bind(Sock, PSockAddr(@Addr)^, SizeOf(Addr)) = 0 then
+      begin
+        Result.Available := True;
+        Exit;
+      end;
+    finally
+      closesocket(Sock);
+    end;
+  finally
+    WSACleanup;
   end;
 end;
 

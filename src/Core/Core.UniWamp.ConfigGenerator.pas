@@ -311,6 +311,10 @@ begin
       Lines.Add('set "NODE_BIN=' + SelectedNodeDir + '"');
       Lines.Add('set "PATH=' + SelectedNodeDir + ';%PATH%"');
     end;
+    Lines.Add('set "COMPOSER_HOME=' + FPaths.ComposerDir + '"');
+    Lines.Add('set "PATH=' + FPaths.ComposerDir + ';%PATH%"');
+    Lines.Add('set "GIT_HOME=' + FPaths.GitDir + '"');
+    Lines.Add('set "PATH=' + TPath.Combine(FPaths.GitDir, 'cmd') + ';%PATH%"');
     Lines.Add('set "PATH=' + FPaths.MariaDbBinDir + ';%PATH%"');
     Lines.Add('echo  PHP: %UNIWAMP_PHP_VERSION%  -  %PHP_HOME%');
     Lines.Add('if "%UNIWAMP_NODE_VERSION%"=="" (');
@@ -318,6 +322,8 @@ begin
     Lines.Add(') else (');
       Lines.Add('  echo  Node: %UNIWAMP_NODE_VERSION%  -  %NODE_HOME%');
     Lines.Add(')');
+    Lines.Add('echo  Composer: %COMPOSER_HOME%');
+    Lines.Add('echo  Git: %GIT_HOME%');
     Lines.Add('echo  Working path: %UNIWAMP_DOCROOT%');
     Lines.Add('echo  MariaDB bin: %UNIWAMP_MARIADB_BIN%');
     Lines.Add('echo.');

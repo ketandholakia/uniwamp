@@ -7,9 +7,11 @@ uses
   Winapi.Messages,
   System.Classes,
   System.Generics.Collections,
+  System.Generics.Defaults,
   System.SysUtils,
   System.Types,
   System.Math,
+  System.UITypes,
   Vcl.Imaging.pngimage,
   Vcl.Controls,
   Vcl.ExtCtrls,
@@ -36,6 +38,7 @@ uses
   Core.UniWamp.VHostManager,
   Core.UniWamp.ProjectBackupService,
   Core.UniWamp.DatabaseBackupService,
+  Core.UniWamp.SyncService,
   Core.UniWamp.ConfigGenerator,
   Core.UniWamp.HostsFileService,
   Core.UniWamp.Interfaces,
@@ -44,6 +47,46 @@ uses
 
 type
   TActivityMemo = class(TMemo);
+
+  TLogViewerState = class
+  public
+    Memo: TMemo;
+    FilterEdit: TEdit;
+    AllLines: TStringList;
+    constructor Create;
+    destructor Destroy; override;
+    procedure ApplyFilter(Sender: TObject);
+    procedure ClearFilter(Sender: TObject);
+  end;
+
+  TSyncHistoryEntry = class
+  public
+    TimestampText: string;
+    ProjectName: string;
+    DirectionName: string;
+    ModeName: string;
+    ProfileName: string;
+    ResultText: string;
+    MessageText: string;
+  end;
+
+  TSyncHistoryViewerState = class
+  public
+    Grid: TStringGrid;
+    FilterEdit: TEdit;
+    Entries: TObjectList<TSyncHistoryEntry>;
+    VisibleEntries: TList<TSyncHistoryEntry>;
+    SortColumn: Integer;
+    SortAscending: Boolean;
+    constructor Create;
+    destructor Destroy; override;
+    function MatchesFilter(const Entry: TSyncHistoryEntry; const FilterText: string): Boolean;
+    procedure LoadFromFile(const FileName: string);
+    procedure ApplyFilter(Sender: TObject);
+    procedure ClearFilter(Sender: TObject);
+    procedure GridMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+    procedure RenderGrid;
+  end;
 
   THeaderStatusCard = record
     Panel: TPanel;
@@ -168,6 +211,11 @@ type
     FRuntime: TUniWampRuntime;
     FMainMenu: TMainMenu;
     FTrayMenu: TPopupMenu;
+    FVHostPopupMenu: TPopupMenu;
+    FVHostSyncUploadDryRunMenu: TMenuItem;
+    FVHostSyncUploadMenu: TMenuItem;
+    FVHostSyncDownloadDryRunMenu: TMenuItem;
+    FVHostSyncDownloadMenu: TMenuItem;
     FTrayIcon: TTrayIcon;
     FMainApacheMenu: TServiceMenuSet;
     FMainPhpMenu: TMenuItem;
@@ -211,6 +259,9 @@ type
     FUpdateManifestDialog: TOpenDialog;
     FProjectBackupManifestDialog: TOpenDialog;
     FDatabaseBackupInfoDialog: TOpenDialog;
+    FSyncUploadButton: TPanel;
+    FSyncDownloadButton: TPanel;
+    FRerunSyncButton: TPanel;
     FHeaderCards: array[0..2] of THeaderStatusCard;
     FProgressSpinner: TProgressBar;
     FIsBusy: Boolean;
@@ -268,6 +319,20 @@ type
     function VHostUrl(const ServerName: string): string;
     function SelectedVHostServerName: string;
     procedure DeleteVHostByName(const ServerName: string);
+    procedure PopulateVHostSyncMenu(const ServerName: string);
+    procedure UpdateSyncButtonCaptions;
+    procedure AppendSyncHistory(const ServerName, DirectionName, ProfileName: string;
+      const UseDryRun, Success: Boolean; const MessageText: string);
+    function TryReadLastSyncHistoryEntry(const ServerName: string; out DirectionName,
+      ProfileName: string; out UseDryRun: Boolean): Boolean;
+    procedure PersistPinnedSyncProfile(const ServerName, DirectionName, ProfileName: string);
+    procedure ExecuteSyncProfile(const ServerName, ProfileName, DirectionName: string;
+      UseDryRun: Boolean);
+    procedure ShowSyncPopupForDirection(const ServerName, DirectionFilter: string; SourceButton: TPanel);
+    procedure SyncProfileMenuClick(Sender: TObject);
+    procedure SyncUploadButtonClick(Sender: TObject);
+    procedure SyncDownloadButtonClick(Sender: TObject);
+    procedure RerunLastSyncButtonClick(Sender: TObject);
     procedure OpenVHostFolder(const ServerName: string);
     procedure OpenVHostEditor(const ServerName: string);
     procedure OpenVHostUrl(const ServerName: string);
@@ -314,6 +379,7 @@ type
     procedure GenerateSslClick(Sender: TObject);
     procedure OpenApacheLogClick(Sender: TObject);
     procedure OpenMariaDbLogClick(Sender: TObject);
+    procedure OpenSyncHistoryClick(Sender: TObject);
     procedure ClearApacheLogClick(Sender: TObject);
     procedure ClearMariaDbLogClick(Sender: TObject);
     procedure ClearActivityLogClick(Sender: TObject);
@@ -334,6 +400,7 @@ type
     procedure EditHttpdConfClick(Sender: TObject);
     procedure EditMariaDbIniClick(Sender: TObject);
     procedure ClearLogFile(const FileName, DisplayName: string);
+    procedure ShowSyncHistoryViewer(const FileName: string);
     procedure ToggleWindowClick(Sender: TObject);
     procedure TrayIconClick(Sender: TObject);
     procedure TrayMenuPopup(Sender: TObject);
@@ -396,6 +463,240 @@ const
   PanelIconSize = 13;
   PanelIconLeft = 9;
   MenuIconSize = 14;
+
+constructor TLogViewerState.Create;
+begin
+  inherited Create;
+  AllLines := TStringList.Create;
+end;
+
+destructor TLogViewerState.Destroy;
+begin
+  AllLines.Free;
+  inherited Destroy;
+end;
+
+procedure TLogViewerState.ApplyFilter(Sender: TObject);
+var
+  FilterText: string;
+  I: Integer;
+begin
+  if not Assigned(Memo) or not Assigned(AllLines) then
+    Exit;
+  FilterText := Trim(LowerCase(FilterEdit.Text));
+  Memo.Lines.BeginUpdate;
+  try
+    Memo.Clear;
+    for I := 0 to AllLines.Count - 1 do
+      if (FilterText = '') or (Pos(FilterText, LowerCase(AllLines[I])) > 0) then
+        Memo.Lines.Add(AllLines[I]);
+  finally
+    Memo.Lines.EndUpdate;
+  end;
+end;
+
+procedure TLogViewerState.ClearFilter(Sender: TObject);
+begin
+  if Assigned(FilterEdit) then
+    FilterEdit.Text := '';
+  ApplyFilter(Sender);
+end;
+
+constructor TSyncHistoryViewerState.Create;
+begin
+  inherited Create;
+  Entries := TObjectList<TSyncHistoryEntry>.Create(True);
+  VisibleEntries := TList<TSyncHistoryEntry>.Create;
+  SortColumn := 0;
+  SortAscending := False;
+end;
+
+destructor TSyncHistoryViewerState.Destroy;
+begin
+  VisibleEntries.Free;
+  Entries.Free;
+  inherited Destroy;
+end;
+
+function TSyncHistoryViewerState.MatchesFilter(const Entry: TSyncHistoryEntry;
+  const FilterText: string): Boolean;
+var
+  Haystack: string;
+begin
+  Haystack := LowerCase(Entry.TimestampText + ' ' + Entry.ProjectName + ' ' +
+    Entry.DirectionName + ' ' + Entry.ModeName + ' ' + Entry.ProfileName + ' ' +
+    Entry.ResultText + ' ' + Entry.MessageText);
+  Result := (FilterText = '') or (Pos(FilterText, Haystack) > 0);
+end;
+
+procedure TSyncHistoryViewerState.LoadFromFile(const FileName: string);
+var
+  Lines: TStringList;
+  I: Integer;
+  Parts: TArray<string>;
+  RawPartText: string;
+  PartText: string;
+  Entry: TSyncHistoryEntry;
+begin
+  Entries.Clear;
+  if not FileExists(FileName) then
+    Exit;
+  Lines := TStringList.Create;
+  try
+    Lines.LoadFromFile(FileName, TEncoding.UTF8);
+    for I := 0 to Lines.Count - 1 do
+    begin
+      if Trim(Lines[I]) = '' then
+        Continue;
+      Parts := Lines[I].Split(['|']);
+      Entry := TSyncHistoryEntry.Create;
+      Entry.TimestampText := Trim(Parts[0]);
+      for RawPartText in Parts do
+      begin
+        PartText := Trim(RawPartText);
+        if Pos('project=', PartText) = 1 then
+          Entry.ProjectName := Copy(PartText, Length('project=') + 1, MaxInt)
+        else if Pos('direction=', PartText) = 1 then
+          Entry.DirectionName := Copy(PartText, Length('direction=') + 1, MaxInt)
+        else if Pos('mode=', PartText) = 1 then
+          Entry.ModeName := Copy(PartText, Length('mode=') + 1, MaxInt)
+        else if Pos('profile=', PartText) = 1 then
+          Entry.ProfileName := Copy(PartText, Length('profile=') + 1, MaxInt)
+        else if Pos('result=', PartText) = 1 then
+          Entry.ResultText := Copy(PartText, Length('result=') + 1, MaxInt)
+        else if Pos('message=', PartText) = 1 then
+          Entry.MessageText := Copy(PartText, Length('message=') + 1, MaxInt);
+      end;
+      Entries.Add(Entry);
+    end;
+  finally
+    Lines.Free;
+  end;
+end;
+
+procedure TSyncHistoryViewerState.ApplyFilter(Sender: TObject);
+var
+  Entry: TSyncHistoryEntry;
+  FilterText: string;
+begin
+  FilterText := '';
+  if Assigned(FilterEdit) then
+    FilterText := Trim(LowerCase(FilterEdit.Text));
+  VisibleEntries.Clear;
+  for Entry in Entries do
+    if MatchesFilter(Entry, FilterText) then
+      VisibleEntries.Add(Entry);
+
+  VisibleEntries.Sort(TComparer<TSyncHistoryEntry>.Construct(
+    function(const Left, Right: TSyncHistoryEntry): Integer
+    var
+      LeftValue: string;
+      RightValue: string;
+    begin
+      case SortColumn of
+        0:
+          begin
+            LeftValue := Left.TimestampText;
+            RightValue := Right.TimestampText;
+          end;
+        1:
+          begin
+            LeftValue := Left.ProjectName;
+            RightValue := Right.ProjectName;
+          end;
+        2:
+          begin
+            LeftValue := Left.DirectionName;
+            RightValue := Right.DirectionName;
+          end;
+        3:
+          begin
+            LeftValue := Left.ModeName;
+            RightValue := Right.ModeName;
+          end;
+        4:
+          begin
+            LeftValue := Left.ProfileName;
+            RightValue := Right.ProfileName;
+          end;
+        5:
+          begin
+            LeftValue := Left.ResultText;
+            RightValue := Right.ResultText;
+          end;
+      else
+        begin
+          LeftValue := Left.MessageText;
+          RightValue := Right.MessageText;
+        end;
+      end;
+      Result := CompareText(LeftValue, RightValue);
+      if not SortAscending then
+        Result := -Result;
+    end));
+
+  RenderGrid;
+end;
+
+procedure TSyncHistoryViewerState.ClearFilter(Sender: TObject);
+begin
+  if Assigned(FilterEdit) then
+    FilterEdit.Text := '';
+  ApplyFilter(Sender);
+end;
+
+procedure TSyncHistoryViewerState.RenderGrid;
+const
+  Headers: array[0..6] of string = ('Timestamp', 'Project', 'Direction', 'Mode', 'Profile', 'Result', 'Message');
+var
+  I: Integer;
+  Entry: TSyncHistoryEntry;
+begin
+  if not Assigned(Grid) then
+    Exit;
+  Grid.ColCount := Length(Headers);
+  Grid.RowCount := VisibleEntries.Count + 1;
+  for I := 0 to High(Headers) do
+    Grid.Cells[I, 0] := Headers[I];
+  Grid.ColWidths[0] := 140;
+  Grid.ColWidths[1] := 110;
+  Grid.ColWidths[2] := 80;
+  Grid.ColWidths[3] := 70;
+  Grid.ColWidths[4] := 120;
+  Grid.ColWidths[5] := 70;
+  Grid.ColWidths[6] := 300;
+  for I := 0 to VisibleEntries.Count - 1 do
+  begin
+    Entry := VisibleEntries[I];
+    Grid.Cells[0, I + 1] := Entry.TimestampText;
+    Grid.Cells[1, I + 1] := Entry.ProjectName;
+    Grid.Cells[2, I + 1] := Entry.DirectionName;
+    Grid.Cells[3, I + 1] := Entry.ModeName;
+    Grid.Cells[4, I + 1] := Entry.ProfileName;
+    Grid.Cells[5, I + 1] := Entry.ResultText;
+    Grid.Cells[6, I + 1] := Entry.MessageText;
+  end;
+end;
+
+procedure TSyncHistoryViewerState.GridMouseUp(Sender: TObject; Button: TMouseButton;
+  Shift: TShiftState; X, Y: Integer);
+var
+  Coord: TGridCoord;
+begin
+  if not Assigned(Grid) then
+    Exit;
+  Coord := Grid.MouseCoord(X, Y);
+  if (Coord.Y <> 0) or (Coord.X < 0) then
+    Exit;
+  if SortColumn = Coord.X then
+    SortAscending := not SortAscending
+  else
+  begin
+    SortColumn := Coord.X;
+    SortAscending := True;
+  end;
+  ApplyFilter(Sender);
+end;
 
 function IsDarkColor(const AColor: TColor): Boolean; forward;
 
@@ -964,6 +1265,7 @@ begin
   TServiceLocator.Instance.RegisterService<IVHostManager>(TVHostManager.Create(FPaths, FConfig));
   TServiceLocator.Instance.RegisterService<IProjectBackupService>(TProjectBackupService.Create(FPaths, FConfig));
   TServiceLocator.Instance.RegisterService<IDatabaseBackupService>(TDatabaseBackupService.Create(FPaths, FConfig));
+  TServiceLocator.Instance.RegisterService<ISyncService>(TSyncService.Create(FPaths, FConfig));
 
   FMainPhpVersionItems := TList<TMenuItem>.Create;
   FMainPhpProfileItems := TList<TMenuItem>.Create;
@@ -1080,6 +1382,53 @@ begin
   Label11.Caption := '';
   Label11.Height := 34;
   Label11.Alignment := taLeftJustify;
+  FSyncUploadButton := TPanel.Create(Self);
+  FSyncUploadButton.Parent := Label11;
+  FSyncUploadButton.BevelOuter := bvNone;
+  FSyncUploadButton.Color := ButtonNeutralColor;
+  FSyncUploadButton.Font.Name := 'Segoe UI';
+  FSyncUploadButton.Font.Size := 9;
+  FSyncUploadButton.Font.Style := [fsBold];
+  FSyncUploadButton.ParentBackground := False;
+  FSyncUploadButton.ParentFont := False;
+  FSyncUploadButton.Cursor := crHandPoint;
+  FSyncUploadButton.ShowHint := True;
+  FSyncUploadButton.Hint := BuildToolPanelHint('Sync upload',
+    'Open upload sync actions for the selected project.');
+  FSyncUploadButton.OnClick := SyncUploadButtonClick;
+  SetButtonCaption(FSyncUploadButton, 'Sync Upload');
+
+  FSyncDownloadButton := TPanel.Create(Self);
+  FSyncDownloadButton.Parent := Label11;
+  FSyncDownloadButton.BevelOuter := bvNone;
+  FSyncDownloadButton.Color := ButtonNeutralColor;
+  FSyncDownloadButton.Font.Name := 'Segoe UI';
+  FSyncDownloadButton.Font.Size := 9;
+  FSyncDownloadButton.Font.Style := [fsBold];
+  FSyncDownloadButton.ParentBackground := False;
+  FSyncDownloadButton.ParentFont := False;
+  FSyncDownloadButton.Cursor := crHandPoint;
+  FSyncDownloadButton.ShowHint := True;
+  FSyncDownloadButton.Hint := BuildToolPanelHint('Sync download',
+    'Open download sync actions for the selected project.');
+  FSyncDownloadButton.OnClick := SyncDownloadButtonClick;
+  SetButtonCaption(FSyncDownloadButton, 'Sync Download');
+  FRerunSyncButton := TPanel.Create(Self);
+  FRerunSyncButton.Parent := Label11;
+  FRerunSyncButton.BevelOuter := bvNone;
+  FRerunSyncButton.Color := ButtonNeutralColor;
+  FRerunSyncButton.Font.Name := 'Segoe UI';
+  FRerunSyncButton.Font.Size := 9;
+  FRerunSyncButton.Font.Style := [fsBold];
+  FRerunSyncButton.ParentBackground := False;
+  FRerunSyncButton.ParentFont := False;
+  FRerunSyncButton.Cursor := crHandPoint;
+  FRerunSyncButton.ShowHint := True;
+  FRerunSyncButton.Hint := BuildToolPanelHint('Rerun last sync',
+    'Reruns the most recent recorded sync for the selected project.');
+  FRerunSyncButton.OnClick := RerunLastSyncButtonClick;
+  SetButtonCaption(FRerunSyncButton, 'Rerun Sync');
+  UpdateSyncButtonCaptions;
   ToolGroupWebLabel := TPanel.Create(Self);
   ToolGroupWebLabel.Parent := pnltools;
   ToolGroupWebLabel.BevelOuter := bvNone;
@@ -1930,6 +2279,21 @@ begin
       FVHostFilterLabel.Left := Max(FVHostHeaderTitle.Left + FVHostHeaderTitle.Width + 18,
         FVHostFilterEdit.Left - FVHostFilterLabel.Width - 8);
     end;
+    if Assigned(FSyncDownloadButton) then
+    begin
+      FSyncDownloadButton.SetBounds(FVHostFilterLabel.Left - 122, 4, 112, 26);
+      StylePanelButton(FSyncDownloadButton, FSyncDownloadButton.Enabled, ButtonNeutralColor, ButtonNeutralColor);
+    end;
+    if Assigned(FSyncUploadButton) then
+    begin
+      FSyncUploadButton.SetBounds(FSyncDownloadButton.Left - 118, 4, 108, 26);
+      StylePanelButton(FSyncUploadButton, FSyncUploadButton.Enabled, ButtonNeutralColor, ButtonNeutralColor);
+    end;
+    if Assigned(FRerunSyncButton) then
+    begin
+      FRerunSyncButton.SetBounds(FSyncUploadButton.Left - 118, 4, 108, 26);
+      StylePanelButton(FRerunSyncButton, FRerunSyncButton.Enabled, ButtonNeutralColor, ButtonNeutralColor);
+    end;
   end;
 
   CardWidth := 170;
@@ -2177,7 +2541,7 @@ begin
   Item.ShortCut := ShortCut(Ord('T'), [ssCtrl, ssShift]);
   Item := AddItem(MenuItem, '&Backup Project', BackupProjectClick);
   Item.ShortCut := ShortCut(Ord('B'), [ssCtrl, ssShift]);
-  Item := AddItem(MenuItem, '&Restore Project', RestoreProjectClick);
+  AddItem(MenuItem, '&Restore Project', RestoreProjectClick);
   Item := AddItem(MenuItem, 'Clear &Filter', VHostFilterClearClick);
   Item.ShortCut := ShortCut(Ord('F'), [ssCtrl]);
   Item := AddItem(MenuItem, '&Copy URL', CopyVHostUrlClick);
@@ -2203,6 +2567,8 @@ begin
   Item.ShortCut := ShortCut(Ord('L'), [ssCtrl]);
   Item := AddItem(MenuItem, 'MariaDB &Log', OpenMariaDbLogClick);
   Item.ShortCut := ShortCut(Ord('M'), [ssCtrl]);
+  Item := AddItem(MenuItem, '&Sync History', OpenSyncHistoryClick);
+  Item.ShortCut := ShortCut(Ord('Y'), [ssCtrl, ssShift]);
   Item := AddItem(MenuItem, 'Activity &Log', OpenActivityClick);
   Item.ShortCut := ShortCut(Ord('V'), [ssCtrl, ssShift]);
 
@@ -2272,6 +2638,17 @@ begin
   Item.ShortCut := ShortCut(Ord('V'), [ssCtrl, ssShift]);
   AddItem(FTrayMenu.Items, '-');
   FTrayExitItem := AddItem(FTrayMenu.Items, 'E&xit', ExitButtonClick);
+
+  FVHostPopupMenu := TPopupMenu.Create(Self);
+  FVHostPopupMenu.Images := FMenuImages;
+  FVHostSyncUploadDryRunMenu := AddItem(FVHostPopupMenu.Items, 'Upload Dry Run');
+  ApplyMenuIcon(FVHostSyncUploadDryRunMenu, 'cloud_sync');
+  FVHostSyncUploadMenu := AddItem(FVHostPopupMenu.Items, 'Upload');
+  ApplyMenuIcon(FVHostSyncUploadMenu, 'web');
+  FVHostSyncDownloadDryRunMenu := AddItem(FVHostPopupMenu.Items, 'Download Dry Run');
+  ApplyMenuIcon(FVHostSyncDownloadDryRunMenu, 'cloud_sync');
+  FVHostSyncDownloadMenu := AddItem(FVHostPopupMenu.Items, 'Download');
+  ApplyMenuIcon(FVHostSyncDownloadMenu, 'folder_open');
   Menu := FMainMenu;
 
   FTrayIcon := TTrayIcon.Create(Self);
@@ -2810,6 +3187,12 @@ begin
   RestoreProjectButton.Enabled := True;
   CopyVHostUrlButton.Enabled := HasSelection;
   DeleteVHostButton.Enabled := HasSelection;
+  if Assigned(FSyncUploadButton) then
+    FSyncUploadButton.Enabled := HasSelection;
+  if Assigned(FSyncDownloadButton) then
+    FSyncDownloadButton.Enabled := HasSelection;
+  if Assigned(FRerunSyncButton) then
+    FRerunSyncButton.Enabled := HasSelection;
   BackupDatabaseButton.Enabled := FConfig.MariaDbRunning;
   RestoreDatabaseButton.Enabled := FConfig.MariaDbRunning;
 
@@ -2820,6 +3203,12 @@ begin
   StylePanelButton(RestoreProjectButton, RestoreProjectButton.Enabled, ButtonNeutralColor, ButtonNeutralColor);
   StylePanelButton(CopyVHostUrlButton, CopyVHostUrlButton.Enabled, ButtonNeutralColor, ButtonNeutralColor);
   StylePanelButton(DeleteVHostButton, DeleteVHostButton.Enabled, ButtonDangerStrongColor, ButtonNeutralColor, clWhite);
+  if Assigned(FSyncUploadButton) then
+    StylePanelButton(FSyncUploadButton, FSyncUploadButton.Enabled, ButtonAccentColor, ButtonNeutralColor);
+  if Assigned(FSyncDownloadButton) then
+    StylePanelButton(FSyncDownloadButton, FSyncDownloadButton.Enabled, ButtonAccentColor, ButtonNeutralColor);
+  if Assigned(FRerunSyncButton) then
+    StylePanelButton(FRerunSyncButton, FRerunSyncButton.Enabled, ButtonAccentColor, ButtonNeutralColor);
   StylePanelButton(BackupDatabaseButton, BackupDatabaseButton.Enabled, ButtonSuccessStrongColor, ButtonPositiveColor, clWhite);
   StylePanelButton(RestoreDatabaseButton, RestoreDatabaseButton.Enabled, ButtonNeutralColor, ButtonNeutralColor);
   VHostGrid.Invalidate;
@@ -3097,6 +3486,8 @@ begin
   Entry.EnableSsl := False;
   Entry.SslCertFile := '';
   Entry.SslKeyFile := '';
+  Entry.PinnedSyncUploadProfile := '';
+  Entry.PinnedSyncDownloadProfile := '';
   for Item in FConfig.VHosts do
     if SameText(Item.ServerName, ServerName) then
     begin
@@ -3190,6 +3581,407 @@ begin
     FConfig.Save(FPaths);
   RefreshStatus;
   LoadStateIntoUi;
+end;
+
+procedure TMainForm.PopulateVHostSyncMenu(const ServerName: string);
+var
+  SyncService: ISyncService;
+  Profile: TSyncProfile;
+  CommandPreview: string;
+  PreviewResult: TRuntimeActionResult;
+  function AddProfileItem(ParentItem: TMenuItem; const CaptionPrefix: string;
+    const ProfileName: string; const UseDryRun: Boolean): TMenuItem;
+  begin
+    Result := TMenuItem.Create(FVHostPopupMenu);
+    Result.Caption := CaptionPrefix + ProfileName;
+    Result.Hint := ServerName + '|' + ProfileName + '|' + BoolToStr(UseDryRun, True);
+    Result.OnClick := SyncProfileMenuClick;
+    ParentItem.Add(Result);
+  end;
+begin
+  FVHostSyncUploadDryRunMenu.Clear;
+  FVHostSyncUploadMenu.Clear;
+  FVHostSyncDownloadDryRunMenu.Clear;
+  FVHostSyncDownloadMenu.Clear;
+
+  SyncService := TServiceLocator.Instance.GetService<ISyncService>;
+  for Profile in FConfig.SyncProfiles do
+  begin
+    PreviewResult := SyncService.BuildCommandPreviewForVHost(Profile.Name, ServerName,
+      Profile.DryRunByDefault, CommandPreview);
+    if not PreviewResult.Success then
+      Continue;
+
+    if SameText(Profile.Direction, 'upload') then
+    begin
+      AddProfileItem(FVHostSyncUploadDryRunMenu, '', Profile.Name, True);
+      AddProfileItem(FVHostSyncUploadMenu, '', Profile.Name, False);
+    end
+    else if SameText(Profile.Direction, 'download') then
+    begin
+      AddProfileItem(FVHostSyncDownloadDryRunMenu, '', Profile.Name, True);
+      AddProfileItem(FVHostSyncDownloadMenu, '', Profile.Name, False);
+    end;
+  end;
+
+  FVHostSyncUploadDryRunMenu.Enabled := FVHostSyncUploadDryRunMenu.Count > 0;
+  FVHostSyncUploadMenu.Enabled := FVHostSyncUploadMenu.Count > 0;
+  FVHostSyncDownloadDryRunMenu.Enabled := FVHostSyncDownloadDryRunMenu.Count > 0;
+  FVHostSyncDownloadMenu.Enabled := FVHostSyncDownloadMenu.Count > 0;
+end;
+
+procedure TMainForm.SyncProfileMenuClick(Sender: TObject);
+var
+  MenuItem: TMenuItem;
+  Parts: TArray<string>;
+  ServerName: string;
+  ProfileName: string;
+  DirectionName: string;
+  UseDryRun: Boolean;
+begin
+  if not (Sender is TMenuItem) then
+    Exit;
+  MenuItem := TMenuItem(Sender);
+  Parts := MenuItem.Hint.Split(['|']);
+  if Length(Parts) <> 3 then
+    Exit;
+
+  ServerName := Parts[0];
+  ProfileName := Parts[1];
+  UseDryRun := SameText(Parts[2], 'True');
+  if Assigned(MenuItem.Parent) and (Pos('Upload', MenuItem.Parent.Caption) = 1) then
+    DirectionName := 'upload'
+  else
+    DirectionName := 'download';
+  ExecuteSyncProfile(ServerName, ProfileName, DirectionName, UseDryRun);
+end;
+
+procedure TMainForm.ExecuteSyncProfile(const ServerName, ProfileName, DirectionName: string;
+  UseDryRun: Boolean);
+var
+  SyncService: ISyncService;
+  PreviewResult: TRuntimeActionResult;
+  ExecuteResult: TRuntimeActionResult;
+  CommandPreview: string;
+  RunKind: string;
+begin
+  SyncService := TServiceLocator.Instance.GetService<ISyncService>;
+  PreviewResult := SyncService.BuildCommandPreviewForVHost(ProfileName, ServerName, UseDryRun, CommandPreview);
+  if not PreviewResult.Success then
+  begin
+    AppendStatus('Sync preview failed: ' + PreviewResult.Message);
+    Exit;
+  end;
+
+  if UseDryRun then
+    RunKind := 'dry run'
+  else
+    RunKind := 'run';
+  AppendStatus(Format('Sync %s %s for project "%s" using profile "%s".',
+    [DirectionName, RunKind, ServerName, ProfileName]));
+  AppendStatus('Sync command: ' + CommandPreview);
+  if not UseDryRun then
+    if MessageDlg(Format('Run sync profile "%s" for project "%s"?', [ProfileName, ServerName]),
+      mtConfirmation, [mbYes, mbNo], 0) <> mrYes then
+      Exit;
+
+  if SameText(DirectionName, 'upload') then
+    FConfig.LastSyncUploadProfile := ProfileName
+  else
+    FConfig.LastSyncDownloadProfile := ProfileName;
+  PersistPinnedSyncProfile(ServerName, DirectionName, ProfileName);
+  UpdateSyncButtonCaptions;
+
+  ShowBusyState('Running sync profile "' + ProfileName + '"...');
+  try
+    ExecuteResult := SyncService.ExecuteProfileForVHost(ProfileName, ServerName, UseDryRun);
+  finally
+    HideBusyState;
+  end;
+  AppendSyncHistory(ServerName, DirectionName, ProfileName, UseDryRun, ExecuteResult.Success,
+    ExecuteResult.Message);
+  AppendStatus(ExecuteResult.Message);
+end;
+
+procedure TMainForm.AppendSyncHistory(const ServerName, DirectionName, ProfileName: string;
+  const UseDryRun, Success: Boolean; const MessageText: string);
+var
+  LogFileName: string;
+  StatusText: string;
+  RunKind: string;
+  Line: string;
+begin
+  LogFileName := TPath.Combine(FPaths.LogsDir, 'sync-history.log');
+  if UseDryRun then
+    RunKind := 'dry-run'
+  else
+    RunKind := 'run';
+  if Success then
+    StatusText := 'success'
+  else
+    StatusText := 'failed';
+  Line := Format('%s | project=%s | direction=%s | mode=%s | profile=%s | result=%s | message=%s',
+    [FormatDateTime('yyyy-mm-dd hh:nn:ss', Now), ServerName, DirectionName, RunKind,
+     ProfileName, StatusText, StringReplace(Trim(MessageText), sLineBreak, ' ', [rfReplaceAll])]);
+  TFile.AppendAllText(LogFileName, Line + sLineBreak, TEncoding.UTF8);
+end;
+
+procedure TMainForm.PersistPinnedSyncProfile(const ServerName, DirectionName, ProfileName: string);
+var
+  Entry: TVHostEntry;
+begin
+  if not TryGetVHostEntry(ServerName, Entry) then
+    Exit;
+  if SameText(DirectionName, 'upload') then
+    Entry.PinnedSyncUploadProfile := ProfileName
+  else
+    Entry.PinnedSyncDownloadProfile := ProfileName;
+  FConfig.AddOrUpdateVHost(Entry);
+  FConfig.Save(FPaths);
+end;
+
+function TMainForm.TryReadLastSyncHistoryEntry(const ServerName: string; out DirectionName,
+  ProfileName: string; out UseDryRun: Boolean): Boolean;
+var
+  LogFileName: string;
+  Lines: TStringList;
+  I: Integer;
+  Parts: TArray<string>;
+  RawPartText: string;
+  PartText: string;
+  ProjectName: string;
+  ModeText: string;
+begin
+  Result := False;
+  DirectionName := '';
+  ProfileName := '';
+  UseDryRun := False;
+  LogFileName := TPath.Combine(FPaths.LogsDir, 'sync-history.log');
+  if not FileExists(LogFileName) then
+    Exit;
+
+  Lines := TStringList.Create;
+  try
+    Lines.LoadFromFile(LogFileName, TEncoding.UTF8);
+    for I := Lines.Count - 1 downto 0 do
+    begin
+      if Trim(Lines[I]) = '' then
+        Continue;
+      Parts := Lines[I].Split(['|']);
+      ProjectName := '';
+      DirectionName := '';
+      ProfileName := '';
+      ModeText := '';
+      for RawPartText in Parts do
+      begin
+        PartText := Trim(RawPartText);
+        if Pos('project=', PartText) = 1 then
+          ProjectName := Copy(PartText, Length('project=') + 1, MaxInt)
+        else if Pos('direction=', PartText) = 1 then
+          DirectionName := Copy(PartText, Length('direction=') + 1, MaxInt)
+        else if Pos('mode=', PartText) = 1 then
+          ModeText := Copy(PartText, Length('mode=') + 1, MaxInt)
+        else if Pos('profile=', PartText) = 1 then
+          ProfileName := Copy(PartText, Length('profile=') + 1, MaxInt);
+      end;
+      if SameText(ProjectName, ServerName) and (DirectionName <> '') and (ProfileName <> '') then
+      begin
+        UseDryRun := SameText(ModeText, 'dry-run');
+        Exit(True);
+      end;
+    end;
+  finally
+    Lines.Free;
+  end;
+end;
+
+procedure TMainForm.ShowSyncPopupForDirection(const ServerName, DirectionFilter: string;
+  SourceButton: TPanel);
+var
+  PopupMenu: TPopupMenu;
+  RootDryRun: TMenuItem;
+  RootRun: TMenuItem;
+  Profile: TSyncProfile;
+  Item: TMenuItem;
+  DefaultProfileName: string;
+  procedure AddProfileMenuItems(const ProfileName: string);
+  begin
+    Item := TMenuItem.Create(PopupMenu);
+    Item.Caption := ProfileName;
+    Item.Hint := ServerName + '|' + ProfileName + '|True';
+    Item.OnClick := SyncProfileMenuClick;
+    RootDryRun.Add(Item);
+
+    Item := TMenuItem.Create(PopupMenu);
+    Item.Caption := ProfileName;
+    Item.Hint := ServerName + '|' + ProfileName + '|False';
+    Item.OnClick := SyncProfileMenuClick;
+    RootRun.Add(Item);
+  end;
+begin
+  PopupMenu := TPopupMenu.Create(Self);
+  try
+    PopupMenu.Images := FMenuImages;
+    if SameText(DirectionFilter, 'upload') then
+    begin
+      RootDryRun := TMenuItem.Create(PopupMenu);
+      RootDryRun.Caption := 'Upload Dry Run';
+      ApplyMenuIcon(RootDryRun, 'cloud_sync');
+      PopupMenu.Items.Add(RootDryRun);
+
+      RootRun := TMenuItem.Create(PopupMenu);
+      RootRun.Caption := 'Upload';
+      ApplyMenuIcon(RootRun, 'web');
+      PopupMenu.Items.Add(RootRun);
+    end
+    else
+    begin
+      RootDryRun := TMenuItem.Create(PopupMenu);
+      RootDryRun.Caption := 'Download Dry Run';
+      ApplyMenuIcon(RootDryRun, 'cloud_sync');
+      PopupMenu.Items.Add(RootDryRun);
+
+      RootRun := TMenuItem.Create(PopupMenu);
+      RootRun.Caption := 'Download';
+      ApplyMenuIcon(RootRun, 'folder_open');
+      PopupMenu.Items.Add(RootRun);
+    end;
+
+    if SameText(DirectionFilter, 'upload') then
+      DefaultProfileName := Trim(FConfig.LastSyncUploadProfile)
+    else
+      DefaultProfileName := Trim(FConfig.LastSyncDownloadProfile);
+
+    if DefaultProfileName <> '' then
+      for Profile in FConfig.SyncProfiles do
+        if SameText(Profile.Direction, DirectionFilter) and SameText(Profile.Name, DefaultProfileName) then
+        begin
+          AddProfileMenuItems(Profile.Name);
+          Break;
+        end;
+
+    for Profile in FConfig.SyncProfiles do
+    begin
+      if not SameText(Profile.Direction, DirectionFilter) then
+        Continue;
+      if (DefaultProfileName <> '') and SameText(Profile.Name, DefaultProfileName) then
+        Continue;
+      AddProfileMenuItems(Profile.Name);
+    end;
+
+    RootDryRun.Enabled := RootDryRun.Count > 0;
+    RootRun.Enabled := RootRun.Count > 0;
+    PopupMenu.Popup(SourceButton.ClientToScreen(Point(0, SourceButton.Height)).X,
+      SourceButton.ClientToScreen(Point(0, SourceButton.Height)).Y);
+  finally
+    PopupMenu.Free;
+  end;
+end;
+
+procedure TMainForm.UpdateSyncButtonCaptions;
+var
+  UploadCaption: string;
+  DownloadCaption: string;
+  UploadProfileText: string;
+  DownloadProfileText: string;
+  Entry: TVHostEntry;
+begin
+  UploadProfileText := '';
+  DownloadProfileText := '';
+  if TryGetVHostEntry(SelectedVHostServerName, Entry) then
+  begin
+    UploadProfileText := Trim(Entry.PinnedSyncUploadProfile);
+    DownloadProfileText := Trim(Entry.PinnedSyncDownloadProfile);
+  end;
+  if UploadProfileText = '' then
+    UploadProfileText := Trim(FConfig.LastSyncUploadProfile);
+  if DownloadProfileText = '' then
+    DownloadProfileText := Trim(FConfig.LastSyncDownloadProfile);
+  if Assigned(FSyncUploadButton) then
+  begin
+    UploadCaption := 'Sync Upload';
+    if UploadProfileText <> '' then
+      UploadCaption := 'Upload: ' + UploadProfileText;
+    if UploadProfileText = '' then
+      UploadProfileText := '(none)';
+    SetButtonCaption(FSyncUploadButton, UploadCaption);
+    FSyncUploadButton.Hint := BuildToolPanelHint('Sync upload',
+      'Open upload sync actions for the selected project. Last used profile: ' + UploadProfileText);
+  end;
+  if Assigned(FSyncDownloadButton) then
+  begin
+    DownloadCaption := 'Sync Download';
+    if DownloadProfileText <> '' then
+      DownloadCaption := 'Download: ' + DownloadProfileText;
+    if DownloadProfileText = '' then
+      DownloadProfileText := '(none)';
+    SetButtonCaption(FSyncDownloadButton, DownloadCaption);
+    FSyncDownloadButton.Hint := BuildToolPanelHint('Sync download',
+      'Open download sync actions for the selected project. Last used profile: ' + DownloadProfileText);
+  end;
+end;
+
+procedure TMainForm.SyncUploadButtonClick(Sender: TObject);
+var
+  ServerName: string;
+  Entry: TVHostEntry;
+begin
+  ServerName := SelectedVHostServerName;
+  if ServerName = '' then
+    Exit;
+  if TryGetVHostEntry(ServerName, Entry) and (Trim(Entry.PinnedSyncUploadProfile) <> '') then
+  begin
+    ExecuteSyncProfile(ServerName, Entry.PinnedSyncUploadProfile, 'upload', False);
+    Exit;
+  end;
+  ShowSyncPopupForDirection(ServerName, 'upload', FSyncUploadButton);
+end;
+
+procedure TMainForm.SyncDownloadButtonClick(Sender: TObject);
+var
+  ServerName: string;
+  Entry: TVHostEntry;
+begin
+  ServerName := SelectedVHostServerName;
+  if ServerName = '' then
+    Exit;
+  if TryGetVHostEntry(ServerName, Entry) and (Trim(Entry.PinnedSyncDownloadProfile) <> '') then
+  begin
+    ExecuteSyncProfile(ServerName, Entry.PinnedSyncDownloadProfile, 'download', False);
+    Exit;
+  end;
+  ShowSyncPopupForDirection(ServerName, 'download', FSyncDownloadButton);
+end;
+
+procedure TMainForm.RerunLastSyncButtonClick(Sender: TObject);
+var
+  ServerName: string;
+  DirectionName: string;
+  ProfileName: string;
+  UseDryRun: Boolean;
+  PromptText: string;
+  ModeText: string;
+begin
+  ServerName := SelectedVHostServerName;
+  if ServerName = '' then
+    Exit;
+  if not TryReadLastSyncHistoryEntry(ServerName, DirectionName, ProfileName, UseDryRun) then
+  begin
+    AppendStatus('No sync history found for project "' + ServerName + '".');
+    Exit;
+  end;
+
+  if UseDryRun then
+    ModeText := 'Dry run'
+  else
+    ModeText := 'Run';
+  PromptText := Format('Rerun the last sync for "%s"?' + sLineBreak + sLineBreak +
+    'Direction: %s' + sLineBreak + 'Profile: %s' + sLineBreak + 'Mode: %s',
+    [ServerName, DirectionName, ProfileName, ModeText]);
+  if MessageDlg(PromptText, mtConfirmation, [mbYes, mbNo], 0) <> mrYes then
+    Exit;
+
+  ExecuteSyncProfile(ServerName, ProfileName, DirectionName, UseDryRun);
 end;
 
 procedure TMainForm.VHostGridDrawCell(Sender: TObject; ACol, ARow: Integer; CellRect: TRect; State: TGridDrawState);
@@ -3344,6 +4136,13 @@ begin
   if ServerName = '' then
     Exit;
 
+  if Button = mbRight then
+  begin
+    PopulateVHostSyncMenu(ServerName);
+    FVHostPopupMenu.Popup(Mouse.CursorPos.X, Mouse.CursorPos.Y);
+    Exit;
+  end;
+
   CellRect := Grid.CellRect(GridCoord.X, GridCoord.Y);
   RelativeX := X - CellRect.Left;
   OpenLeft := 6;
@@ -3409,7 +4208,6 @@ procedure TMainForm.ApacheStartClick(Sender: TObject);
 begin
   if not SaveUiIntoState then
     Exit;
-  FConfig.Save(FPaths);
   ApacheStartButton.Enabled := False;
   ApacheStopButton.Enabled := False;
   ApacheRestartButton.Enabled := False;
@@ -3425,7 +4223,6 @@ begin
           AppendStatus(ResultInfo.Message);
           if ResultInfo.Success then
             AppendStatus('Apache started.');
-          FConfig.Save(FPaths);
           RefreshStatus;
           ApacheStartButton.Enabled := True;
           ApacheStopButton.Enabled := True;
@@ -3469,7 +4266,6 @@ procedure TMainForm.ApacheRestartClick(Sender: TObject);
 begin
   if not SaveUiIntoState then
     Exit;
-  FConfig.Save(FPaths);
   ApacheStartButton.Enabled := False;
   ApacheStopButton.Enabled := False;
   ApacheRestartButton.Enabled := False;
@@ -3483,7 +4279,6 @@ begin
         procedure
         begin
           AppendStatus('Apache restart: ' + ResultInfo.Message);
-          FConfig.Save(FPaths);
           RefreshStatus;
           ApacheStartButton.Enabled := True;
           ApacheStopButton.Enabled := True;
@@ -3965,6 +4760,82 @@ begin
   ClearLogFile(TPath.Combine(FPaths.LogsDir, 'activity.log'), 'activity log');
 end;
 
+procedure TMainForm.ShowSyncHistoryViewer(const FileName: string);
+var
+  ViewerForm: TForm;
+  TopPanel: TPanel;
+  FilterEdit: TEdit;
+  ClearButton: TButton;
+  CloseButton: TButton;
+  ViewerGrid: TStringGrid;
+  ViewerState: TSyncHistoryViewerState;
+begin
+  ViewerForm := TForm.Create(Self);
+  try
+    ViewerForm.Caption := 'Sync History';
+    ViewerForm.Position := poScreenCenter;
+    ViewerForm.Width := 980;
+    ViewerForm.Height := 640;
+    ViewerForm.Color := clWhite;
+    ViewerForm.Font.Name := 'Segoe UI';
+    ViewerForm.Font.Size := 9;
+    ViewerForm.BorderStyle := bsSizeable;
+
+    ViewerState := TSyncHistoryViewerState.Create;
+    try
+      TopPanel := TPanel.Create(ViewerForm);
+      TopPanel.Parent := ViewerForm;
+      TopPanel.Align := alTop;
+      TopPanel.Height := 40;
+      TopPanel.BevelOuter := bvNone;
+      TopPanel.Color := clWhite;
+      TopPanel.ParentBackground := False;
+
+      FilterEdit := TEdit.Create(ViewerForm);
+      FilterEdit.Parent := TopPanel;
+      FilterEdit.SetBounds(12, 8, 640, 23);
+      FilterEdit.TextHint := 'Filter sync history';
+
+      ClearButton := TButton.Create(ViewerForm);
+      ClearButton.Parent := TopPanel;
+      ClearButton.SetBounds(662, 7, 80, 26);
+      ClearButton.Caption := 'Clear';
+
+      ViewerGrid := TStringGrid.Create(ViewerForm);
+      ViewerGrid.Parent := ViewerForm;
+      ViewerGrid.Align := alClient;
+      ViewerGrid.DefaultRowHeight := 22;
+      ViewerGrid.FixedRows := 1;
+      ViewerGrid.FixedCols := 0;
+      ViewerGrid.Options := ViewerGrid.Options + [goRowSelect];
+      ViewerGrid.ScrollBars := ssBoth;
+      ViewerGrid.Font.Name := 'Segoe UI';
+      ViewerGrid.Font.Size := 9;
+
+      CloseButton := TButton.Create(ViewerForm);
+      CloseButton.Parent := ViewerForm;
+      CloseButton.Align := alBottom;
+      CloseButton.Caption := 'Close';
+      CloseButton.Height := 34;
+      CloseButton.ModalResult := mrOk;
+
+      ViewerState.Grid := ViewerGrid;
+      ViewerState.FilterEdit := FilterEdit;
+      ViewerState.LoadFromFile(FileName);
+      FilterEdit.OnChange := ViewerState.ApplyFilter;
+      ClearButton.OnClick := ViewerState.ClearFilter;
+      ViewerGrid.OnMouseUp := ViewerState.GridMouseUp;
+      ViewerState.ApplyFilter(nil);
+
+      ViewerForm.ShowModal;
+    finally
+      ViewerState.Free;
+    end;
+  finally
+    ViewerForm.Free;
+  end;
+end;
+
 procedure TMainForm.OpenActivityClick(Sender: TObject);
 var
   LogFile: string;
@@ -3976,6 +4847,11 @@ begin
     Exit;
   end;
   AppendStatus(FRuntime.LaunchTextEditor(LogFile).Message);
+end;
+
+procedure TMainForm.OpenSyncHistoryClick(Sender: TObject);
+begin
+  ShowSyncHistoryViewer(TPath.Combine(FPaths.LogsDir, 'sync-history.log'));
 end;
 
 procedure TMainForm.AddVHostClick(Sender: TObject);
