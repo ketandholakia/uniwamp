@@ -39,12 +39,10 @@ type
     FThemeStyleCombo: TComboBox;
     FSaveButton: TButton;
     FCancelButton: TButton;
-  private
-    FPaths: TAppPaths;
-    FConfig: TUniWampConfig;
-    FRuntime: TUniWampRuntime;
     FSyncPage: TTabSheet;
     FSyncListBox: TListBox;
+    FSyncProfilesTitle: TLabel;
+    FSyncProfilesHint: TLabel;
     FSyncNameEdit: TEdit;
     FSyncBackendCombo: TComboBox;
     FSyncDirectionCombo: TComboBox;
@@ -63,11 +61,16 @@ type
     FSyncPreviewButton: TButton;
     FSyncTestPathButton: TButton;
     FSyncValidationLabel: TLabel;
+  private
+    FPaths: TAppPaths;
+    FConfig: TUniWampConfig;
+    FRuntime: TUniWampRuntime;
     FSyncProfiles: TList<TSyncProfile>;
     FSyncLoading: Boolean;
   protected
     procedure Loaded; override;
   private
+    function EnsureSyncBindings: Boolean;
     procedure BuildSyncTab;
     procedure LoadSyncProfiles;
     procedure RefreshSyncProfileList;
@@ -133,216 +136,105 @@ begin
 end;
 
 procedure TAppSettingsForm.BuildSyncTab;
-var
-  PageControl: TPageControl;
-  ListPanel: TPanel;
-  EditorPanel: TPanel;
-  FooterPanel: TPanel;
-  AddButton: TButton;
-  DeleteButton: TButton;
-  ImportButton: TButton;
-  ExportButton: TButton;
-  HintLabel: TLabel;
-  FieldHintLabel: TLabel;
-  LabelTop: Integer;
-  function AddLabel(const Parent: TWinControl; const CaptionText: string;
-    LeftPos, TopPos: Integer): TLabel;
+begin
+  EnsureSyncBindings;
+  if Assigned(FSyncPage) and Assigned(FSyncValidationLabel) then
   begin
-    Result := TLabel.Create(Self);
-    Result.Parent := Parent;
-    Result.Left := LeftPos;
-    Result.Top := TopPos;
-    Result.Caption := CaptionText;
-    Result.Font.Height := -11;
-    Result.Font.Style := [fsBold];
+    FSyncPage.Caption := 'Sync';
+    FSyncValidationLabel.Caption := 'Select or create a sync profile.';
   end;
-  function AddEdit(const Parent: TWinControl; LeftPos, TopPos, WidthValue: Integer): TEdit;
+end;
+
+function TAppSettingsForm.EnsureSyncBindings: Boolean;
+  function FindComponentRecursive(Root: TComponent; const ComponentName: string): TComponent;
+  var
+    I: Integer;
   begin
-    Result := TEdit.Create(Self);
-    Result.Parent := Parent;
-    Result.Left := LeftPos;
-    Result.Top := TopPos;
-    Result.Width := WidthValue;
-    Result.Height := 23;
+    Result := nil;
+    if not Assigned(Root) then
+      Exit;
+    if SameText(Root.Name, ComponentName) then
+      Exit(Root);
+    for I := 0 to Root.ComponentCount - 1 do
+    begin
+      Result := FindComponentRecursive(Root.Components[I], ComponentName);
+      if Assigned(Result) then
+        Exit;
+    end;
   end;
 begin
-  if Assigned(FSyncPage) then
+  FSyncPage := FindComponentRecursive(Self, 'FSyncPage') as TTabSheet;
+  FSyncListBox := FindComponentRecursive(Self, 'FSyncListBox') as TListBox;
+  FSyncNameEdit := FindComponentRecursive(Self, 'FSyncNameEdit') as TEdit;
+  FSyncBackendCombo := FindComponentRecursive(Self, 'FSyncBackendCombo') as TComboBox;
+  FSyncDirectionCombo := FindComponentRecursive(Self, 'FSyncDirectionCombo') as TComboBox;
+  FSyncExecutableEdit := FindComponentRecursive(Self, 'FSyncExecutableEdit') as TEdit;
+  FSyncRemoteNameEdit := FindComponentRecursive(Self, 'FSyncRemoteNameEdit') as TEdit;
+  FSyncRemotePathEdit := FindComponentRecursive(Self, 'FSyncRemotePathEdit') as TEdit;
+  FSyncLocalPathEdit := FindComponentRecursive(Self, 'FSyncLocalPathEdit') as TEdit;
+  FSyncWorkingDirEdit := FindComponentRecursive(Self, 'FSyncWorkingDirEdit') as TEdit;
+  FSyncPreCommandEdit := FindComponentRecursive(Self, 'FSyncPreCommandEdit') as TEdit;
+  FSyncPostCommandEdit := FindComponentRecursive(Self, 'FSyncPostCommandEdit') as TEdit;
+  FSyncVHostCombo := FindComponentRecursive(Self, 'FSyncVHostCombo') as TComboBox;
+  FSyncDeleteCheck := FindComponentRecursive(Self, 'FSyncDeleteCheck') as TCheckBox;
+  FSyncDryRunCheck := FindComponentRecursive(Self, 'FSyncDryRunCheck') as TCheckBox;
+  FSyncExcludesMemo := FindComponentRecursive(Self, 'FSyncExcludesMemo') as TMemo;
+  FSyncTestButton := FindComponentRecursive(Self, 'FSyncTestButton') as TButton;
+  FSyncTestPathButton := FindComponentRecursive(Self, 'FSyncTestPathButton') as TButton;
+  FSyncPreviewButton := FindComponentRecursive(Self, 'FSyncPreviewButton') as TButton;
+  FSyncValidationLabel := FindComponentRecursive(Self, 'FSyncValidationLabel') as TLabel;
+
+  if Assigned(FSyncListBox) then
+    FSyncListBox.OnClick := SyncProfileSelectionChanged;
+  if Assigned(FSyncNameEdit) then
+    FSyncNameEdit.OnChange := SyncEditorChanged;
+  if Assigned(FSyncBackendCombo) then
+    FSyncBackendCombo.OnChange := SyncEditorChanged;
+  if Assigned(FSyncDirectionCombo) then
+    FSyncDirectionCombo.OnChange := SyncEditorChanged;
+  if Assigned(FSyncExecutableEdit) then
+    FSyncExecutableEdit.OnChange := SyncEditorChanged;
+  if Assigned(FSyncRemoteNameEdit) then
+    FSyncRemoteNameEdit.OnChange := SyncEditorChanged;
+  if Assigned(FSyncRemotePathEdit) then
+    FSyncRemotePathEdit.OnChange := SyncEditorChanged;
+  if Assigned(FSyncVHostCombo) then
+    FSyncVHostCombo.OnChange := SyncEditorChanged;
+  if Assigned(FSyncLocalPathEdit) then
+    FSyncLocalPathEdit.OnChange := SyncEditorChanged;
+  if Assigned(FSyncWorkingDirEdit) then
+    FSyncWorkingDirEdit.OnChange := SyncEditorChanged;
+  if Assigned(FSyncPreCommandEdit) then
+    FSyncPreCommandEdit.OnChange := SyncEditorChanged;
+  if Assigned(FSyncPostCommandEdit) then
+    FSyncPostCommandEdit.OnChange := SyncEditorChanged;
+  if Assigned(FSyncDeleteCheck) then
+    FSyncDeleteCheck.OnClick := SyncEditorChanged;
+  if Assigned(FSyncDryRunCheck) then
+    FSyncDryRunCheck.OnClick := SyncEditorChanged;
+  if Assigned(FSyncExcludesMemo) then
+    FSyncExcludesMemo.OnChange := SyncEditorChanged;
+  if Assigned(FSyncTestButton) then
+    FSyncTestButton.OnClick := TestSyncProfileClicked;
+  if Assigned(FSyncTestPathButton) then
+    FSyncTestPathButton.OnClick := TestSyncTargetPathClicked;
+  if Assigned(FSyncPreviewButton) then
+    FSyncPreviewButton.OnClick := PreviewSyncProfileClicked;
+
+  Result := Assigned(FSyncPage) and Assigned(FSyncNameEdit) and
+    Assigned(FSyncBackendCombo) and Assigned(FSyncDirectionCombo) and
+    Assigned(FSyncRemoteNameEdit) and Assigned(FSyncRemotePathEdit) and
+    Assigned(FSyncLocalPathEdit) and Assigned(FSyncWorkingDirEdit) and
+    Assigned(FSyncPreCommandEdit) and Assigned(FSyncPostCommandEdit) and
+    Assigned(FSyncExcludesMemo);
+end;
+
+procedure SetSyncStatus(const StatusLabel: TLabel; const ColorValue: TColor; const TextValue: string);
+begin
+  if not Assigned(StatusLabel) then
     Exit;
-  PageControl := FindComponent('FPageControl') as TPageControl;
-  if not Assigned(PageControl) then
-    Exit;
-
-  FSyncPage := TTabSheet.Create(Self);
-  FSyncPage.PageControl := PageControl;
-  FSyncPage.Caption := 'Sync';
-
-  ListPanel := TPanel.Create(Self);
-  ListPanel.Parent := FSyncPage;
-  ListPanel.SetBounds(16, 16, 240, 388);
-  ListPanel.BevelKind := bkTile;
-  ListPanel.BevelOuter := bvNone;
-  ListPanel.Color := clWhite;
-  ListPanel.ParentBackground := False;
-
-  AddLabel(ListPanel, 'Profiles', 18, 16);
-  HintLabel := TLabel.Create(Self);
-  HintLabel.Parent := ListPanel;
-  HintLabel.SetBounds(18, 38, 198, 44);
-  HintLabel.Caption := 'Reusable profiles for upload/download. Tokens: {documentRoot}, {projectRoot}, {serverName}.';
-  HintLabel.WordWrap := True;
-  HintLabel.Font.Color := clGrayText;
-
-  FSyncListBox := TListBox.Create(Self);
-  FSyncListBox.Parent := ListPanel;
-  FSyncListBox.SetBounds(18, 92, 198, 188);
-  FSyncListBox.OnClick := SyncProfileSelectionChanged;
-
-  FooterPanel := TPanel.Create(Self);
-  FooterPanel.Parent := ListPanel;
-  FooterPanel.BevelOuter := bvNone;
-  FooterPanel.Color := clWhite;
-  FooterPanel.ParentBackground := False;
-  FooterPanel.SetBounds(18, 292, 198, 70);
-
-  AddButton := TButton.Create(Self);
-  AddButton.Parent := FooterPanel;
-  AddButton.SetBounds(0, 0, 94, 28);
-  AddButton.Caption := 'Add';
-  AddButton.OnClick := AddSyncProfileClicked;
-
-  DeleteButton := TButton.Create(Self);
-  DeleteButton.Parent := FooterPanel;
-  DeleteButton.SetBounds(104, 0, 94, 28);
-  DeleteButton.Caption := 'Delete';
-  DeleteButton.OnClick := DeleteSyncProfileClicked;
-
-  ImportButton := TButton.Create(Self);
-  ImportButton.Parent := FooterPanel;
-  ImportButton.SetBounds(0, 36, 94, 28);
-  ImportButton.Caption := 'Import';
-  ImportButton.OnClick := ImportSyncProfilesClicked;
-
-  ExportButton := TButton.Create(Self);
-  ExportButton.Parent := FooterPanel;
-  ExportButton.SetBounds(104, 36, 94, 28);
-  ExportButton.Caption := 'Export';
-  ExportButton.OnClick := ExportSyncProfilesClicked;
-
-  EditorPanel := TPanel.Create(Self);
-  EditorPanel.Parent := FSyncPage;
-  EditorPanel.SetBounds(272, 16, 560, 560);
-  EditorPanel.BevelKind := bkTile;
-  EditorPanel.BevelOuter := bvNone;
-  EditorPanel.Color := clWhite;
-  EditorPanel.ParentBackground := False;
-
-  AddLabel(EditorPanel, 'Profile editor', 18, 16);
-  FieldHintLabel := TLabel.Create(Self);
-  FieldHintLabel.Parent := EditorPanel;
-  FieldHintLabel.SetBounds(18, 34, 520, 28);
-  FieldHintLabel.Caption := 'Use `rclone`. Set local paths relative to UniWamp or use tokens. Leave executable path empty to resolve `rclone.exe` automatically.';
-  FieldHintLabel.WordWrap := True;
-  FieldHintLabel.Font.Color := clGrayText;
-  LabelTop := 70;
-  AddLabel(EditorPanel, 'Name', 18, LabelTop);
-  FSyncNameEdit := AddEdit(EditorPanel, 18, LabelTop + 20, 220);
-  FSyncNameEdit.OnChange := SyncEditorChanged;
-  AddLabel(EditorPanel, 'Backend', 260, LabelTop);
-  FSyncBackendCombo := TComboBox.Create(Self);
-  FSyncBackendCombo.Parent := EditorPanel;
-  FSyncBackendCombo.SetBounds(260, LabelTop + 20, 120, 23);
-  FSyncBackendCombo.Style := csDropDownList;
-  FSyncBackendCombo.Items.Add('rclone');
-  FSyncBackendCombo.OnChange := SyncEditorChanged;
-
-  AddLabel(EditorPanel, 'Direction', 398, LabelTop);
-  FSyncDirectionCombo := TComboBox.Create(Self);
-  FSyncDirectionCombo.Parent := EditorPanel;
-  FSyncDirectionCombo.SetBounds(398, LabelTop + 20, 120, 23);
-  FSyncDirectionCombo.Style := csDropDownList;
-  FSyncDirectionCombo.Items.Add('upload');
-  FSyncDirectionCombo.Items.Add('download');
-  FSyncDirectionCombo.OnChange := SyncEditorChanged;
-
-  LabelTop := 128;
-  AddLabel(EditorPanel, 'Executable path', 18, LabelTop);
-  FSyncExecutableEdit := AddEdit(EditorPanel, 18, LabelTop + 20, 500);
-  FSyncExecutableEdit.OnChange := SyncEditorChanged;
-  LabelTop := 186;
-  AddLabel(EditorPanel, 'Remote name', 18, LabelTop);
-  FSyncRemoteNameEdit := AddEdit(EditorPanel, 18, LabelTop + 20, 160);
-  FSyncRemoteNameEdit.OnChange := SyncEditorChanged;
-  AddLabel(EditorPanel, 'Remote path', 198, LabelTop);
-  FSyncRemotePathEdit := AddEdit(EditorPanel, 198, LabelTop + 20, 320);
-  FSyncRemotePathEdit.OnChange := SyncEditorChanged;
-  LabelTop := 244;
-  AddLabel(EditorPanel, 'Test vHost', 18, LabelTop);
-  FSyncVHostCombo := TComboBox.Create(Self);
-  FSyncVHostCombo.Parent := EditorPanel;
-  FSyncVHostCombo.SetBounds(18, LabelTop + 20, 220, 23);
-  FSyncVHostCombo.Style := csDropDownList;
-  FSyncVHostCombo.OnChange := SyncEditorChanged;
-  AddLabel(EditorPanel, 'Local path', 260, LabelTop);
-  FSyncLocalPathEdit := AddEdit(EditorPanel, 260, LabelTop + 20, 258);
-  FSyncLocalPathEdit.OnChange := SyncEditorChanged;
-  LabelTop := 302;
-  AddLabel(EditorPanel, 'Working directory', 18, LabelTop);
-  FSyncWorkingDirEdit := AddEdit(EditorPanel, 18, LabelTop + 20, 500);
-  FSyncWorkingDirEdit.OnChange := SyncEditorChanged;
-  LabelTop := 360;
-  AddLabel(EditorPanel, 'Pre-sync command', 18, LabelTop);
-  FSyncPreCommandEdit := AddEdit(EditorPanel, 18, LabelTop + 20, 500);
-  FSyncPreCommandEdit.OnChange := SyncEditorChanged;
-  LabelTop := 418;
-  AddLabel(EditorPanel, 'Post-sync command', 18, LabelTop);
-  FSyncPostCommandEdit := AddEdit(EditorPanel, 18, LabelTop + 20, 500);
-  FSyncPostCommandEdit.OnChange := SyncEditorChanged;
-
-  FSyncDeleteCheck := TCheckBox.Create(Self);
-  FSyncDeleteCheck.Parent := EditorPanel;
-  FSyncDeleteCheck.SetBounds(18, 476, 220, 19);
-  FSyncDeleteCheck.Caption := 'Delete extra files on target';
-  FSyncDeleteCheck.OnClick := SyncEditorChanged;
-
-  FSyncDryRunCheck := TCheckBox.Create(Self);
-  FSyncDryRunCheck.Parent := EditorPanel;
-  FSyncDryRunCheck.SetBounds(260, 476, 180, 19);
-  FSyncDryRunCheck.Caption := 'Dry run by default';
-  FSyncDryRunCheck.OnClick := SyncEditorChanged;
-
-  AddLabel(EditorPanel, 'Exclude patterns', 18, 498);
-  FSyncExcludesMemo := TMemo.Create(Self);
-  FSyncExcludesMemo.Parent := EditorPanel;
-  FSyncExcludesMemo.ScrollBars := ssVertical;
-  FSyncExcludesMemo.WordWrap := False;
-  FSyncExcludesMemo.SetBounds(18, 516, 500, 32);
-  FSyncExcludesMemo.OnChange := SyncEditorChanged;
-
-  FSyncTestButton := TButton.Create(Self);
-  FSyncTestButton.Parent := EditorPanel;
-  FSyncTestButton.SetBounds(252, 18, 86, 26);
-  FSyncTestButton.Caption := 'Test Remote';
-  FSyncTestButton.OnClick := TestSyncProfileClicked;
-
-  FSyncTestPathButton := TButton.Create(Self);
-  FSyncTestPathButton.Parent := EditorPanel;
-  FSyncTestPathButton.SetBounds(344, 18, 86, 26);
-  FSyncTestPathButton.Caption := 'Test Path';
-  FSyncTestPathButton.OnClick := TestSyncTargetPathClicked;
-
-  FSyncPreviewButton := TButton.Create(Self);
-  FSyncPreviewButton.Parent := EditorPanel;
-  FSyncPreviewButton.SetBounds(436, 18, 82, 26);
-  FSyncPreviewButton.Caption := 'Preview';
-  FSyncPreviewButton.OnClick := PreviewSyncProfileClicked;
-
-  FSyncValidationLabel := TLabel.Create(Self);
-  FSyncValidationLabel.Parent := FSyncPage;
-  FSyncValidationLabel.SetBounds(18, 580, 814, 34);
-  FSyncValidationLabel.AutoSize := False;
-  FSyncValidationLabel.WordWrap := True;
-  FSyncValidationLabel.Font.Color := clGrayText;
-  FSyncValidationLabel.Caption := 'Select or create a sync profile.';
+  StatusLabel.Font.Color := ColorValue;
+  StatusLabel.Caption := TextValue;
 end;
 
 procedure TAppSettingsForm.LoadSyncProfiles;
@@ -747,19 +639,16 @@ begin
     Exit;
   if CurrentSyncProfileIndex < 0 then
   begin
-    FSyncValidationLabel.Font.Color := clGrayText;
-    FSyncValidationLabel.Caption := 'Select or create a sync profile.';
+    SetSyncStatus(FSyncValidationLabel, clGrayText, 'Select or create a sync profile.');
     Exit;
   end;
   if not ReadSyncProfileFromEditor(Profile, ErrorMessage) then
   begin
-    FSyncValidationLabel.Font.Color := clRed;
-    FSyncValidationLabel.Caption := ErrorMessage;
+    SetSyncStatus(FSyncValidationLabel, clRed, ErrorMessage);
     Exit;
   end;
-  FSyncValidationLabel.Font.Color := TColor($002E7D32);
-  FSyncValidationLabel.Caption :=
-    'Profile is valid. Preview and tests use the selected test vHost when one is chosen.';
+  SetSyncStatus(FSyncValidationLabel, TColor($002E7D32),
+    'Profile is valid. Preview and tests use the selected test vHost when one is chosen.');
 end;
 
 procedure TAppSettingsForm.SaveCurrentSyncEditor;
@@ -949,6 +838,11 @@ var
   ResultOk: Boolean;
   Arguments: string;
 begin
+  if not EnsureSyncBindings then
+  begin
+    MessageDlg('Sync controls are not available on the settings form.', mtError, [mbOK], 0);
+    Exit;
+  end;
   if not ReadSyncProfileFromEditor(Profile, ErrorMessage) then
   begin
     UpdateSyncValidationMessage;
@@ -958,8 +852,7 @@ begin
   if not ResolveSyncExecutablePath(Profile, ExecutablePath) then
   begin
     ErrorMessage := 'rclone executable not found. Set executable path or install rclone.';
-    FSyncValidationLabel.Font.Color := clRed;
-    FSyncValidationLabel.Caption := ErrorMessage;
+    SetSyncStatus(FSyncValidationLabel, clRed, ErrorMessage);
     MessageDlg(ErrorMessage, mtError, [mbOK], 0);
     Exit;
   end;
@@ -976,17 +869,15 @@ begin
 
   if ResultOk then
   begin
-    FSyncValidationLabel.Font.Color := TColor($002E7D32);
-    FSyncValidationLabel.Caption := 'Remote test succeeded for "' + ResolvedProfile.RemoteName +
-      '". Remote path is not modified.';
+    SetSyncStatus(FSyncValidationLabel, TColor($002E7D32),
+      'Remote test succeeded for "' + ResolvedProfile.RemoteName + '". Remote path is not modified.');
     MessageDlg('Remote test succeeded for "' + ResolvedProfile.RemoteName + '".', mtInformation, [mbOK], 0);
   end
   else
   begin
     if Trim(Output) = '' then
       Output := 'Remote test failed.';
-    FSyncValidationLabel.Font.Color := clRed;
-    FSyncValidationLabel.Caption := Output;
+    SetSyncStatus(FSyncValidationLabel, clRed, Output);
     MessageDlg(Output, mtError, [mbOK], 0);
   end;
 end;
@@ -1001,6 +892,11 @@ var
   ResultOk: Boolean;
   Arguments: string;
 begin
+  if not EnsureSyncBindings then
+  begin
+    MessageDlg('Sync controls are not available on the settings form.', mtError, [mbOK], 0);
+    Exit;
+  end;
   if not ReadSyncProfileFromEditor(Profile, ErrorMessage) then
   begin
     UpdateSyncValidationMessage;
@@ -1010,8 +906,7 @@ begin
   if not ResolveSyncExecutablePath(Profile, ExecutablePath) then
   begin
     ErrorMessage := 'rclone executable not found. Set executable path or install rclone.';
-    FSyncValidationLabel.Font.Color := clRed;
-    FSyncValidationLabel.Caption := ErrorMessage;
+    SetSyncStatus(FSyncValidationLabel, clRed, ErrorMessage);
     MessageDlg(ErrorMessage, mtError, [mbOK], 0);
     Exit;
   end;
@@ -1029,9 +924,8 @@ begin
 
   if ResultOk then
   begin
-    FSyncValidationLabel.Font.Color := TColor($002E7D32);
-    FSyncValidationLabel.Caption := 'Target path test succeeded for "' +
-      ResolvedProfile.RemoteName + ':' + ResolvedProfile.RemotePath + '".';
+    SetSyncStatus(FSyncValidationLabel, TColor($002E7D32),
+      'Target path test succeeded for "' + ResolvedProfile.RemoteName + ':' + ResolvedProfile.RemotePath + '".');
     MessageDlg('Target path test succeeded for "' + ResolvedProfile.RemoteName + ':' +
       ResolvedProfile.RemotePath + '".', mtInformation, [mbOK], 0);
   end
@@ -1039,8 +933,7 @@ begin
   begin
     if Trim(Output) = '' then
       Output := 'Target path test failed.';
-    FSyncValidationLabel.Font.Color := clRed;
-    FSyncValidationLabel.Caption := Output;
+    SetSyncStatus(FSyncValidationLabel, clRed, Output);
     MessageDlg(Output, mtError, [mbOK], 0);
   end;
 end;
@@ -1052,6 +945,11 @@ var
   ErrorMessage: string;
   CommandText: string;
 begin
+  if not EnsureSyncBindings then
+  begin
+    MessageDlg('Sync controls are not available on the settings form.', mtError, [mbOK], 0);
+    Exit;
+  end;
   if not ReadSyncProfileFromEditor(Profile, ErrorMessage) then
   begin
     UpdateSyncValidationMessage;
@@ -1080,8 +978,8 @@ begin
   if Length(ResolvedProfile.Excludes) > 0 then
     CommandText := CommandText + sLineBreak + 'Excludes: ' + String.Join(', ', ResolvedProfile.Excludes);
 
-  FSyncValidationLabel.Font.Color := clGrayText;
-  FSyncValidationLabel.Caption := 'Preview generated for "' + SyncProfileDisplayName(Profile) + '".';
+  SetSyncStatus(FSyncValidationLabel, clGrayText,
+    'Preview generated for "' + SyncProfileDisplayName(Profile) + '".');
   MessageDlg(CommandText, mtInformation, [mbOK], 0);
 end;
 
@@ -1406,5 +1304,7 @@ initialization
   RegisterClass(TCheckBox);
   RegisterClass(TComboBox);
   RegisterClass(TButton);
+  RegisterClass(TListBox);
+  RegisterClass(TMemo);
 
 end.

@@ -195,5 +195,25 @@
     }
   ],
   "syncProfiles": [
+    {
+      "name": "site-upload-sftp",
+      "backend": "rclone",
+      "direction": "upload",
+      "executablePath": "",
+      "defaultTestVHost": "vittixcms",
+      "preSyncCommand": "",
+      "postSyncCommand": "",
+      "remoteName": "myserver",
+      "remotePath": "\/var\/www\/vittixcms",
+      "localPath": "D:\\ketan\\github\\uniwamp\\{projectRoot}",
+      "workingDirectory": "D:\\ketan\\github\\uniwamp\\{projectRoot}",
+      "deleteEnabled": false,
+      "dryRunByDefault": true,
+      "excludes": [
+        ".git\/**",
+        "node_modules\/**",
+        ".env"
+      ]
+    }
   ]
 }
