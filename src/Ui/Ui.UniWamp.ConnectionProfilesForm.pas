@@ -207,7 +207,7 @@ begin
   HeaderTitle.Height := 23;
 
   HeaderHint := AddLabel(HeaderPanel, 18, 42,
-    'Manage FTP, FTPS, and SFTP connection details. SFTP in this build uses OpenSSH with ssh-agent or an unencrypted key. Passwords and key passphrases stay in the Windows secret store.', 760);
+    'Manage FTP, FTPS, and SFTP connection details. SFTP supports passwords, ssh-agent, and unencrypted private keys. Passwords and key passphrases stay in the Windows secret store.', 760);
   HeaderHint.Font.Size := 9;
   HeaderHint.Font.Color := HeaderSubTextColor;
   HeaderHint.Font.Style := [];
@@ -671,11 +671,6 @@ begin
   if not ReadProfileFromEditor(Profile, ErrorMessage) then
   begin
     SetStatus(clRed, ErrorMessage);
-    Exit;
-  end;
-  if SameText(Profile.Protocol, 'sftp') and (Trim(FPasswordEdit.Text) <> '') then
-  begin
-    SetStatus(clRed, 'SFTP password auth is not supported in this build. Use an SSH key or ssh-agent.');
     Exit;
   end;
   if SameText(Profile.Protocol, 'sftp') and (Trim(FKeyPassphraseEdit.Text) <> '') then

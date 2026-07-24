@@ -2,7 +2,12 @@
 # UniWamp – project-specific ignores
 # ============================================================
 /bin/
-/runtime/
+/runtime/*
+!/runtime/tools/
+/runtime/tools/*
+!/runtime/tools/putty/
+/runtime/tools/putty/*
+!/runtime/tools/putty/psftp.exe
 /logs/*
 !/logs/.gitkeep
 /tmp/*
@@ -24,6 +29,7 @@
 # Compiled units & binaries
 *.dcu
 *.exe
+!/runtime/tools/putty/psftp.exe
 *.dll
 *.bpl
 *.dcp

@@ -135,9 +135,10 @@ Common settings include:
 
 Sync note:
 
-- SFTP in the current build uses Windows OpenSSH batch mode.
-- Supported SFTP auth modes are `ssh-agent` and unencrypted private keys.
-- Password-auth SFTP and encrypted private-key passphrases are not supported in unattended sync runs.
+- SFTP supports password authentication, `ssh-agent`, and unencrypted private keys.
+- Password-auth SFTP uses bundled `PuTTY PSFTP` when `runtime\tools\putty\psftp.exe` is available.
+- If `psftp.exe` is missing, UniWamp attempts to download the current 64-bit PuTTY `psftp.exe` from the official PuTTY site into `runtime\tools\putty`.
+- Encrypted private-key passphrases are not supported in unattended sync runs.
 
 Generated config files are written to:
 

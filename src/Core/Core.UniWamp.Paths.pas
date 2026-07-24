@@ -17,6 +17,7 @@ type
     ToolsDir: string;
     ComposerDir: string;
     GitDir: string;
+    PuttyDir: string;
     WpCliDir: string;
     MailpitDir: string;
     RedisDir: string;
@@ -91,6 +92,7 @@ begin
   Result.ToolsDir := TPath.Combine(Result.RuntimeDir, 'tools');
   Result.ComposerDir := TPath.Combine(Result.ToolsDir, 'composer');
   Result.GitDir := TPath.Combine(Result.ToolsDir, 'git');
+  Result.PuttyDir := TPath.Combine(Result.ToolsDir, 'putty');
   Result.WpCliDir := TPath.Combine(Result.ToolsDir, 'wp-cli');
   Result.MailpitDir := TPath.Combine(Result.ToolsDir, 'mailpit');
   Result.RedisDir := TPath.Combine(Result.ToolsDir, 'redis');
@@ -150,6 +152,7 @@ begin
   EnsureDirectory(Paths.MkcertDir);
   EnsureDirectory(Paths.ComposerDir);
   EnsureDirectory(Paths.GitDir);
+  EnsureDirectory(Paths.PuttyDir);
   EnsureDirectory(Paths.WpCliDir);
   EnsureDirectory(Paths.MailpitDir);
   EnsureDirectory(Paths.RedisDir);

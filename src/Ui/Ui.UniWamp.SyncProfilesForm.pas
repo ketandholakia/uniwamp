@@ -265,7 +265,7 @@ begin
   HeaderTitle.ParentFont := False;
 
   HeaderHint := AddLabel(HeaderPanel, 18, 42,
-    'Manage FTP, FTPS, and SFTP profiles for the native sync engine. SFTP in this build uses OpenSSH with ssh-agent or an unencrypted key. Connection profiles are managed separately.', 0);
+    'Manage FTP, FTPS, and SFTP profiles for the native sync engine. SFTP supports passwords, ssh-agent, and unencrypted private keys. Connection profiles are managed separately.', 0);
   HeaderHint.Font.Size := 10;
   HeaderHint.Font.Color := HeaderSubTextColor;
   HeaderHint.Font.Style := [];
@@ -1080,11 +1080,6 @@ begin
     Exit;
   end;
   Credentials := BuildCredentialsFromEditor(Profile);
-  if SameText(Credentials.Protocol, 'sftp') and (Trim(Credentials.Password) <> '') then
-  begin
-    SetStatus(clRed, 'SFTP password auth is not supported in this build. Store an SSH key in the connection profile instead.');
-    Exit;
-  end;
   if SameText(Credentials.Protocol, 'sftp') and (Trim(Credentials.KeyPassphrase) <> '') then
   begin
     SetStatus(clRed, 'SFTP key passphrases are not supported in this build. Load the key into ssh-agent first.');
