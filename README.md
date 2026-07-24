@@ -31,6 +31,7 @@ Known alpha limitations:
 - Manages enabled PHP extensions for the active PHP runtime
 - Generates Apache, PHP, and MariaDB config files from UniWamp templates
 - Manages local virtual hosts
+- Manages native FTP, FTPS, and SFTP sync connection profiles and sync profiles
 - The virtual-host grid provides browser, folder, code editor, terminal, delete, and SSL actions per row
 - Launches the local site, Adminer, logs, terminals, and local developer tools
 - Optionally generates a self-signed SSL certificate
@@ -129,7 +130,14 @@ Common settings include:
 - active Node.js version
 - SSL toggle
 - virtual hosts
+- connection profiles and sync profiles
 - terminal executable path
+
+Sync note:
+
+- SFTP in the current build uses Windows OpenSSH batch mode.
+- Supported SFTP auth modes are `ssh-agent` and unencrypted private keys.
+- Password-auth SFTP and encrypted private-key passphrases are not supported in unattended sync runs.
 
 Generated config files are written to:
 
