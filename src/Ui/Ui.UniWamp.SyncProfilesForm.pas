@@ -1064,6 +1064,7 @@ end;
 procedure TSyncProfilesForm.UpdateValidationMessage;
 var
   Profile: TSyncProfile;
+  Credentials: TSyncCredentials;
   ErrorMessage: string;
 begin
   if FLoading then
@@ -1076,6 +1077,17 @@ begin
   if not ReadProfileFromEditor(Profile, ErrorMessage) then
   begin
     SetStatus(clRed, ErrorMessage);
+    Exit;
+  end;
+  Credentials := BuildCredentialsFromEditor(Profile);
+  if SameText(Credentials.Protocol, 'sftp') and (Trim(Credentials.Password) <> '') then
+  begin
+    SetStatus(clRed, 'SFTP password auth is not supported in this build. Store an SSH key in the connection profile instead.');
+    Exit;
+  end;
+  if SameText(Credentials.Protocol, 'sftp') and (Trim(Credentials.KeyPassphrase) <> '') then
+  begin
+    SetStatus(clRed, 'SFTP key passphrases are not supported in this build. Load the key into ssh-agent first.');
     Exit;
   end;
   SetStatus(TColor($002E7D32), 'Profile is valid. Preview and tests use the selected test vHost when one is chosen.');

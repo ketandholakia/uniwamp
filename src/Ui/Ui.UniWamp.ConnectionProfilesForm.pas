@@ -668,10 +668,22 @@ var
 begin
   if FLoading then
     Exit;
-  if ReadProfileFromEditor(Profile, ErrorMessage) then
-    SetStatus(TColor($002E7D32), 'Profile is valid.')
-  else
+  if not ReadProfileFromEditor(Profile, ErrorMessage) then
+  begin
     SetStatus(clRed, ErrorMessage);
+    Exit;
+  end;
+  if SameText(Profile.Protocol, 'sftp') and (Trim(FPasswordEdit.Text) <> '') then
+  begin
+    SetStatus(clRed, 'SFTP password auth is not supported in this build. Use an SSH key or ssh-agent.');
+    Exit;
+  end;
+  if SameText(Profile.Protocol, 'sftp') and (Trim(FKeyPassphraseEdit.Text) <> '') then
+  begin
+    SetStatus(clRed, 'SFTP key passphrases are not supported in this build. Load the key into ssh-agent first.');
+    Exit;
+  end;
+  SetStatus(TColor($002E7D32), 'Profile is valid.');
 end;
 
 procedure TConnectionProfilesForm.SetStatus(const ColorValue: TColor; const TextValue: string);
@@ -833,9 +845,9 @@ begin
   Credentials.Host := Profile.Host;
   Credentials.Port := Profile.Port;
   Credentials.Username := Profile.Username;
-  Credentials.Password := LoadSecret(FPaths, SyncPasswordKey(Profile.Name));
+  Credentials.Password := Trim(FPasswordEdit.Text);
   Credentials.PrivateKeyFile := Profile.PrivateKeyFile;
-  Credentials.KeyPassphrase := LoadSecret(FPaths, SyncKeyPassphraseKey(Profile.Name));
+  Credentials.KeyPassphrase := Trim(FKeyPassphraseEdit.Text);
   Credentials.PassiveMode := Profile.PassiveMode;
   Credentials.IgnoreCertErrors := Profile.IgnoreCertErrors;
 

@@ -125,7 +125,9 @@ end;
 function TSyncService.BuildCredentials(const Profile: TSyncProfile): TSyncCredentials;
 var
   ConnectionProfile: TConnectionProfile;
+  SecretProfileName: string;
 begin
+  SecretProfileName := Profile.Name;
   if (Trim(Profile.ConnectionProfileName) <> '') and
     TryGetConnectionProfile(Profile.ConnectionProfileName, ConnectionProfile) then
   begin
@@ -136,6 +138,7 @@ begin
     Result.PrivateKeyFile := ResolvePortablePath(ConnectionProfile.PrivateKeyFile);
     Result.PassiveMode := ConnectionProfile.PassiveMode;
     Result.IgnoreCertErrors := ConnectionProfile.IgnoreCertErrors;
+    SecretProfileName := ConnectionProfile.Name;
   end
   else if TryGetConnectionProfile(Profile.Name, ConnectionProfile) then
   begin
@@ -146,6 +149,7 @@ begin
     Result.PrivateKeyFile := ResolvePortablePath(ConnectionProfile.PrivateKeyFile);
     Result.PassiveMode := ConnectionProfile.PassiveMode;
     Result.IgnoreCertErrors := ConnectionProfile.IgnoreCertErrors;
+    SecretProfileName := ConnectionProfile.Name;
   end
   else
   begin
@@ -157,8 +161,8 @@ begin
     Result.PassiveMode := Profile.PassiveMode;
     Result.IgnoreCertErrors := Profile.IgnoreCertErrors;
   end;
-  Result.Password := LoadSecret(FPaths, SyncPasswordKey(Profile.Name));
-  Result.KeyPassphrase := LoadSecret(FPaths, SyncKeyPassphraseKey(Profile.Name));
+  Result.Password := LoadSecret(FPaths, SyncPasswordKey(SecretProfileName));
+  Result.KeyPassphrase := LoadSecret(FPaths, SyncKeyPassphraseKey(SecretProfileName));
 end;
 
 function TSyncService.ResolveLocalAndWorkingDir(const Profile: TSyncProfile; const Entry: TVHostEntry;
