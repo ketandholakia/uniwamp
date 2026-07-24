@@ -214,6 +214,26 @@
         "node_modules\/**",
         ".env"
       ]
+    },
+    {
+      "name": "rebex-ftp-test",
+      "backend": "rclone",
+      "direction": "upload",
+      "executablePath": "",
+      "defaultTestVHost": "vittixcms",
+      "preSyncCommand": "",
+      "postSyncCommand": "",
+      "remoteName": "rebexftp",
+      "remotePath": "\/",
+      "localPath": "D:\\ketan\\github\\uniwamp\\{projectRoot}",
+      "workingDirectory": "D:\\ketan\\github\\uniwamp\\{projectRoot}",
+      "deleteEnabled": false,
+      "dryRunByDefault": true,
+      "excludes": [
+        ".git\/**",
+        "node_modules\/**",
+        ".env"
+      ]
     }
   ]
 }
