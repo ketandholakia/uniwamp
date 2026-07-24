@@ -7,25 +7,27 @@ uses
   Core.UniWamp.Config,
   Core.UniWamp.Interfaces,
   Core.UniWamp.Paths,
-  Core.UniWamp.Types;
+  Core.UniWamp.Types,
+  Core.UniWamp.SyncTransport,
+  Core.UniWamp.SyncEngine;
 
 type
   TSyncService = class(TInterfacedObject, ISyncService)
   private
     FPaths: TAppPaths;
     FConfig: TUniWampConfig;
+    function TryGetConnectionProfile(const ProfileName: string; out Profile: TConnectionProfile): Boolean;
     function TryGetProfile(const ProfileName: string; out Profile: TSyncProfile): Boolean;
     function TryGetVHostEntry(const ServerName: string; out Entry: TVHostEntry): Boolean;
     function ResolvePortablePath(const PathValue: string): string;
     function ApplyVHostTokens(const Value: string; const Entry: TVHostEntry): string;
-    function ResolveExecutablePath(const Profile: TSyncProfile; out ExecutablePath: string): Boolean;
-    function BuildRemoteSpec(const Profile: TSyncProfile): string;
-    function BuildArguments(const Profile: TSyncProfile; UseDryRun: Boolean;
-      out ExecutablePath, Arguments, WorkingDirectory: string): TRuntimeActionResult; overload;
-    function BuildArguments(const Profile: TSyncProfile; const Entry: TVHostEntry; UseDryRun: Boolean;
-      out ExecutablePath, Arguments, WorkingDirectory: string): TRuntimeActionResult; overload;
+    function BuildCredentials(const Profile: TSyncProfile): TSyncCredentials;
+    function ResolveLocalAndWorkingDir(const Profile: TSyncProfile; const Entry: TVHostEntry;
+      out LocalPath, WorkingDirectory: string; out ErrorMessage: string): Boolean;
     function ExecuteHookCommand(const CommandText, WorkingDirectory: string; out Output: string): Boolean;
-    function QuoteArgument(const Value: string): string;
+    function DescribePlan(const Plan: TSyncPlan): string;
+    function RunSync(const Profile: TSyncProfile; const Entry: TVHostEntry; UseDryRun: Boolean;
+      out Summary: string): TRuntimeActionResult;
   public
     constructor Create(const Paths: TAppPaths; Config: TUniWampConfig);
     function BuildCommandPreview(const ProfileName: string; UseDryRun: Boolean;
@@ -41,7 +43,8 @@ implementation
 uses
   System.Classes,
   System.IOUtils,
-  Core.UniWamp.ProcessManager;
+  Core.UniWamp.ProcessManager,
+  Core.UniWamp.Secrets;
 
 constructor TSyncService.Create(const Paths: TAppPaths; Config: TUniWampConfig);
 begin
@@ -55,8 +58,22 @@ var
   Item: TSyncProfile;
 begin
   Result := False;
-  FillChar(Profile, SizeOf(Profile), 0);
+  Profile := Default(TSyncProfile);
   for Item in FConfig.SyncProfiles do
+    if SameText(Item.Name, ProfileName) then
+    begin
+      Profile := Item;
+      Exit(True);
+    end;
+end;
+
+function TSyncService.TryGetConnectionProfile(const ProfileName: string; out Profile: TConnectionProfile): Boolean;
+var
+  Item: TConnectionProfile;
+begin
+  Result := False;
+  Profile := Default(TConnectionProfile);
+  for Item in FConfig.ConnectionProfiles do
     if SameText(Item.Name, ProfileName) then
     begin
       Profile := Item;
@@ -105,42 +122,91 @@ begin
   Result := StringReplace(Result, '{projectRoot}', ProjectRoot, [rfReplaceAll, rfIgnoreCase]);
 end;
 
-function TSyncService.ResolveExecutablePath(const Profile: TSyncProfile; out ExecutablePath: string): Boolean;
+function TSyncService.BuildCredentials(const Profile: TSyncProfile): TSyncCredentials;
 var
-  SearchPathValue: string;
+  ConnectionProfile: TConnectionProfile;
 begin
-  ExecutablePath := ResolvePortablePath(Profile.ExecutablePath);
-  if ExecutablePath <> '' then
-    Exit(FileExists(ExecutablePath));
-
-  if SameText(Profile.Backend, 'rclone') then
+  if (Trim(Profile.ConnectionProfileName) <> '') and
+    TryGetConnectionProfile(Profile.ConnectionProfileName, ConnectionProfile) then
   begin
-    ExecutablePath := TPath.Combine(FPaths.ToolsDir, 'rclone\rclone.exe');
-    if FileExists(ExecutablePath) then
-      Exit(True);
+    Result.Protocol := ConnectionProfile.Protocol;
+    Result.Host := ConnectionProfile.Host;
+    Result.Port := ConnectionProfile.Port;
+    Result.Username := ConnectionProfile.Username;
+    Result.PrivateKeyFile := ResolvePortablePath(ConnectionProfile.PrivateKeyFile);
+    Result.PassiveMode := ConnectionProfile.PassiveMode;
+    Result.IgnoreCertErrors := ConnectionProfile.IgnoreCertErrors;
+  end
+  else if TryGetConnectionProfile(Profile.Name, ConnectionProfile) then
+  begin
+    Result.Protocol := ConnectionProfile.Protocol;
+    Result.Host := ConnectionProfile.Host;
+    Result.Port := ConnectionProfile.Port;
+    Result.Username := ConnectionProfile.Username;
+    Result.PrivateKeyFile := ResolvePortablePath(ConnectionProfile.PrivateKeyFile);
+    Result.PassiveMode := ConnectionProfile.PassiveMode;
+    Result.IgnoreCertErrors := ConnectionProfile.IgnoreCertErrors;
+  end
+  else
+  begin
+    Result.Protocol := Profile.Protocol;
+    Result.Host := Profile.Host;
+    Result.Port := Profile.Port;
+    Result.Username := Profile.Username;
+    Result.PrivateKeyFile := ResolvePortablePath(Profile.PrivateKeyFile);
+    Result.PassiveMode := Profile.PassiveMode;
+    Result.IgnoreCertErrors := Profile.IgnoreCertErrors;
+  end;
+  Result.Password := LoadSecret(FPaths, SyncPasswordKey(Profile.Name));
+  Result.KeyPassphrase := LoadSecret(FPaths, SyncKeyPassphraseKey(Profile.Name));
+end;
 
-    ExecutablePath := TPath.Combine(FPaths.BinDir, 'rclone\rclone.exe');
-    if FileExists(ExecutablePath) then
-      Exit(True);
-
-    SearchPathValue := GetEnvironmentVariable('PATH');
-    ExecutablePath := FileSearch('rclone.exe', SearchPathValue);
-    if ExecutablePath <> '' then
-      Exit(True);
+function TSyncService.ResolveLocalAndWorkingDir(const Profile: TSyncProfile; const Entry: TVHostEntry;
+  out LocalPath, WorkingDirectory: string; out ErrorMessage: string): Boolean;
+var
+  LocalPathValue, WorkingDirectoryValue: string;
+begin
+  Result := False;
+  ErrorMessage := '';
+  LocalPathValue := Profile.LocalPath;
+  WorkingDirectoryValue := Profile.WorkingDirectory;
+  if Entry.ServerName <> '' then
+  begin
+    LocalPathValue := ApplyVHostTokens(LocalPathValue, Entry);
+    WorkingDirectoryValue := ApplyVHostTokens(WorkingDirectoryValue, Entry);
   end;
 
-  ExecutablePath := '';
-  Result := False;
-end;
+  LocalPath := ResolvePortablePath(LocalPathValue);
+  if LocalPath = '' then
+  begin
+    ErrorMessage := 'Sync profile localPath is invalid.';
+    Exit;
+  end;
 
-function TSyncService.BuildRemoteSpec(const Profile: TSyncProfile): string;
-begin
-  Result := Trim(Profile.RemoteName) + ':' + Trim(Profile.RemotePath);
-end;
+  if SameText(Profile.Direction, 'upload') then
+  begin
+    if not TDirectory.Exists(LocalPath) then
+    begin
+      ErrorMessage := 'Local sync source not found: ' + LocalPath;
+      Exit;
+    end;
+  end
+  else if SameText(Profile.Direction, 'download') then
+  begin
+    if not TDirectory.Exists(LocalPath) then
+      TDirectory.CreateDirectory(LocalPath);
+  end
+  else
+  begin
+    ErrorMessage := 'Unsupported sync direction: ' + Profile.Direction;
+    Exit;
+  end;
 
-function TSyncService.QuoteArgument(const Value: string): string;
-begin
-  Result := '"' + StringReplace(Value, '"', '\"', [rfReplaceAll]) + '"';
+  WorkingDirectory := ResolvePortablePath(WorkingDirectoryValue);
+  if WorkingDirectory = '' then
+    WorkingDirectory := FPaths.AppRoot;
+
+  Result := True;
 end;
 
 function TSyncService.ExecuteHookCommand(const CommandText, WorkingDirectory: string;
@@ -159,61 +225,45 @@ begin
     0);
 end;
 
-function TSyncService.BuildArguments(const Profile: TSyncProfile; UseDryRun: Boolean;
-  out ExecutablePath, Arguments, WorkingDirectory: string): TRuntimeActionResult;
+function TSyncService.DescribePlan(const Plan: TSyncPlan): string;
 var
-  EmptyEntry: TVHostEntry;
+  Uploads, Downloads, Deletes, Dirs: Integer;
+  Item: TSyncPlanItem;
 begin
-  EmptyEntry.ServerName := '';
-  EmptyEntry.ServerAliases := '';
-  EmptyEntry.DocumentRoot := '';
-  EmptyEntry.EnableSsl := False;
-  EmptyEntry.SslCertFile := '';
-  EmptyEntry.SslKeyFile := '';
-  EmptyEntry.PinnedSyncUploadProfile := '';
-  EmptyEntry.PinnedSyncDownloadProfile := '';
-  Result := BuildArguments(Profile, EmptyEntry, UseDryRun, ExecutablePath, Arguments, WorkingDirectory);
+  Uploads := 0; Downloads := 0; Deletes := 0; Dirs := 0;
+  for Item in Plan do
+    case Item.Kind of
+      spiUpload: Inc(Uploads);
+      spiDownload: Inc(Downloads);
+      spiDeleteRemote, spiDeleteLocal: Inc(Deletes);
+      spiCreateRemoteDir: Inc(Dirs);
+    end;
+  if Length(Plan) = 0 then
+    Exit('Nothing to sync - remote and local are already in sync.');
+  Result := Format('%d file(s) to upload, %d to download, %d to delete, %d remote director(y/ies) to create.',
+    [Uploads, Downloads, Deletes, Dirs]);
 end;
 
-function TSyncService.BuildArguments(const Profile: TSyncProfile; const Entry: TVHostEntry; UseDryRun: Boolean;
-  out ExecutablePath, Arguments, WorkingDirectory: string): TRuntimeActionResult;
+function TSyncService.RunSync(const Profile: TSyncProfile; const Entry: TVHostEntry; UseDryRun: Boolean;
+  out Summary: string): TRuntimeActionResult;
 var
-  Operation: string;
-  SourcePath: string;
-  DestinationPath: string;
-  RemoteSpec: string;
-  Builder: TStringBuilder;
-  ExcludePattern: string;
-  ResolvedLocalPath: string;
-  LocalPathValue: string;
-  WorkingDirectoryValue: string;
+  LocalPath, WorkingDirectory, ErrorMessage, RemotePath: string;
+  Transport: ISyncTransport;
+  Plan: TSyncPlan;
+  ExecResult: TSyncExecutionResult;
 begin
   Result.Success := False;
   Result.Message := '';
-  Arguments := '';
-  WorkingDirectory := '';
-  ExecutablePath := '';
+  Summary := '';
 
-  if not SameText(Profile.Backend, 'rclone') then
+  if not ((Profile.Protocol = 'ftp') or (Profile.Protocol = 'ftps') or (Profile.Protocol = 'sftp')) then
   begin
-    Result.Message := 'Unsupported sync backend: ' + Profile.Backend;
+    Result.Message := 'Unsupported sync protocol: ' + Profile.Protocol;
     Exit;
   end;
-
-  if not ResolveExecutablePath(Profile, ExecutablePath) then
+  if Trim(Profile.Host) = '' then
   begin
-    Result.Message := 'rclone executable not found. Configure executablePath or install rclone.';
-    Exit;
-  end;
-
-  if Trim(Profile.Name) = '' then
-  begin
-    Result.Message := 'Sync profile name is required.';
-    Exit;
-  end;
-  if Trim(Profile.RemoteName) = '' then
-  begin
-    Result.Message := 'Sync profile remoteName is required.';
+    Result.Message := 'Sync profile host is required.';
     Exit;
   end;
   if Trim(Profile.RemotePath) = '' then
@@ -221,153 +271,53 @@ begin
     Result.Message := 'Sync profile remotePath is required.';
     Exit;
   end;
-  if Trim(Profile.LocalPath) = '' then
+
+  if not ResolveLocalAndWorkingDir(Profile, Entry, LocalPath, WorkingDirectory, ErrorMessage) then
   begin
-    Result.Message := 'Sync profile localPath is required.';
+    Result.Message := ErrorMessage;
     Exit;
   end;
 
-  LocalPathValue := Profile.LocalPath;
-  WorkingDirectoryValue := Profile.WorkingDirectory;
+  RemotePath := Profile.RemotePath;
   if Entry.ServerName <> '' then
-  begin
-    LocalPathValue := ApplyVHostTokens(LocalPathValue, Entry);
-    WorkingDirectoryValue := ApplyVHostTokens(WorkingDirectoryValue, Entry);
-  end;
+    RemotePath := ApplyVHostTokens(RemotePath, Entry);
 
-  ResolvedLocalPath := ResolvePortablePath(LocalPathValue);
-  if ResolvedLocalPath = '' then
-  begin
-    Result.Message := 'Sync profile localPath is invalid.';
-    Exit;
-  end;
-
-  if SameText(Profile.Direction, 'upload') then
-  begin
-    if not TDirectory.Exists(ResolvedLocalPath) and not TFile.Exists(ResolvedLocalPath) then
-    begin
-      Result.Message := 'Local sync source not found: ' + ResolvedLocalPath;
-      Exit;
-    end;
-  end
-  else if SameText(Profile.Direction, 'download') then
-  begin
-    if not TDirectory.Exists(ResolvedLocalPath) then
-      TDirectory.CreateDirectory(ResolvedLocalPath);
-  end
-  else
-  begin
-    Result.Message := 'Unsupported sync direction: ' + Profile.Direction;
-    Exit;
-  end;
-
-  RemoteSpec := BuildRemoteSpec(Profile);
-  if Profile.DeleteEnabled then
-    Operation := 'sync'
-  else
-    Operation := 'copy';
-
-  if SameText(Profile.Direction, 'upload') then
-  begin
-    SourcePath := ResolvedLocalPath;
-    DestinationPath := RemoteSpec;
-  end
-  else
-  begin
-    SourcePath := RemoteSpec;
-    DestinationPath := ResolvedLocalPath;
-  end;
-
-  WorkingDirectory := ResolvePortablePath(WorkingDirectoryValue);
-  if WorkingDirectory = '' then
-    WorkingDirectory := FPaths.AppRoot;
-  if not TDirectory.Exists(WorkingDirectory) then
-  begin
-    Result.Message := 'Sync workingDirectory not found: ' + WorkingDirectory;
-    Exit;
-  end;
-
-  Builder := TStringBuilder.Create;
   try
-    Builder.Append(Operation);
-    Builder.Append(' ');
-    Builder.Append(QuoteArgument(SourcePath));
-    Builder.Append(' ');
-    Builder.Append(QuoteArgument(DestinationPath));
-    Builder.Append(' --progress');
-    if UseDryRun then
-      Builder.Append(' --dry-run');
-    for ExcludePattern in Profile.Excludes do
-    begin
-      Builder.Append(' --exclude ');
-      Builder.Append(QuoteArgument(ExcludePattern));
+    Transport := CreateSyncTransport(BuildCredentials(Profile));
+    Transport.Connect;
+    try
+      Plan := TSyncEngine.BuildPlan(Transport, LocalPath, RemotePath, Profile.Direction,
+        Profile.Excludes, Profile.DeleteEnabled);
+      Summary := DescribePlan(Plan);
+      if UseDryRun then
+      begin
+        Result.Success := True;
+        Result.Message := Summary;
+        Exit;
+      end;
+      ExecResult := TSyncEngine.ExecutePlan(Transport, Plan, False, nil, nil);
+      Result.Success := ExecResult.Success;
+      Result.Message := ExecResult.Message;
+    finally
+      Transport.Disconnect;
     end;
-    Arguments := Builder.ToString;
-  finally
-    Builder.Free;
+  except
+    on E: ESyncTransportError do
+      Result.Message := E.Message;
+    on E: Exception do
+      Result.Message := 'Sync failed: ' + E.Message;
   end;
-
-  Result.Success := True;
-  Result.Message := 'Sync command prepared.';
 end;
 
 function TSyncService.BuildCommandPreview(const ProfileName: string; UseDryRun: Boolean;
   out CommandLine: string): TRuntimeActionResult;
-var
-  Profile: TSyncProfile;
-  ExecutablePath: string;
-  Arguments: string;
-  WorkingDirectory: string;
 begin
-  CommandLine := '';
-  if not TryGetProfile(ProfileName, Profile) then
-  begin
-    Result.Success := False;
-    Result.Message := 'Sync profile not found: ' + ProfileName;
-    Exit;
-  end;
-
-  Result := BuildArguments(Profile, UseDryRun, ExecutablePath, Arguments, WorkingDirectory);
-  if not Result.Success then
-    Exit;
-
-  CommandLine := QuoteArgument(ExecutablePath) + ' ' + Arguments;
-  Result.Message := 'Sync command preview generated.';
+  Result := BuildCommandPreviewForVHost(ProfileName, '', UseDryRun, CommandLine);
 end;
 
 function TSyncService.ExecuteProfile(const ProfileName: string; UseDryRun: Boolean): TRuntimeActionResult;
-var
-  Profile: TSyncProfile;
-  ExecutablePath: string;
-  Arguments: string;
-  WorkingDirectory: string;
-  Output: string;
 begin
-  if not TryGetProfile(ProfileName, Profile) then
-  begin
-    Result.Success := False;
-    Result.Message := 'Sync profile not found: ' + ProfileName;
-    Exit;
-  end;
-
-  Result := BuildArguments(Profile, UseDryRun, ExecutablePath, Arguments, WorkingDirectory);
-  if not Result.Success then
-    Exit;
-
-  if not TProcessManager.RunAndCaptureOutput(ExecutablePath, Arguments, WorkingDirectory, Output, 0) then
-  begin
-    if Trim(Output) <> '' then
-      Result.Message := Trim(Output)
-    else
-      Result.Message := 'Sync process failed.';
-    Exit;
-  end;
-
-  Result.Success := True;
-  if Trim(Output) <> '' then
-    Result.Message := Trim(Output)
-  else
-    Result.Message := 'Sync completed.';
+  Result := ExecuteProfileForVHost(ProfileName, '', UseDryRun);
 end;
 
 function TSyncService.BuildCommandPreviewForVHost(const ProfileName, ServerName: string;
@@ -375,9 +325,6 @@ function TSyncService.BuildCommandPreviewForVHost(const ProfileName, ServerName:
 var
   Profile: TSyncProfile;
   Entry: TVHostEntry;
-  ExecutablePath: string;
-  Arguments: string;
-  WorkingDirectory: string;
 begin
   CommandLine := '';
   if not TryGetProfile(ProfileName, Profile) then
@@ -386,19 +333,19 @@ begin
     Result.Message := 'Sync profile not found: ' + ProfileName;
     Exit;
   end;
-  if not TryGetVHostEntry(ServerName, Entry) then
+  Entry.ServerName := '';
+  if (ServerName <> '') and not TryGetVHostEntry(ServerName, Entry) then
   begin
     Result.Success := False;
     Result.Message := 'Project not found: ' + ServerName;
     Exit;
   end;
 
-  Result := BuildArguments(Profile, Entry, UseDryRun, ExecutablePath, Arguments, WorkingDirectory);
-  if not Result.Success then
-    Exit;
-
-  CommandLine := QuoteArgument(ExecutablePath) + ' ' + Arguments;
-  Result.Message := 'Sync command preview generated.';
+  // Always build the plan in dry-run mode for a preview, regardless of the
+  // profile's own DryRunByDefault - previewing must never touch the remote.
+  Result := RunSync(Profile, Entry, True, CommandLine);
+  if Result.Success then
+    Result.Message := 'Sync preview generated.';
 end;
 
 function TSyncService.ExecuteProfileForVHost(const ProfileName, ServerName: string;
@@ -406,13 +353,9 @@ function TSyncService.ExecuteProfileForVHost(const ProfileName, ServerName: stri
 var
   Profile: TSyncProfile;
   Entry: TVHostEntry;
-  ExecutablePath: string;
-  Arguments: string;
-  WorkingDirectory: string;
-  Output: string;
+  Summary: string;
   HookOutput: string;
-  PreCommand: string;
-  PostCommand: string;
+  PreCommand, PostCommand, WorkingDirectory, ErrorMessage, LocalPath: string;
 begin
   if not TryGetProfile(ProfileName, Profile) then
   begin
@@ -420,54 +363,55 @@ begin
     Result.Message := 'Sync profile not found: ' + ProfileName;
     Exit;
   end;
-  if not TryGetVHostEntry(ServerName, Entry) then
+  Entry.ServerName := '';
+  if (ServerName <> '') and not TryGetVHostEntry(ServerName, Entry) then
   begin
     Result.Success := False;
     Result.Message := 'Project not found: ' + ServerName;
     Exit;
   end;
 
-  Result := BuildArguments(Profile, Entry, UseDryRun, ExecutablePath, Arguments, WorkingDirectory);
-  if not Result.Success then
-    Exit;
-
-  PreCommand := ApplyVHostTokens(Profile.PreSyncCommand, Entry);
-  PostCommand := ApplyVHostTokens(Profile.PostSyncCommand, Entry);
-
-  if Trim(PreCommand) <> '' then
-    if not ExecuteHookCommand(PreCommand, WorkingDirectory, HookOutput) then
+  if not UseDryRun and (Entry.ServerName <> '') then
+  begin
+    if not ResolveLocalAndWorkingDir(Profile, Entry, LocalPath, WorkingDirectory, ErrorMessage) then
     begin
-      if Trim(HookOutput) <> '' then
-        Result.Message := 'Pre-sync command failed: ' + Trim(HookOutput)
-      else
-        Result.Message := 'Pre-sync command failed.';
+      Result.Success := False;
+      Result.Message := ErrorMessage;
       Exit;
     end;
-
-  if not TProcessManager.RunAndCaptureOutput(ExecutablePath, Arguments, WorkingDirectory, Output, 0) then
-  begin
-    if Trim(Output) <> '' then
-      Result.Message := Trim(Output)
-    else
-      Result.Message := 'Sync process failed.';
-    Exit;
+    PreCommand := ApplyVHostTokens(Profile.PreSyncCommand, Entry);
+    if Trim(PreCommand) <> '' then
+      if not ExecuteHookCommand(PreCommand, WorkingDirectory, HookOutput) then
+      begin
+        Result.Success := False;
+        if Trim(HookOutput) <> '' then
+          Result.Message := 'Pre-sync command failed: ' + Trim(HookOutput)
+        else
+          Result.Message := 'Pre-sync command failed.';
+        Exit;
+      end;
   end;
 
-  if Trim(PostCommand) <> '' then
-    if not ExecuteHookCommand(PostCommand, WorkingDirectory, HookOutput) then
-    begin
-      if Trim(HookOutput) <> '' then
-        Result.Message := 'Post-sync command failed: ' + Trim(HookOutput)
-      else
-        Result.Message := 'Post-sync command failed.';
-      Exit;
-    end;
+  Result := RunSync(Profile, Entry, UseDryRun, Summary);
+  if not Result.Success then
+    Exit;
+  if UseDryRun then
+    Exit;
 
-  Result.Success := True;
-  if Trim(Output) <> '' then
-    Result.Message := Trim(Output)
-  else
-    Result.Message := 'Sync completed.';
+  if Entry.ServerName <> '' then
+  begin
+    PostCommand := ApplyVHostTokens(Profile.PostSyncCommand, Entry);
+    if Trim(PostCommand) <> '' then
+      if not ExecuteHookCommand(PostCommand, WorkingDirectory, HookOutput) then
+      begin
+        Result.Success := False;
+        if Trim(HookOutput) <> '' then
+          Result.Message := 'Post-sync command failed: ' + Trim(HookOutput)
+        else
+          Result.Message := 'Post-sync command failed.';
+        Exit;
+      end;
+  end;
 end;
 
 end.

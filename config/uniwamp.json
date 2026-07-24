@@ -197,13 +197,18 @@
   "syncProfiles": [
     {
       "name": "site-upload-sftp",
-      "backend": "rclone",
+      "connectionProfileName": "",
+      "protocol": "sftp",
       "direction": "upload",
-      "executablePath": "",
+      "host": "",
+      "port": 22,
+      "username": "",
+      "privateKeyFile": "",
+      "passiveMode": true,
+      "ignoreCertErrors": false,
       "defaultTestVHost": "vittixcms",
       "preSyncCommand": "",
       "postSyncCommand": "",
-      "remoteName": "myserver",
       "remotePath": "\/var\/www\/vittixcms",
       "localPath": "D:\\ketan\\github\\uniwamp\\{projectRoot}",
       "workingDirectory": "D:\\ketan\\github\\uniwamp\\{projectRoot}",
@@ -217,13 +222,18 @@
     },
     {
       "name": "rebex-ftp-test",
-      "backend": "rclone",
+      "connectionProfileName": "",
+      "protocol": "sftp",
       "direction": "upload",
-      "executablePath": "",
+      "host": "",
+      "port": 22,
+      "username": "",
+      "privateKeyFile": "",
+      "passiveMode": true,
+      "ignoreCertErrors": false,
       "defaultTestVHost": "vittixcms",
       "preSyncCommand": "",
       "postSyncCommand": "",
-      "remoteName": "rebexftp",
       "remotePath": "\/",
       "localPath": "D:\\ketan\\github\\uniwamp\\{projectRoot}",
       "workingDirectory": "D:\\ketan\\github\\uniwamp\\{projectRoot}",
@@ -234,6 +244,28 @@
         "node_modules\/**",
         ".env"
       ]
+    }
+  ],
+  "connectionProfiles": [
+    {
+      "name": "site-upload-sftp",
+      "protocol": "sftp",
+      "host": "",
+      "port": 22,
+      "username": "",
+      "privateKeyFile": "",
+      "passiveMode": true,
+      "ignoreCertErrors": false
+    },
+    {
+      "name": "rebex-ftp-test",
+      "protocol": "sftp",
+      "host": "",
+      "port": 22,
+      "username": "",
+      "privateKeyFile": "",
+      "passiveMode": true,
+      "ignoreCertErrors": false
     }
   ]
 }

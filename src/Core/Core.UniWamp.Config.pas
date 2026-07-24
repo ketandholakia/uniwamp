@@ -24,15 +24,31 @@ type
     Directory: string;
   end;
 
+  TConnectionProfile = record
+    Name: string;
+    Protocol: string;          // 'ftp' | 'ftps' | 'sftp'
+    Host: string;
+    Port: Integer;
+    Username: string;
+    PrivateKeyFile: string;    // sftp only; empty = password auth
+    PassiveMode: Boolean;      // ftp/ftps only
+    IgnoreCertErrors: Boolean; // ftps only
+  end;
+
   TSyncProfile = record
     Name: string;
-    Backend: string;
-    Direction: string;
-    ExecutablePath: string;
+    ConnectionProfileName: string;
+    Protocol: string;          // 'ftp' | 'ftps' | 'sftp'
+    Direction: string;         // 'upload' | 'download'
+    Host: string;
+    Port: Integer;
+    Username: string;
+    PrivateKeyFile: string;    // sftp only; empty = password auth
+    PassiveMode: Boolean;      // ftp/ftps only
+    IgnoreCertErrors: Boolean; // ftps only
     DefaultTestVHost: string;
     PreSyncCommand: string;
     PostSyncCommand: string;
-    RemoteName: string;
     RemotePath: string;
     LocalPath: string;
     WorkingDirectory: string;
@@ -40,6 +56,9 @@ type
     DryRunByDefault: Boolean;
     Excludes: TArray<string>;
   end;
+  // NOTE: Password and (for sftp) the private-key passphrase are never stored
+  // in this record or in uniwamp.json. They are persisted separately, DPAPI-encrypted,
+  // via Core.UniWamp.Secrets (SaveSyncSecret/LoadSyncSecret), keyed by profile Name.
 
   TUniWampConfig = class
   private
@@ -49,6 +68,7 @@ type
     FPhpExtensions: TList<string>;
     FPhpSettings: TDictionary<string, string>;
     FNodeVersions: TList<string>;
+    FConnectionProfiles: TList<TConnectionProfile>;
     FSyncProfiles: TList<TSyncProfile>;
   public
     HttpPort: Integer;
@@ -91,6 +111,10 @@ type
     procedure SetPhpSettingValue(const Name, Value: string);
     procedure ReplaceNodeVersions(const Versions: TArray<string>);
     function NodeVersions: TArray<string>;
+    function ConnectionProfiles: TArray<TConnectionProfile>;
+    procedure ReplaceConnectionProfiles(const Items: TArray<TConnectionProfile>);
+    procedure AddOrUpdateConnectionProfile(const Item: TConnectionProfile);
+    procedure DeleteConnectionProfile(const Name: string);
     function SyncProfiles: TArray<TSyncProfile>;
     procedure ReplaceSyncProfiles(const Items: TArray<TSyncProfile>);
     procedure AddOrUpdateSyncProfile(const Item: TSyncProfile);
@@ -246,16 +270,25 @@ var
 begin
   Result := Profile;
   Result.Name := Trim(Profile.Name);
-  Result.Backend := LowerCase(Trim(Profile.Backend));
+  Result.ConnectionProfileName := Trim(Profile.ConnectionProfileName);
+  Result.Protocol := LowerCase(Trim(Profile.Protocol));
   Result.Direction := LowerCase(Trim(Profile.Direction));
-  Result.ExecutablePath := Trim(Profile.ExecutablePath);
+  Result.Host := Trim(Profile.Host);
+  Result.Username := Trim(Profile.Username);
+  Result.PrivateKeyFile := Trim(Profile.PrivateKeyFile);
   Result.DefaultTestVHost := Trim(Profile.DefaultTestVHost);
   Result.PreSyncCommand := Trim(Profile.PreSyncCommand);
   Result.PostSyncCommand := Trim(Profile.PostSyncCommand);
-  Result.RemoteName := Trim(Profile.RemoteName);
   Result.RemotePath := Trim(Profile.RemotePath);
   Result.LocalPath := Trim(Profile.LocalPath);
   Result.WorkingDirectory := Trim(Profile.WorkingDirectory);
+  if Result.Port <= 0 then
+  begin
+    if Result.Protocol = 'sftp' then
+      Result.Port := 22
+    else
+      Result.Port := 21;
+  end;
 
   NormalizedExcludes := TList<string>.Create;
   try
@@ -271,6 +304,23 @@ begin
   end;
 end;
 
+function NormalizeConnectionProfile(const Profile: TConnectionProfile): TConnectionProfile;
+begin
+  Result := Profile;
+  Result.Name := Trim(Profile.Name);
+  Result.Protocol := LowerCase(Trim(Profile.Protocol));
+  Result.Host := Trim(Profile.Host);
+  Result.Username := Trim(Profile.Username);
+  Result.PrivateKeyFile := Trim(Profile.PrivateKeyFile);
+  if Result.Port <= 0 then
+  begin
+    if Result.Protocol = 'sftp' then
+      Result.Port := 22
+    else
+      Result.Port := 21;
+  end;
+end;
+
 constructor TUniWampConfig.Create;
 begin
   inherited Create;
@@ -280,11 +330,13 @@ begin
   FPhpExtensions := TList<string>.Create;
   FPhpSettings := TDictionary<string, string>.Create;
   FNodeVersions := TList<string>.Create;
+  FConnectionProfiles := TList<TConnectionProfile>.Create;
   FSyncProfiles := TList<TSyncProfile>.Create;
 end;
 
 destructor TUniWampConfig.Destroy;
 begin
+  FConnectionProfiles.Free;
   FSyncProfiles.Free;
   FNodeVersions.Free;
   FPhpSettings.Free;
@@ -368,6 +420,7 @@ begin
   MariaDbRootPassword := '';
   ThemeStyleName := '';
   FVHosts.Clear;
+  FConnectionProfiles.Clear;
   FSyncProfiles.Clear;
   FApacheModules.Clear;
   for Item in DefaultApacheModules do
@@ -403,10 +456,12 @@ var
   PhpSettingsObject: TJSONObject;
   VHostArray: TJSONArray;
   SyncProfilesArray: TJSONArray;
+  ConnectionProfilesArray: TJSONArray;
   ExcludesArray: TJSONArray;
   I: Integer;
   J: Integer;
   Entry: TVHostEntry;
+  ConnectionProfile: TConnectionProfile;
   SyncProfile: TSyncProfile;
   Obj: TJSONObject;
   OldAppRoot: string;
@@ -541,13 +596,21 @@ begin
         if not Assigned(Obj) then
           Continue;
         SyncProfile.Name := ReadStringOrDefault(Obj, 'name', '');
-        SyncProfile.Backend := ReadStringOrDefault(Obj, 'backend', 'rclone');
+        SyncProfile.ConnectionProfileName := ReadStringOrDefault(Obj, 'connectionProfileName',
+          ReadStringOrDefault(Obj, 'connectionProfile', ''));
+        SyncProfile.Protocol := ReadStringOrDefault(Obj, 'protocol', LowerCase(ReadStringOrDefault(Obj, 'backend', 'sftp')));
+        if not ((SyncProfile.Protocol = 'ftp') or (SyncProfile.Protocol = 'ftps') or (SyncProfile.Protocol = 'sftp')) then
+          SyncProfile.Protocol := 'sftp';
         SyncProfile.Direction := ReadStringOrDefault(Obj, 'direction', 'upload');
-        SyncProfile.ExecutablePath := ReadStringOrDefault(Obj, 'executablePath', '');
+        SyncProfile.Host := ReadStringOrDefault(Obj, 'host', '');
+        SyncProfile.Port := StrToIntDef(ReadStringOrDefault(Obj, 'port', '0'), 0);
+        SyncProfile.Username := ReadStringOrDefault(Obj, 'username', '');
+        SyncProfile.PrivateKeyFile := ReadStringOrDefault(Obj, 'privateKeyFile', '');
+        SyncProfile.PassiveMode := ReadBooleanOrDefault(Obj, 'passiveMode', True);
+        SyncProfile.IgnoreCertErrors := ReadBooleanOrDefault(Obj, 'ignoreCertErrors', False);
         SyncProfile.DefaultTestVHost := ReadStringOrDefault(Obj, 'defaultTestVHost', '');
         SyncProfile.PreSyncCommand := ReadStringOrDefault(Obj, 'preSyncCommand', '');
         SyncProfile.PostSyncCommand := ReadStringOrDefault(Obj, 'postSyncCommand', '');
-        SyncProfile.RemoteName := ReadStringOrDefault(Obj, 'remoteName', '');
         SyncProfile.RemotePath := ReadStringOrDefault(Obj, 'remotePath', '');
         SyncProfile.LocalPath := ReadStringOrDefault(Obj, 'localPath', '');
         SyncProfile.WorkingDirectory := ReadStringOrDefault(Obj, 'workingDirectory', '');
@@ -564,6 +627,44 @@ begin
         SyncProfile := NormalizeSyncProfile(SyncProfile);
         if SyncProfile.Name <> '' then
           FSyncProfiles.Add(SyncProfile);
+      end;
+
+    FConnectionProfiles.Clear;
+    ConnectionProfilesArray := ReadArrayOrNil(Root, 'connectionProfiles');
+    if Assigned(ConnectionProfilesArray) then
+      for I := 0 to ConnectionProfilesArray.Count - 1 do
+      begin
+        Obj := ConnectionProfilesArray.Items[I] as TJSONObject;
+        if not Assigned(Obj) then
+          Continue;
+        ConnectionProfile := Default(TConnectionProfile);
+        ConnectionProfile.Name := ReadStringOrDefault(Obj, 'name', '');
+        ConnectionProfile.Protocol := ReadStringOrDefault(Obj, 'protocol', 'sftp');
+        ConnectionProfile.Host := ReadStringOrDefault(Obj, 'host', '');
+        ConnectionProfile.Port := StrToIntDef(ReadStringOrDefault(Obj, 'port', '0'), 0);
+        ConnectionProfile.Username := ReadStringOrDefault(Obj, 'username', '');
+        ConnectionProfile.PrivateKeyFile := ReadStringOrDefault(Obj, 'privateKeyFile', '');
+        ConnectionProfile.PassiveMode := ReadBooleanOrDefault(Obj, 'passiveMode', True);
+        ConnectionProfile.IgnoreCertErrors := ReadBooleanOrDefault(Obj, 'ignoreCertErrors', False);
+        ConnectionProfile := NormalizeConnectionProfile(ConnectionProfile);
+        if ConnectionProfile.Name <> '' then
+          FConnectionProfiles.Add(ConnectionProfile);
+      end
+    else
+      for SyncProfile in FSyncProfiles do
+      begin
+        ConnectionProfile := Default(TConnectionProfile);
+        ConnectionProfile.Name := SyncProfile.Name;
+        ConnectionProfile.Protocol := SyncProfile.Protocol;
+        ConnectionProfile.Host := SyncProfile.Host;
+        ConnectionProfile.Port := SyncProfile.Port;
+        ConnectionProfile.Username := SyncProfile.Username;
+        ConnectionProfile.PrivateKeyFile := SyncProfile.PrivateKeyFile;
+        ConnectionProfile.PassiveMode := SyncProfile.PassiveMode;
+        ConnectionProfile.IgnoreCertErrors := SyncProfile.IgnoreCertErrors;
+        ConnectionProfile := NormalizeConnectionProfile(ConnectionProfile);
+        if ConnectionProfile.Name <> '' then
+          FConnectionProfiles.Add(ConnectionProfile);
       end;
 
     Migrated := False;
@@ -659,13 +760,6 @@ begin
       if (SyncProfile.WorkingDirectory <> '') and not TPath.IsPathRooted(SyncProfile.WorkingDirectory) then
       begin
         SyncProfile.WorkingDirectory := ResolveConfiguredPath(SyncProfile.WorkingDirectory, Paths.AppRoot);
-        Inc(MigratedCount);
-        Migrated := True;
-      end;
-      if (SyncProfile.ExecutablePath <> '') and not TPath.IsPathRooted(SyncProfile.ExecutablePath) and
-        (Pos('\', SyncProfile.ExecutablePath) > 0) then
-      begin
-        SyncProfile.ExecutablePath := ResolveConfiguredPath(SyncProfile.ExecutablePath, Paths.AppRoot);
         Inc(MigratedCount);
         Migrated := True;
       end;
@@ -775,15 +869,6 @@ begin
           Migrated := True;
         end;
 
-        OriginalValue := SyncProfile.ExecutablePath;
-        UpdatedValue := ReplacePathPrefix(SyncProfile.ExecutablePath, OldAppRoot, Paths.AppRoot);
-        if not SameText(NormalizePortablePath(OriginalValue), NormalizePortablePath(UpdatedValue)) then
-        begin
-          SyncProfile.ExecutablePath := UpdatedValue;
-          Inc(MigratedCount);
-          Migrated := True;
-        end;
-
         FSyncProfiles[I] := NormalizeSyncProfile(SyncProfile);
       end;
 
@@ -826,10 +911,12 @@ var
   PhpSettingsObject: TJSONObject;
   VHostArray: TJSONArray;
   SyncProfilesArray: TJSONArray;
+  ConnectionProfilesArray: TJSONArray;
   ExcludesArray: TJSONArray;
   Item: string;
   ExcludePattern: string;
   Entry: TVHostEntry;
+  ConnectionProfile: TConnectionProfile;
   SyncProfile: TSyncProfile;
   Obj: TJSONObject;
   JsonText: string;
@@ -904,13 +991,18 @@ begin
     begin
       Obj := TJSONObject.Create;
       Obj.AddPair('name', SyncProfile.Name);
-      Obj.AddPair('backend', SyncProfile.Backend);
+      Obj.AddPair('connectionProfileName', SyncProfile.ConnectionProfileName);
+      Obj.AddPair('protocol', SyncProfile.Protocol);
       Obj.AddPair('direction', SyncProfile.Direction);
-      Obj.AddPair('executablePath', SyncProfile.ExecutablePath);
+      Obj.AddPair('host', SyncProfile.Host);
+      Obj.AddPair('port', TJSONNumber.Create(SyncProfile.Port));
+      Obj.AddPair('username', SyncProfile.Username);
+      Obj.AddPair('privateKeyFile', SyncProfile.PrivateKeyFile);
+      Obj.AddPair('passiveMode', TJSONBool.Create(SyncProfile.PassiveMode));
+      Obj.AddPair('ignoreCertErrors', TJSONBool.Create(SyncProfile.IgnoreCertErrors));
       Obj.AddPair('defaultTestVHost', SyncProfile.DefaultTestVHost);
       Obj.AddPair('preSyncCommand', SyncProfile.PreSyncCommand);
       Obj.AddPair('postSyncCommand', SyncProfile.PostSyncCommand);
-      Obj.AddPair('remoteName', SyncProfile.RemoteName);
       Obj.AddPair('remotePath', SyncProfile.RemotePath);
       Obj.AddPair('localPath', SyncProfile.LocalPath);
       Obj.AddPair('workingDirectory', SyncProfile.WorkingDirectory);
@@ -923,6 +1015,22 @@ begin
       SyncProfilesArray.Add(Obj);
     end;
     Root.AddPair('syncProfiles', SyncProfilesArray);
+
+    ConnectionProfilesArray := TJSONArray.Create;
+    for ConnectionProfile in FConnectionProfiles do
+    begin
+      Obj := TJSONObject.Create;
+      Obj.AddPair('name', ConnectionProfile.Name);
+      Obj.AddPair('protocol', ConnectionProfile.Protocol);
+      Obj.AddPair('host', ConnectionProfile.Host);
+      Obj.AddPair('port', TJSONNumber.Create(ConnectionProfile.Port));
+      Obj.AddPair('username', ConnectionProfile.Username);
+      Obj.AddPair('privateKeyFile', ConnectionProfile.PrivateKeyFile);
+      Obj.AddPair('passiveMode', TJSONBool.Create(ConnectionProfile.PassiveMode));
+      Obj.AddPair('ignoreCertErrors', TJSONBool.Create(ConnectionProfile.IgnoreCertErrors));
+      ConnectionProfilesArray.Add(Obj);
+    end;
+    Root.AddPair('connectionProfiles', ConnectionProfilesArray);
 
     JsonText := Root.Format(2);
     TempFile := Paths.AppConfigFile + '.tmp';
@@ -1008,6 +1116,51 @@ end;
 function TUniWampConfig.NodeVersions: TArray<string>;
 begin
   Result := FNodeVersions.ToArray;
+end;
+
+function TUniWampConfig.ConnectionProfiles: TArray<TConnectionProfile>;
+begin
+  Result := FConnectionProfiles.ToArray;
+end;
+
+procedure TUniWampConfig.ReplaceConnectionProfiles(const Items: TArray<TConnectionProfile>);
+var
+  Item: TConnectionProfile;
+  Profile: TConnectionProfile;
+begin
+  FConnectionProfiles.Clear;
+  for Item in Items do
+  begin
+    Profile := NormalizeConnectionProfile(Item);
+    if Profile.Name <> '' then
+      FConnectionProfiles.Add(Profile);
+  end;
+end;
+
+procedure TUniWampConfig.AddOrUpdateConnectionProfile(const Item: TConnectionProfile);
+var
+  I: Integer;
+  Profile: TConnectionProfile;
+begin
+  Profile := NormalizeConnectionProfile(Item);
+  if Profile.Name = '' then
+    Exit;
+  for I := 0 to FConnectionProfiles.Count - 1 do
+    if SameText(FConnectionProfiles[I].Name, Profile.Name) then
+    begin
+      FConnectionProfiles[I] := Profile;
+      Exit;
+    end;
+  FConnectionProfiles.Add(Profile);
+end;
+
+procedure TUniWampConfig.DeleteConnectionProfile(const Name: string);
+var
+  I: Integer;
+begin
+  for I := FConnectionProfiles.Count - 1 downto 0 do
+    if SameText(FConnectionProfiles[I].Name, Name) then
+      FConnectionProfiles.Delete(I);
 end;
 
 function TUniWampConfig.SyncProfiles: TArray<TSyncProfile>;

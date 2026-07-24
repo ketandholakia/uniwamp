@@ -10,6 +10,18 @@ function SaveMariaDbRootPassword(const Paths: TAppPaths; const Password: string;
 function DeleteMariaDbRootPassword(const Paths: TAppPaths; out ErrorMessage: string): Boolean;
 function HasMariaDbRootPassword(const Paths: TAppPaths): Boolean;
 
+// Generic keyed secret store (DPAPI, per-Windows-user, bound to this app install).
+// Used for sync profile passwords and SFTP private-key passphrases.
+// Key examples: 'sync:MyProfile:password', 'sync:MyProfile:keypassphrase'.
+function LoadSecret(const Paths: TAppPaths; const Key: string): string;
+function SaveSecret(const Paths: TAppPaths; const Key, Value: string; out ErrorMessage: string): Boolean;
+function DeleteSecret(const Paths: TAppPaths; const Key: string; out ErrorMessage: string): Boolean;
+function HasSecret(const Paths: TAppPaths; const Key: string): Boolean;
+
+function SyncPasswordKey(const ProfileName: string): string;
+function SyncKeyPassphraseKey(const ProfileName: string): string;
+procedure DeleteAllSyncSecrets(const Paths: TAppPaths; const ProfileName: string);
+
 implementation
 
 uses
@@ -43,13 +55,17 @@ begin
   Result := TPath.Combine(LocalAppData, 'UniWamp\secrets');
 end;
 
-function SecretFileName(const Paths: TAppPaths): string;
+function SecretFileName(const Paths: TAppPaths; const Key: string = ''): string;
 var
   RootHash: string;
 begin
   if Trim(Paths.AppRoot) = '' then
     Exit('');
-  RootHash := THashSHA2.GetHashString(LowerCase(ExpandFileName(Paths.AppRoot)));
+  // Key = '' preserves the original hash formula (legacy MariaDB secret file).
+  if Key = '' then
+    RootHash := THashSHA2.GetHashString(LowerCase(ExpandFileName(Paths.AppRoot)))
+  else
+    RootHash := THashSHA2.GetHashString(LowerCase(ExpandFileName(Paths.AppRoot)) + '|' + LowerCase(Key));
   Result := TPath.Combine(SecretDirectory, RootHash + '.dat');
 end;
 
@@ -176,6 +192,97 @@ end;
 function HasMariaDbRootPassword(const Paths: TAppPaths): Boolean;
 begin
   Result := LoadMariaDbRootPassword(Paths) <> '';
+end;
+
+function LoadSecret(const Paths: TAppPaths; const Key: string): string;
+var
+  FileName: string;
+  ProtectedBytes: TBytesArray;
+begin
+  Result := '';
+  FileName := SecretFileName(Paths, Key);
+  if (FileName = '') or not FileExists(FileName) then
+    Exit;
+  try
+    ProtectedBytes := TFile.ReadAllBytes(FileName);
+    if not UnprotectBytes(ProtectedBytes, Result) then
+      Result := '';
+  except
+    Result := '';
+  end;
+end;
+
+function SaveSecret(const Paths: TAppPaths; const Key, Value: string; out ErrorMessage: string): Boolean;
+var
+  FileName: string;
+  ProtectedBytes: TBytesArray;
+begin
+  Result := False;
+  ErrorMessage := '';
+  if Value = '' then
+    Exit(DeleteSecret(Paths, Key, ErrorMessage));
+  if not ProtectBytes(Value, ProtectedBytes) then
+  begin
+    ErrorMessage := 'Secret could not be protected.';
+    Exit;
+  end;
+  FileName := SecretFileName(Paths, Key);
+  if FileName = '' then
+  begin
+    ErrorMessage := 'Secret file path is unavailable.';
+    Exit;
+  end;
+  try
+    EnsureDirectory(SecretDirectory);
+    TFile.WriteAllBytes(FileName, ProtectedBytes);
+    Result := True;
+  except
+    on E: Exception do
+      ErrorMessage := 'Secret could not be written: ' + E.Message;
+  end;
+end;
+
+function DeleteSecret(const Paths: TAppPaths; const Key: string; out ErrorMessage: string): Boolean;
+var
+  FileName: string;
+begin
+  Result := True;
+  ErrorMessage := '';
+  FileName := SecretFileName(Paths, Key);
+  if (FileName = '') or not FileExists(FileName) then
+    Exit;
+  try
+    TFile.Delete(FileName);
+  except
+    on E: Exception do
+    begin
+      Result := False;
+      ErrorMessage := 'Secret could not be deleted: ' + E.Message;
+    end;
+  end;
+end;
+
+function HasSecret(const Paths: TAppPaths; const Key: string): Boolean;
+begin
+  Result := LoadSecret(Paths, Key) <> '';
+end;
+
+function SyncPasswordKey(const ProfileName: string): string;
+begin
+  Result := 'sync:' + LowerCase(Trim(ProfileName)) + ':password';
+end;
+
+function SyncKeyPassphraseKey(const ProfileName: string): string;
+begin
+  Result := 'sync:' + LowerCase(Trim(ProfileName)) + ':keypassphrase';
+end;
+
+procedure DeleteAllSyncSecrets(const Paths: TAppPaths; const ProfileName: string);
+var
+  ErrorMessage: string;
+begin
+  DeleteSecret(Paths, SyncPasswordKey(ProfileName), ErrorMessage);
+  DeleteSecret(Paths, SyncKeyPassphraseKey(ProfileName), ErrorMessage);
 end;
 
 end.

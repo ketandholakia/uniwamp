@@ -27,6 +27,8 @@ uses
   Vcl.Themes,
   Ui.UniWamp.AboutForm,
   Ui.UniWamp.AppSettingsForm,
+  Ui.UniWamp.ConnectionProfilesForm,
+  Ui.UniWamp.SyncProfilesForm,
   Ui.UniWamp.ScriptManagerForm,
   Core.UniWamp.Config,
   Core.UniWamp.Diagnostics,
@@ -294,6 +296,7 @@ type
     function SaveUiIntoState: Boolean;
     procedure AppendStatus(const Text: string);
     procedure RefreshStatus;
+    procedure SetStatusRefreshEnabled(const AEnabled: Boolean);
     procedure UpdateHeaderStateColors;
     procedure UpdateHeaderStatusCards;
     procedure UpdateServiceButtonState;
@@ -357,6 +360,8 @@ type
     procedure OpenPhpExtensionsClick(Sender: TObject);
     procedure OpenPhpSettingsClick(Sender: TObject);
     procedure OpenAppSettingsClick(Sender: TObject);
+    procedure OpenConnectionProfilesClick(Sender: TObject);
+    procedure OpenSyncProfilesClick(Sender: TObject);
     procedure OpenApacheModulesClick(Sender: TObject);
     procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure VHostEmptyLabelClick(Sender: TObject);
@@ -2165,6 +2170,7 @@ begin
   LoadStateIntoUi;
   LayoutDashboard;
   RefreshStatus;
+  SetStatusRefreshEnabled(True);
   OnCloseQuery := FormCloseQuery;
 end;
 
@@ -2235,6 +2241,9 @@ var
   GridWidth: Integer;
   AvailableGridColumns: Integer;
 begin
+  if not Assigned(HeaderPanel) or not Assigned(VHostGrid) then
+    Exit;
+
   HeaderPanel.Height := 86;
 
   GridWidth := VHostGrid.ClientWidth;
@@ -2450,6 +2459,10 @@ begin
   FMainStartAllOnLaunchItem.AutoCheck := True;
   Item := AddItem(MenuItem, 'Application &Settings', OpenAppSettingsClick);
   Item.ShortCut := ShortCut(Ord('S'), [ssCtrl, ssAlt]);
+  Item := AddItem(MenuItem, 'Connection &Profiles', OpenConnectionProfilesClick);
+  Item.ShortCut := ShortCut(Ord('C'), [ssCtrl, ssAlt]);
+  Item := AddItem(MenuItem, 'Sync &Profiles', OpenSyncProfilesClick);
+  Item.ShortCut := ShortCut(Ord('Y'), [ssCtrl, ssAlt]);
   FMainExitItem := AddItem(MenuItem, 'E&xit', ExitButtonClick);
 
   MenuItem := AddItem(FMainMenu.Items, '&Apache');
@@ -2601,6 +2614,10 @@ begin
   FTrayStartAllOnLaunchItem.AutoCheck := True;
   Item := AddItem(FTrayMenu.Items, 'Application &Settings', OpenAppSettingsClick);
   ApplyMenuIcon(Item, 'settings');
+  Item := AddItem(FTrayMenu.Items, 'Connection &Profiles', OpenConnectionProfilesClick);
+  ApplyMenuIcon(Item, 'dns');
+  Item := AddItem(FTrayMenu.Items, 'Sync &Profiles', OpenSyncProfilesClick);
+  ApplyMenuIcon(Item, 'sync');
   Item := AddItem(FTrayMenu.Items, '&Generate SSL', GenerateSslClick);
   ApplyMenuIcon(Item, 'lock');
   Item.ShortCut := ShortCut(Ord('G'), [ssCtrl, ssShift]);
@@ -2906,7 +2923,7 @@ begin
   if FStatusRefreshBusy then
     Exit;
   FStatusRefreshBusy := True;
-  FStatusRefreshTimer.Enabled := False;
+  SetStatusRefreshEnabled(False);
   try
   ApacheRunningBefore := FConfig.ApacheRunning;
   ApachePidBefore := FConfig.ApachePid;
@@ -2934,9 +2951,15 @@ begin
      (MariaDbPidBefore <> FConfig.MariaDbPid) then
     FConfig.Save(FPaths);
   finally
-    FStatusRefreshTimer.Enabled := True;
+    SetStatusRefreshEnabled(True);
     FStatusRefreshBusy := False;
   end;
+end;
+
+procedure TMainForm.SetStatusRefreshEnabled(const AEnabled: Boolean);
+begin
+  if Assigned(FStatusRefreshTimer) then
+    FStatusRefreshTimer.Enabled := AEnabled;
 end;
 
 procedure TMainForm.UpdatePortConflictLabels;
@@ -2945,7 +2968,7 @@ var
   OwnerInfo: string;
   CaptionText: string;
 begin
-  if not Assigned(FHttpPortOwnerLabel) then
+  if not Assigned(FHttpPortOwnerLabel) or not Assigned(FHttpsPortOwnerLabel) or not Assigned(FDbPortOwnerLabel) then
     Exit;
 
   Port := StrToIntDef(Trim(HttpPortEdit.Text), FConfig.HttpPort);
@@ -3011,6 +3034,9 @@ var
   HeaderColor: TColor;
   I: Integer;
 begin
+  if not Assigned(HeaderPanel) or not Assigned(Label18) or not Assigned(Label19) or not Assigned(exitbutton) then
+    Exit;
+
   if FConfig.ApacheRunning or FConfig.MariaDbRunning then
     HeaderColor := HeaderOnlineColor
   else
@@ -3039,6 +3065,14 @@ var
   PhpText: string;
   MariaText: string;
 begin
+  if (not Assigned(FHeaderCards[0].Panel)) or (not Assigned(FHeaderCards[0].Dot)) or (not Assigned(FHeaderCards[0].Title)) or
+     (not Assigned(FHeaderCards[0].Detail1)) or (not Assigned(FHeaderCards[0].Detail2)) or
+     (not Assigned(FHeaderCards[1].Panel)) or (not Assigned(FHeaderCards[1].Dot)) or (not Assigned(FHeaderCards[1].Title)) or
+     (not Assigned(FHeaderCards[1].Detail1)) or (not Assigned(FHeaderCards[1].Detail2)) or
+     (not Assigned(FHeaderCards[2].Panel)) or (not Assigned(FHeaderCards[2].Dot)) or (not Assigned(FHeaderCards[2].Title)) or
+     (not Assigned(FHeaderCards[2].Detail1)) or (not Assigned(FHeaderCards[2].Detail2)) then
+    Exit;
+
   if FConfig.ApacheRunning then
   begin
     FHeaderCards[0].Dot.Brush.Color := RGB(180, 225, 48);
@@ -3078,6 +3112,10 @@ end;
 
 procedure TMainForm.UpdateServiceButtonState;
 begin
+  if not Assigned(ApacheStartButton) or not Assigned(ApacheStopButton) or not Assigned(ApacheRestartButton) or
+     not Assigned(MariaStartButton) or not Assigned(MariaStopButton) or not Assigned(MariaRestartButton) then
+    Exit;
+
   ApacheStartButton.Enabled := not FConfig.ApacheRunning;
   ApacheStopButton.Enabled := FConfig.ApacheRunning;
   ApacheRestartButton.Enabled := FConfig.ApacheRunning;
@@ -3143,6 +3181,9 @@ var
   AllRunning: Boolean;
   AnyRunning: Boolean;
 begin
+  if not Assigned(StartAllButton) or not Assigned(StopAllButton) or not Assigned(exitbutton) then
+    Exit;
+
   AllRunning := FConfig.ApacheRunning and FConfig.MariaDbRunning;
   AnyRunning := FConfig.ApacheRunning or FConfig.MariaDbRunning;
 
@@ -3179,6 +3220,12 @@ procedure TMainForm.UpdateVHostActionState;
 var
   HasSelection: Boolean;
 begin
+  if not Assigned(AddVHostButton) or not Assigned(OpenVHostButton) or not Assigned(OpenVHostFolderButton) or
+     not Assigned(BackupProjectButton) or not Assigned(RestoreProjectButton) or not Assigned(CopyVHostUrlButton) or
+     not Assigned(DeleteVHostButton) or not Assigned(BackupDatabaseButton) or not Assigned(RestoreDatabaseButton) or
+     not Assigned(VHostGrid) then
+    Exit;
+
   HasSelection := SelectedVHostServerName <> '';
   AddVHostButton.Enabled := True;
   OpenVHostButton.Enabled := FConfig.ApacheRunning and HasSelection;
@@ -3279,6 +3326,9 @@ var
   MenuItem: TMenuItem;
   AutoStartEnabled: Boolean;
 begin
+  if not Assigned(FMainMenu) then
+    Exit;
+
   AutoStartEnabled := IsAutoStartEnabled;
 
   if Assigned(FMainWindowToggleItem) then
@@ -4235,7 +4285,7 @@ end;
 
 procedure TMainForm.ApacheStopClick(Sender: TObject);
 begin
-  FStatusRefreshTimer.Enabled := False;
+  SetStatusRefreshEnabled(False);
   ApacheStartButton.Enabled := False;
   ApacheStopButton.Enabled := False;
   ApacheRestartButton.Enabled := False;
@@ -4253,7 +4303,7 @@ begin
             FConfig.Save(FPaths);
             RefreshStatus;
           finally
-            FStatusRefreshTimer.Enabled := True;
+            SetStatusRefreshEnabled(True);
             ApacheStartButton.Enabled := True;
             ApacheStopButton.Enabled := True;
             ApacheRestartButton.Enabled := True;
@@ -4303,14 +4353,14 @@ procedure TMainForm.MariaDbStopClick(Sender: TObject);
 var
   ResultInfo: TRuntimeActionResult;
 begin
-  FStatusRefreshTimer.Enabled := False;
+  SetStatusRefreshEnabled(False);
   try
   ResultInfo := FRuntime.StopMariaDb;
   AppendStatus(ResultInfo.Message);
   FConfig.Save(FPaths);
   RefreshStatus;
   finally
-    FStatusRefreshTimer.Enabled := True;
+    SetStatusRefreshEnabled(True);
   end;
 end;
 
@@ -4386,13 +4436,13 @@ end;
 
 procedure TMainForm.StopButtonClick(Sender: TObject);
 begin
-  FStatusRefreshTimer.Enabled := False;
+  SetStatusRefreshEnabled(False);
   RefreshStatus;
 
   if (not FConfig.ApacheRunning) and (not FConfig.MariaDbRunning) then
   begin
     AppendStatus('All services are already stopped.');
-    FStatusRefreshTimer.Enabled := True;
+    SetStatusRefreshEnabled(True);
     Exit;
   end;
 
@@ -4435,7 +4485,7 @@ begin
           AppendStatus('Stop all completed.');
           FConfig.Save(FPaths);
           RefreshStatus;
-          FStatusRefreshTimer.Enabled := True;
+          SetStatusRefreshEnabled(True);
         end));
     end).Start;
 end;
@@ -4527,6 +4577,26 @@ begin
     LoadStateIntoUi;
     RefreshStatus;
     AppendStatus('Application settings saved.');
+  end;
+end;
+
+procedure TMainForm.OpenConnectionProfilesClick(Sender: TObject);
+begin
+  if TConnectionProfilesForm.Execute(Self, FPaths, FConfig) then
+  begin
+    LoadStateIntoUi;
+    RefreshStatus;
+    AppendStatus('Connection profiles saved.');
+  end;
+end;
+
+procedure TMainForm.OpenSyncProfilesClick(Sender: TObject);
+begin
+  if TSyncProfilesForm.Execute(Self, FPaths, FConfig, FRuntime) then
+  begin
+    LoadStateIntoUi;
+    RefreshStatus;
+    AppendStatus('Sync profiles saved.');
   end;
 end;
 
@@ -5296,11 +5366,11 @@ end;
 
 procedure TMainForm.FormCloseQuery(Sender: TObject; var CanClose: Boolean);
 begin
-  FStatusRefreshTimer.Enabled := False;
+  SetStatusRefreshEnabled(False);
   if not SaveUiIntoState then
   begin
     CanClose := False;
-    FStatusRefreshTimer.Enabled := True;
+    SetStatusRefreshEnabled(True);
     Exit;
   end;
   try
@@ -5310,7 +5380,7 @@ begin
     if not CanClose then
       ShowMessage('Unable to stop all services cleanly. The application will remain open.');
   finally
-    FStatusRefreshTimer.Enabled := True;
+    SetStatusRefreshEnabled(True);
   end;
 end;
 
