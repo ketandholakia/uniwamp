@@ -207,7 +207,7 @@ begin
   HeaderTitle.Height := 23;
 
   HeaderHint := AddLabel(HeaderPanel, 18, 42,
-    'Manage FTP, FTPS, and SFTP connection details. Passwords and key passphrases stay in the Windows secret store.', 760);
+    'Manage FTP, FTPS, and SFTP connection details. SFTP in this build uses OpenSSH with ssh-agent or an unencrypted key. Passwords and key passphrases stay in the Windows secret store.', 760);
   HeaderHint.Font.Size := 9;
   HeaderHint.Font.Color := HeaderSubTextColor;
   HeaderHint.Font.Style := [];

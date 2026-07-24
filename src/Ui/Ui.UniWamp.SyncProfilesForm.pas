@@ -265,7 +265,7 @@ begin
   HeaderTitle.ParentFont := False;
 
   HeaderHint := AddLabel(HeaderPanel, 18, 42,
-    'Manage FTP, FTPS, and SFTP profiles for the native sync engine. Connection profiles are managed separately.', 0);
+    'Manage FTP, FTPS, and SFTP profiles for the native sync engine. SFTP in this build uses OpenSSH with ssh-agent or an unencrypted key. Connection profiles are managed separately.', 0);
   HeaderHint.Font.Size := 10;
   HeaderHint.Font.Color := HeaderSubTextColor;
   HeaderHint.Font.Style := [];
