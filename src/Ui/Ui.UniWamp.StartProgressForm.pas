@@ -29,6 +29,7 @@ type
     FConfig: TUniWampConfig;
     FPaths: TAppPaths;
     FExecuted: Boolean;
+    FStarting: Boolean;
     FResultInfo: TRuntimeActionResult;
     HeaderPanel: TPanel;
     StatusPanel: TPanel;
@@ -38,6 +39,7 @@ type
     procedure AppendActivityLog(const Text: string);
     procedure AppendMariaDbFailureDetails;
     procedure FormShow(Sender: TObject);
+    procedure FormCloseQuery(Sender: TObject; var CanClose: Boolean);
     procedure RunStartup;
     procedure WmRunStartup(var Message: TMessage); message WM_RUN_STARTUP;
   public
@@ -103,6 +105,7 @@ begin
   DetailsMemo.WordWrap := True;
 
   OnShow := FormShow;
+  OnCloseQuery := FormCloseQuery;
 end;
 
 class function TStartProgressForm.ExecuteStart(AOwner: TComponent;
@@ -179,6 +182,14 @@ begin
   PostMessage(Handle, WM_RUN_STARTUP, 0, 0);
 end;
 
+procedure TStartProgressForm.FormCloseQuery(Sender: TObject; var CanClose: Boolean);
+begin
+  CanClose := not FStarting;
+  if not CanClose then
+    MessageDlg('Please wait for MariaDB startup to finish before closing this window.',
+      mtInformation, [mbOK], 0);
+end;
+
 procedure TStartProgressForm.WmRunStartup(var Message: TMessage);
 begin
   RunStartup;
@@ -188,6 +199,7 @@ procedure TStartProgressForm.RunStartup;
 var
   StartupThread: TThread;
 begin
+  FStarting := True;
   FResultInfo.Success := False;
   FResultInfo.Message := 'MariaDB startup failed.';
   ProgressBar.Position := 15;
@@ -211,12 +223,13 @@ begin
           end);
         ResultInfo := FRuntime.StartMariaDb;
         FResultInfo := ResultInfo;
-        TThread.Synchronize(nil,
+          TThread.Synchronize(nil,
           procedure
           begin
             ProgressBar.Position := 85;
             AddMessage(FResultInfo.Message);
             AppendActivityLog('Startup: ' + FResultInfo.Message);
+            FStarting := False;
             if FResultInfo.Success then
             begin
               AddMessage('MariaDB startup completed.');
@@ -237,15 +250,16 @@ begin
           FResultInfo.Success := False;
           FResultInfo.Message := E.Message;
           TThread.Synchronize(nil,
-            procedure
-            begin
-              AddMessage('MariaDB startup failed.');
-              AddMessage(FResultInfo.Message);
-              AppendMariaDbFailureDetails;
-              AppendActivityLog('Startup: ' + FResultInfo.Message);
-              ProgressBar.Position := ProgressBar.Max div 2;
-              ModalResult := mrCancel;
-            end);
+          procedure
+          begin
+            AddMessage('MariaDB startup failed.');
+            AddMessage(FResultInfo.Message);
+            AppendMariaDbFailureDetails;
+            AppendActivityLog('Startup: ' + FResultInfo.Message);
+            ProgressBar.Position := ProgressBar.Max div 2;
+            FStarting := False;
+            ModalResult := mrCancel;
+          end);
         end;
       end;
     end);
