@@ -2875,7 +2875,8 @@ begin
   GenerateSslButton.Enabled := False;
   StartAllButton.Enabled := False;
   StopAllButton.Enabled := False;
-  Application.ProcessMessages;
+  if not FIsShuttingDown and not Application.Terminated then
+    Application.ProcessMessages;
 end;
 
 procedure TMainForm.HideBusyState(const StatusText: string);
@@ -2888,12 +2889,14 @@ begin
   // Re-evaluate button states
   UpdateStackActionState;
   UpdateVHostActionState;
-  Application.ProcessMessages;
+  if not FIsShuttingDown and not Application.Terminated then
+    Application.ProcessMessages;
 end;
 
 procedure TMainForm.QueueUiUpdate(const Action: TProc);
 begin
-  if FIsShuttingDown or Application.Terminated or (csDestroying in ComponentState) then
+  if FIsShuttingDown or Application.Terminated or (csDestroying in ComponentState) or
+    not Assigned(FUiUpdateQueueThread) then
     Exit;
   TThread.Queue(FUiUpdateQueueThread, TThreadProcedure(
     procedure
@@ -3009,7 +3012,8 @@ var
   MariaDbRunningBefore: Boolean;
   MariaDbPidBefore: Cardinal;
 begin
-  if FStatusRefreshBusy then
+  if FIsShuttingDown or Application.Terminated or (csDestroying in ComponentState) or
+    FStatusRefreshBusy then
     Exit;
   FStatusRefreshBusy := True;
   SetStatusRefreshEnabled(False);
@@ -3581,7 +3585,8 @@ end;
 
 procedure TMainForm.StatusRefreshTimer(Sender: TObject);
 begin
-  if FStatusRefreshBusy then
+  if FIsShuttingDown or Application.Terminated or (csDestroying in ComponentState) or
+    FStatusRefreshBusy then
     Exit;
   RefreshStatus;
 end;
@@ -5457,6 +5462,8 @@ procedure TMainForm.FormCloseQuery(Sender: TObject; var CanClose: Boolean);
 begin
   FIsShuttingDown := True;
   SetStatusRefreshEnabled(False);
+  if Assigned(FUiUpdateQueueThread) then
+    TThread.RemoveQueuedEvents(FUiUpdateQueueThread);
   if not SaveUiIntoState then
   begin
     CanClose := False;
