@@ -62,7 +62,6 @@ begin
     end;
     Result := TrimRight(Lines.Text);
   finally
-    AtomicWriteTextFile(FPaths.EnvBatFile, Lines.Text, TEncoding.ASCII);
     Lines.Free;
   end;
 end;
