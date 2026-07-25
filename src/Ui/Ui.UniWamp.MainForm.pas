@@ -2760,6 +2760,7 @@ var
   VHosts: TArray<TVHostEntry>;
   FilterText: string;
   RowIndex: Integer;
+  TargetRowCount: Integer;
   ProjectTypeText: string;
 begin
   HostNameEdit.Text := FConfig.HostName;
@@ -2807,10 +2808,10 @@ begin
   VHostGrid.BeginUpdate;
   try
     VHostGrid.FixedRows := 1;
-    VHostGrid.RowCount := 1;
-    VHostGrid.RowCount := Length(VHosts) + 1;
-    if VHostGrid.RowCount < 2 then
-      VHostGrid.RowCount := 2;
+    TargetRowCount := Length(VHosts) + 1;
+    if TargetRowCount < 2 then
+      TargetRowCount := 2;
+    VHostGrid.RowCount := TargetRowCount;
     VHostGrid.Cells[0, 0] := 'Site Name';
     VHostGrid.Cells[1, 0] := 'Document Path';
     VHostGrid.Cells[2, 0] := 'Type';
