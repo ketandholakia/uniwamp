@@ -25,7 +25,6 @@ type
     function PsftpClientPath: string;
     function SshKeyScanPath: string;
     function SshKeyGenPath: string;
-    function BootstrapPsftp(out ErrorMessage: string): Boolean;
     function BuildOpenSshArguments(const BatchFileName: string): string;
     function BuildPsftpArguments(const BatchFileName, PasswordFileName,
       HostKeyFingerprint: string): string;
@@ -65,8 +64,6 @@ uses
   System.IOUtils,
   System.StrUtils,
   System.Generics.Collections,
-  System.Net.HttpClient,
-  System.Net.URLClient,
   Core.UniWamp.ProcessManager,
   Core.UniWamp.Paths;
 
@@ -112,13 +109,9 @@ var
   Buffer: array[0..MAX_PATH * 2 - 1] of Char;
   FilePart: PChar;
   BufferSize: DWORD;
-  ErrorMessage: string;
 begin
   Result := BundledPsftpPath;
   if TFile.Exists(Result) then
-    Exit;
-
-  if BootstrapPsftp(ErrorMessage) and TFile.Exists(Result) then
     Exit;
 
   BufferSize := SearchPath(nil, 'psftp.exe', nil, Length(Buffer), Buffer, FilePart);
@@ -128,7 +121,8 @@ begin
     Exit;
   end;
 
-  raise ESyncTransportError.Create('SFTP password authentication requires PuTTY PSFTP. ' + ErrorMessage);
+  raise ESyncTransportError.Create(
+    'SFTP password authentication requires PuTTY PSFTP in runtime\\tools\\putty or on PATH.');
 end;
 
 function TSftpTransport.SshKeyScanPath: string;
@@ -149,62 +143,6 @@ begin
   if not TFile.Exists(Result) then
     raise ESyncTransportError.Create(
       'SFTP host-key discovery requires Windows OpenSSH ssh-keygen.exe.');
-end;
-
-function TSftpTransport.BootstrapPsftp(out ErrorMessage: string): Boolean;
-const
-  PsftpDownloadUrl = 'https://the.earth.li/~sgtatham/putty/latest/w64/psftp.exe';
-var
-  Client: THTTPClient;
-  Stream: TFileStream;
-  Response: IHTTPResponse;
-  TargetFile: string;
-begin
-  Result := False;
-  ErrorMessage := 'Place psftp.exe in runtime\tools\putty or on PATH.';
-  TargetFile := BundledPsftpPath;
-  Client := THTTPClient.Create;
-  try
-    try
-      Client.ConnectionTimeout := 15000;
-      Client.ResponseTimeout := 120000;
-      EnsureDirectory(TPath.GetDirectoryName(TargetFile));
-      Stream := TFileStream.Create(TargetFile, fmCreate or fmShareDenyWrite);
-      try
-        Response := Client.Get(PsftpDownloadUrl, Stream);
-      finally
-        Stream.Free;
-      end;
-      if (Response.StatusCode = 200) and TFile.Exists(TargetFile) then
-      begin
-        Stream := TFileStream.Create(TargetFile, fmOpenRead or fmShareDenyNone);
-        try
-          if Stream.Size > 0 then
-          begin
-            ErrorMessage := '';
-            Exit(True);
-          end;
-        finally
-          Stream.Free;
-        end;
-      end;
-      if FileExists(TargetFile) then
-        TFile.Delete(TargetFile);
-      ErrorMessage := Format(
-        'Automatic PuTTY PSFTP download failed with HTTP %d %s. Place psftp.exe in runtime\tools\putty or on PATH.',
-        [Response.StatusCode, Response.StatusText]);
-    except
-      on E: Exception do
-      begin
-        if FileExists(TargetFile) then
-          TFile.Delete(TargetFile);
-        ErrorMessage := 'Automatic PuTTY PSFTP download failed: ' + E.Message +
-          '. Place psftp.exe in runtime\tools\putty or on PATH.';
-      end;
-    end;
-  finally
-    Client.Free;
-  end;
 end;
 
 function TSftpTransport.Destination: string;
