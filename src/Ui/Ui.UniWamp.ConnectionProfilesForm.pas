@@ -56,6 +56,8 @@ type
     function CurrentSelectedProfile(out Profile: TConnectionProfile): Boolean;
     function ReadProfileFromEditor(out Profile: TConnectionProfile; out ErrorMessage: string): Boolean;
     function ValidateProfiles(out ErrorMessage: string): Boolean;
+    function ValidateProfilesWithCandidate(const Candidate: TConnectionProfile; const ReplaceIndex: Integer;
+      out ErrorMessage: string): Boolean;
     function ProfileDisplayName(const Profile: TConnectionProfile): string;
     function ConnectionProfileToJson(const Profile: TConnectionProfile): TJSONObject;
     function TryReadConnectionProfilesFromJson(const FileName: string; out Profiles: TArray<TConnectionProfile>;
@@ -521,6 +523,55 @@ begin
   end;
 end;
 
+function TConnectionProfilesForm.ValidateProfilesWithCandidate(const Candidate: TConnectionProfile;
+  const ReplaceIndex: Integer; out ErrorMessage: string): Boolean;
+var
+  Seen: TList<string>;
+  I: Integer;
+  Profile: TConnectionProfile;
+begin
+  Result := False;
+  ErrorMessage := '';
+  Seen := TList<string>.Create;
+  try
+    for I := 0 to FProfiles.Count - 1 do
+    begin
+      if I = ReplaceIndex then
+        Profile := Candidate
+      else
+        Profile := FProfiles[I];
+      if Trim(Profile.Name) = '' then
+      begin
+        ErrorMessage := 'Connection profile names cannot be blank.';
+        Exit;
+      end;
+      if Seen.Contains(UpperCase(Profile.Name)) then
+      begin
+        ErrorMessage := 'Duplicate connection profile name: ' + Profile.Name;
+        Exit;
+      end;
+      Seen.Add(UpperCase(Profile.Name));
+    end;
+    if ReplaceIndex < 0 then
+    begin
+      Profile := Candidate;
+      if Trim(Profile.Name) = '' then
+      begin
+        ErrorMessage := 'Connection profile names cannot be blank.';
+        Exit;
+      end;
+      if Seen.Contains(UpperCase(Profile.Name)) then
+      begin
+        ErrorMessage := 'Duplicate connection profile name: ' + Profile.Name;
+        Exit;
+      end;
+    end;
+    Result := True;
+  finally
+    Seen.Free;
+  end;
+end;
+
 function TConnectionProfilesForm.ConnectionProfileToJson(const Profile: TConnectionProfile): TJSONObject;
 begin
   Result := TJSONObject.Create;
@@ -875,6 +926,12 @@ begin
     SetStatus(TColor($002E7D32), 'Connection test succeeded for ' + Profile.Host + '.');
     MessageDlg('Connection test succeeded for ' + Profile.Host + '.', mtInformation, [mbOK], 0);
   end;
+  if not ResultOk then
+  begin
+    Output := 'Connection test did not confirm access to the remote directory.';
+    SetStatus(clRed, Output);
+    MessageDlg(Output, mtError, [mbOK], 0);
+  end;
 end;
 
 procedure TConnectionProfilesForm.BrowsePrivateKeyClicked(Sender: TObject);
@@ -921,7 +978,7 @@ begin
       SetStatus(clRed, ErrorMessage);
     Exit;
   end;
-  if not ValidateProfiles(ErrorMessage) then
+  if not ValidateProfilesWithCandidate(Profile, CurrentProfileIndex, ErrorMessage) then
   begin
     SetStatus(clRed, ErrorMessage);
     Exit;
@@ -931,7 +988,15 @@ begin
   begin
     ExistingProfile := FProfiles[Index];
     if SameText(ExistingProfile.Name, Profile.Name) then
-      FProfiles[Index] := Profile
+    begin
+      PersistCurrentSecrets(Profile, ExistingProfile.Name, ErrorMessage);
+      if ErrorMessage <> '' then
+      begin
+        SetStatus(clRed, ErrorMessage);
+        Exit;
+      end;
+      FProfiles[Index] := Profile;
+    end
     else
     begin
       PersistCurrentSecrets(Profile, ExistingProfile.Name, ErrorMessage);
@@ -941,11 +1006,19 @@ begin
         Exit;
       end;
       FProfiles[Index] := Profile;
-      FLoadedProfileName := Profile.Name;
     end;
   end
   else
+  begin
+    PersistCurrentSecrets(Profile, '', ErrorMessage);
+    if ErrorMessage <> '' then
+    begin
+      SetStatus(clRed, ErrorMessage);
+      Exit;
+    end;
     FProfiles.Add(Profile);
+  end;
+  FLoadedProfileName := Profile.Name;
   if Index < 0 then
     FCurrentProfileIndex := FProfiles.Count - 1;
   RefreshProfileList;

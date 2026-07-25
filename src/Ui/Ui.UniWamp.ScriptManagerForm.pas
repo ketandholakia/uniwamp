@@ -304,7 +304,7 @@ begin
   Result := False;
   if CmsChecked and ContainsText(CategoryLower, 'cms') then
     Result := True;
-  if EcommerceChecked and ContainsText(CategoryLower, 'e-commerce') then
+  if EcommerceChecked and IsEcommerceCategory(Item.Category) then
     Result := True;
 end;
 
@@ -801,12 +801,14 @@ begin
       NeedsDatabase: Boolean;
       Step: TScriptStep;
       InstallSucceeded: Boolean;
+      InstallAborted: Boolean;
       VHostDocumentRoot: string;
       RelativeDocumentRoot: string;
       ApacheWasRunning: Boolean;
       RestartInfo: TRuntimeActionResult;
     begin
       InstallSucceeded := False;
+      InstallAborted := False;
       FPendingCompletionMessage := '';
       FPendingCompletionOutput := '';
       FPendingCompletionSuccess := False;
@@ -854,10 +856,10 @@ begin
           if ExecutionResult.Success then
           begin
             AppendOutput(ExecutionResult.Message);
-              ReloadConfig := TUniWampConfig.Create;
-              try
-                ReloadConfig.LoadOrCreate(FPaths);
-                VHostManager := TServiceLocator.Instance.GetService<IVHostManager>;
+            ReloadConfig := TUniWampConfig.Create;
+            try
+              ReloadConfig.LoadOrCreate(FPaths);
+              VHostManager := TServiceLocator.Instance.GetService<IVHostManager>;
               VHostDocumentRoot := ResolveProjectDocumentRoot(ProjectPath, RelativeDocumentRoot);
               VHostResult := VHostManager.AddVHost(ProjectName, VHostDocumentRoot, '', False);
               AppendOutput(VHostResult.Message);
@@ -865,40 +867,46 @@ begin
               begin
                 FPendingCompletionMessage := 'VHost registration failed: ' + VHostResult.Message;
                 FPendingCompletionOutput := VHostResult.Message;
-                Exit;
-              end;
-              VHostEntry.ServerName := ProjectName;
-              VHostEntry.ServerAliases := '';
-              VHostEntry.DocumentRoot := VHostDocumentRoot;
-              VHostEntry.EnableSsl := False;
-              VHostEntry.SslCertFile := '';
-              VHostEntry.SslKeyFile := '';
-              ReloadConfig.AddOrUpdateVHost(VHostEntry);
-              ReloadConfig.Save(FPaths);
-              if ApacheWasRunning then
+                InstallAborted := True;
+              end
+              else
               begin
-                AppendOutput('Restarting Apache to load the new virtual host...');
-                RestartInfo := Runtime.RestartApache;
-                AppendOutput(RestartInfo.Message);
-                if not RestartInfo.Success then
+                VHostEntry.ServerName := ProjectName;
+                VHostEntry.ServerAliases := '';
+                VHostEntry.DocumentRoot := VHostDocumentRoot;
+                VHostEntry.EnableSsl := False;
+                VHostEntry.SslCertFile := '';
+                VHostEntry.SslKeyFile := '';
+                ReloadConfig.AddOrUpdateVHost(VHostEntry);
+                ReloadConfig.Save(FPaths);
+                if ApacheWasRunning then
                 begin
-                  FPendingCompletionMessage := 'Apache restart failed: ' + RestartInfo.Message;
-                  FPendingCompletionOutput := RestartInfo.Message;
-                  Exit;
+                  AppendOutput('Restarting Apache to load the new virtual host...');
+                  RestartInfo := Runtime.RestartApache;
+                  AppendOutput(RestartInfo.Message);
+                  if not RestartInfo.Success then
+                  begin
+                    FPendingCompletionMessage := 'Apache restart failed: ' + RestartInfo.Message;
+                    FPendingCompletionOutput := RestartInfo.Message;
+                    InstallAborted := True;
+                  end;
+                end;
+                if not InstallAborted then
+                begin
+                  AppendOutput('Open the site at: ' + Format('http://%s:%d/',
+                    [ProjectName, ReloadConfig.HttpPort]));
+                  if RelativeDocumentRoot <> '' then
+                    AppendOutput('Document root set to /' + RelativeDocumentRoot + ' for this framework.');
+                  if CreateDatabase and (Trim(Item.AdminPath) <> '') then
+                    AppendOutput('Admin login: ' + Format('http://%s:%d%s',
+                      [ProjectName, ReloadConfig.HttpPort, Item.AdminPath]));
+                  if CreateDatabase and (Trim(Item.PostInstallNotes) <> '') then
+                    AppendOutput(Item.PostInstallNotes);
+                  FPendingCompletionMessage := ExecutionResult.Message;
+                  FPendingCompletionSuccess := True;
+                  InstallSucceeded := True;
                 end;
               end;
-              AppendOutput('Open the site at: ' + Format('http://%s:%d/',
-                [ProjectName, ReloadConfig.HttpPort]));
-              if RelativeDocumentRoot <> '' then
-                AppendOutput('Document root set to /' + RelativeDocumentRoot + ' for this framework.');
-              if CreateDatabase and (Trim(Item.AdminPath) <> '') then
-                AppendOutput('Admin login: ' + Format('http://%s:%d%s',
-                  [ProjectName, ReloadConfig.HttpPort, Item.AdminPath]));
-              if CreateDatabase and (Trim(Item.PostInstallNotes) <> '') then
-                AppendOutput(Item.PostInstallNotes);
-              FPendingCompletionMessage := ExecutionResult.Message;
-              FPendingCompletionSuccess := True;
-              InstallSucceeded := True;
             finally
               ReloadConfig.Free;
             end;
