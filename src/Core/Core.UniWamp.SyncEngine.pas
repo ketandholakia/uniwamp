@@ -57,6 +57,9 @@ type
 
 implementation
 
+uses
+  Core.UniWamp.AtomicFile;
+
 type
   TProgressContext = record
     OnProgress: TSyncEngineProgressEvent;
@@ -319,6 +322,7 @@ class function TSyncEngine.ExecutePlan(const Transport: ISyncTransport; const Pl
   const OnProgress: TSyncEngineProgressEvent): TSyncExecutionResult;
 var
   Item: TSyncPlanItem;
+  TempLocalPath: string;
 
   procedure Log(const Text: string);
   begin
@@ -359,12 +363,19 @@ begin
             Log('download ' + Item.RelativePath + Format(' (%d bytes)', [Item.Size]));
             if not DryRun then
             begin
+              TempLocalPath := Item.LocalPath + '.' + GUIDToString(TGUID.NewGuid) + '.part';
               TDirectory.CreateDirectory(ExtractFilePath(Item.LocalPath));
-              GProgressContext.OnProgress := OnProgress;
-              GProgressContext.RelativePath := Item.RelativePath;
-              Transport.DownloadFile(Item.RemotePath, Item.LocalPath, ForwardProgress);
-              Inc(Result.FilesTransferred);
-              Inc(Result.BytesTransferred, Item.Size);
+              try
+                GProgressContext.OnProgress := OnProgress;
+                GProgressContext.RelativePath := Item.RelativePath;
+                Transport.DownloadFile(Item.RemotePath, TempLocalPath, ForwardProgress);
+                AtomicReplaceFile(TempLocalPath, Item.LocalPath);
+                Inc(Result.FilesTransferred);
+                Inc(Result.BytesTransferred, Item.Size);
+              finally
+                if FileExists(TempLocalPath) then
+                  TFile.Delete(TempLocalPath);
+              end;
             end;
           end;
         spiDeleteRemote:

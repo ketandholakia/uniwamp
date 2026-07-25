@@ -9,6 +9,7 @@ uses
   Test.UniWamp.ProcessManager in 'Test.UniWamp.ProcessManager.pas',
   Test.UniWamp.ConfigGenerator in 'Test.UniWamp.ConfigGenerator.pas',
   Test.UniWamp.FtpTransport in 'Test.UniWamp.FtpTransport.pas',
+  Test.UniWamp.SyncEngine in 'Test.UniWamp.SyncEngine.pas',
   Test.UniWamp.MariaDbAuth in 'Test.UniWamp.MariaDbAuth.pas';
 
 var
