@@ -12,6 +12,7 @@ function CreateMariaDbPasswordSqlFile(const Paths: TAppPaths; const Password: st
   out FileName, ErrorMessage: string): Boolean;
 procedure DeleteMariaDbDefaultsExtraFile(const FileName: string);
 function PrependDefaultsExtraFileArg(const DefaultsFileName, Arguments: string): string;
+function BuildMariaDbSourceFileArgs(const SqlFileName, DefaultsFileName: string): string;
 
 implementation
 
@@ -107,6 +108,15 @@ begin
     Result := '--defaults-extra-file="' + DefaultsFileName + '"'
   else
     Result := '--defaults-extra-file="' + DefaultsFileName + '" ' + Arguments;
+end;
+
+function BuildMariaDbSourceFileArgs(const SqlFileName, DefaultsFileName: string): string;
+var
+  NormalizedSqlFileName: string;
+begin
+  NormalizedSqlFileName := StringReplace(SqlFileName, '"', '\"', [rfReplaceAll]);
+  Result := '--batch --raw --execute="source ' + NormalizedSqlFileName + '"';
+  Result := PrependDefaultsExtraFileArg(DefaultsFileName, Result);
 end;
 
 end.

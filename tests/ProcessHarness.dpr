@@ -19,6 +19,7 @@ uses
   Core.UniWamp.TemplateRenderer,
   Core.UniWamp.Runtime,
   Core.UniWamp.ProcessManager,
+  Core.UniWamp.MariaDbAuth,
   Core.UniWamp.Secrets,
   Core.UniWamp.Types,
   Ui.UniWamp.MainForm;
@@ -2935,6 +2936,14 @@ begin
   end;
 end;
 
+procedure TestMariaDbSourceFileArgsUseSqlScriptFile;
+begin
+  AssertTrue(
+    BuildMariaDbSourceFileArgs('C:\temp\mariadb-create-user.sql', 'C:\temp\mariadb-auth.cnf') =
+      '--defaults-extra-file="C:\temp\mariadb-auth.cnf" --batch --raw --execute="source C:\temp\mariadb-create-user.sql"',
+    'MariaDB script execution should reference a SQL file instead of embedding the SQL text in the command line');
+end;
+
 begin
   try
     TestMissingExecutable;
@@ -2992,6 +3001,7 @@ begin
   TestVHostFilterSearchHintDescribesSearchFields;
   TestVHostFilterKeyActionHelperDistinguishesClearAndExit;
   TestMainFormKeyActionHelperHandlesSearchAndTrayMinimize;
+  TestMariaDbSourceFileArgsUseSqlScriptFile;
   TestHeaderSubtitleHintDescribesTheStackOverview;
   TestHeaderCardHintSummarizesStatusAndPorts;
   TestHeaderTitleHintStaysOnBrand;

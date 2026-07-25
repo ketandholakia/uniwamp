@@ -417,6 +417,7 @@ var
   Arguments: string;
   Sql: string;
   UserOutput: string;
+  SqlFileName: string;
   DefaultsFileName: string;
   AuthError: string;
 begin
@@ -441,24 +442,31 @@ begin
     'GRANT ALL PRIVILEGES ON `%2:s`.* TO ''%0:s''@''localhost''; ' +
     'FLUSH PRIVILEGES;', [Username, Password, DatabaseName]);
 
+  SqlFileName := TPath.Combine(FPaths.TmpDir,
+    'mariadb-create-user-' + TGuid.NewGuid.ToString.Replace('{', '').Replace('}', '') + '.sql');
+  TFile.WriteAllText(SqlFileName, Sql, TEncoding.ASCII);
+
   Arguments := '--protocol=tcp --host=127.0.0.1 --port=' + IntToStr(DatabasePort) + ' -uroot';
-  Arguments := Arguments + ' -e "' + Sql + '"';
   DefaultsFileName := '';
   if MariaDbRootPassword <> '' then
   begin
     if not CreateMariaDbDefaultsExtraFile(FPaths, MariaDbRootPassword, DefaultsFileName, AuthError) then
     begin
       Output := Output + 'MariaDB auth setup failed: ' + AuthError;
+      if TFile.Exists(SqlFileName) then
+        TFile.Delete(SqlFileName);
       Exit(False);
     end;
-    Arguments := PrependDefaultsExtraFileArg(DefaultsFileName, Arguments);
   end;
+  Arguments := BuildMariaDbSourceFileArgs(SqlFileName, DefaultsFileName) + ' ' + Arguments;
 
   UserOutput := '';
   try
     Result := TProcessManager.RunAndCaptureOutput(ClientExe, Arguments, FPaths.MariaDbBinDir, UserOutput, 600000);
   finally
     DeleteMariaDbDefaultsExtraFile(DefaultsFileName);
+    if TFile.Exists(SqlFileName) then
+      TFile.Delete(SqlFileName);
   end;
   Output := Output + UserOutput;
   if Result then
