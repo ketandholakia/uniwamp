@@ -61,6 +61,7 @@ type
     FProgressBar: TProgressBar;
     FCreateDatabaseCheck: TCheckBox;
     FInstallLogFile: string;
+    FUiUpdateQueueThread: TThread;
     procedure FormCloseQuery(Sender: TObject; var CanClose: Boolean);
     procedure Populate;
     procedure BindControls;
@@ -144,6 +145,10 @@ begin
   inherited Create(AOwner);
   FPaths := Paths;
   FCatalog := TScriptCatalog.LoadFromFile(TPath.Combine(FPaths.AppRoot, 'scripts\catalog.json'));
+  FUiUpdateQueueThread := TThread.CreateAnonymousThread(
+    procedure
+    begin
+    end);
   OnCloseQuery := FormCloseQuery;
 end;
 
@@ -220,6 +225,8 @@ end;
 
 destructor TScriptManagerForm.Destroy;
 begin
+  TThread.RemoveQueuedEvents(FUiUpdateQueueThread);
+  FUiUpdateQueueThread.Free;
   FCatalog.Free;
   inherited;
 end;
@@ -659,7 +666,11 @@ end;
 procedure TScriptManagerForm.AppendOutput(const Text: string);
 begin
   FPendingOutputText := Text;
-  TThread.Synchronize(nil, SyncAppendOutput);
+  TThread.Queue(FUiUpdateQueueThread,
+    procedure
+    begin
+      SyncAppendOutput;
+    end);
 end;
 
 procedure TScriptManagerForm.WriteInstallLogLine(const Text: string);
@@ -929,7 +940,11 @@ begin
 
       if InstallSucceeded then
         FPendingCompletionOutput := '';
-      TThread.Synchronize(nil, SyncInstallFinished);
+      TThread.Queue(FUiUpdateQueueThread,
+        procedure
+        begin
+          SyncInstallFinished;
+        end);
     end).Start;
 end;
 

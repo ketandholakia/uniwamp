@@ -32,6 +32,7 @@ type
     FExecuted: Boolean;
     FStarting: Boolean;
     FResultInfo: TRuntimeActionResult;
+    FUiUpdateQueueThread: TThread;
     HeaderPanel: TPanel;
     StatusPanel: TPanel;
     DetailsMemo: TMemo;
@@ -49,6 +50,7 @@ type
     procedure WmRunStartup(var Message: TMessage); message WM_RUN_STARTUP;
   public
     constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
     class function ExecuteStart(AOwner: TComponent; Runtime: TUniWampRuntime;
       Config: TUniWampConfig; const Paths: TAppPaths): TRuntimeActionResult; static;
   end;
@@ -109,9 +111,20 @@ begin
   DetailsMemo.ReadOnly := True;
   DetailsMemo.ScrollBars := ssVertical;
   DetailsMemo.WordWrap := True;
+  FUiUpdateQueueThread := TThread.CreateAnonymousThread(
+    procedure
+    begin
+    end);
 
   OnShow := FormShow;
   OnCloseQuery := FormCloseQuery;
+end;
+
+destructor TStartProgressForm.Destroy;
+begin
+  TThread.RemoveQueuedEvents(FUiUpdateQueueThread);
+  FUiUpdateQueueThread.Free;
+  inherited;
 end;
 
 class function TStartProgressForm.ExecuteStart(AOwner: TComponent;
@@ -259,17 +272,33 @@ begin
       ResultInfo: TRuntimeActionResult;
     begin
       try
-        TThread.Synchronize(nil, SyncCheckingMariaDbFiles);
-        TThread.Synchronize(nil, SyncStartingMariaDb);
+        TThread.Queue(FUiUpdateQueueThread,
+          procedure
+          begin
+            SyncCheckingMariaDbFiles;
+          end);
+        TThread.Queue(FUiUpdateQueueThread,
+          procedure
+          begin
+            SyncStartingMariaDb;
+          end);
         ResultInfo := FRuntime.StartMariaDb;
         FResultInfo := ResultInfo;
-        TThread.Synchronize(nil, SyncStartupFinished);
+        TThread.Queue(FUiUpdateQueueThread,
+          procedure
+          begin
+            SyncStartupFinished;
+          end);
       except
         on E: Exception do
         begin
           FResultInfo.Success := False;
           FResultInfo.Message := E.Message;
-          TThread.Synchronize(nil, SyncStartupFailed);
+          TThread.Queue(FUiUpdateQueueThread,
+            procedure
+            begin
+              SyncStartupFailed;
+            end);
         end;
       end;
     end);
