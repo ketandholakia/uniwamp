@@ -133,6 +133,13 @@ Common settings include:
 - connection profiles and sync profiles
 - terminal executable path
 
+Profile model:
+
+- Connection profiles store remote host, transport, and credential details.
+- Sync profiles store the source/destination paths, direction, filters, and hooks.
+- Sync profiles can reuse a named connection profile or keep inline connection fields.
+- See [`docs/SYNC_PROFILES.md`](docs/SYNC_PROFILES.md) for the full profile layout.
+
 Sync note:
 
 - SFTP supports password authentication, `ssh-agent`, and unencrypted private keys.
