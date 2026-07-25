@@ -7,15 +7,12 @@ uses
   System.Hash,
   System.Zip,
   System.SysUtils,
-  System.Win.Registry,
   Core.UniWamp.Config,
-  Core.UniWamp.MariaDbAuth,
   Core.UniWamp.ApacheManager,
   Core.UniWamp.MariaDbManager,
   Core.UniWamp.Types,
   Core.UniWamp.Interfaces,
-  Core.UniWamp.Paths,
-  Core.UniWamp.ServiceSupervisor;
+  Core.UniWamp.Paths;
 
 function ChoosePreferredTerminalExecutable(const CmderPath, WindowsTerminalPath: string): string;
 function DescribeTerminalLaunchMode(const TerminalExecutable: string): string;
@@ -28,15 +25,7 @@ type
     FConfig: TUniWampConfig;
     FApacheManager: IApacheManager;
     FMariaDbManager: IMariaDbManager;
-    function ApacheExe: string;
-    function ApacheRuntimePid: Cardinal;
     function ApacheModuleForSelectedPhp: string;
-    function MariaDbExe: string;
-    function MariaDbInstallDbExe: string;
-    function MysqlAdminExe: string;
-    function MariaDbSystemDatabaseReady(const MysqlDir: string): Boolean;
-    function EnsureMariaDbInitialized(out ErrorMessage: string): Boolean;
-    function WaitForMariaDbStartup(const ProcessId: Cardinal; out ErrorMessage: string): Boolean;
     function ResolvePortablePath(const PathValue: string): string;
     function CmderExe: string;
     function WindowsTerminalExe: string;
@@ -55,20 +44,6 @@ type
     function IsCompatibleNodeVersion(const Version: string): Boolean;
 
     function ServiceStateLabel(const Running: Boolean): string;
-    procedure ApplyApacheState(const State: TServiceProcessState);
-    procedure ApplyMariaDbState(const State: TServiceProcessState);
-    procedure ClearApacheState;
-    procedure ClearMariaDbState;
-    procedure FailApacheStart(const ErrorMessage: string);
-    procedure FailMariaDbStart(const ErrorMessage: string);
-    function HasRequiredApacheVisualCRuntime(out ErrorMessage: string): Boolean;
-    function PushPhpRuntimeToPath(const PhpDir: string; out OldPath: string): Boolean;
-    procedure RestorePath(const OldPath: string);
-
-    function ValidateApachePorts(out ErrorMessage: string): Boolean;
-    function ValidateApacheConfiguration(out ErrorMessage: string): Boolean;
-    function WaitForApacheStartup(const ProcessId: Cardinal; out ErrorMessage: string): Boolean;
-    function ValidateMariaDbPorts(out ErrorMessage: string): Boolean;
   public
     constructor Create(const Paths: TAppPaths; Config: TUniWampConfig);
     destructor Destroy; override;
@@ -262,19 +237,6 @@ begin
   inherited Destroy;
 end;
 
-function TUniWampRuntime.ApacheExe: string;
-begin
-  Result := TPath.Combine(FPaths.ApacheBinDir, 'httpd.exe');
-end;
-
-function TUniWampRuntime.ApacheRuntimePid: Cardinal;
-begin
-  Result := TServiceProcessSupervisor.ResolveOwnedProcess(
-    FConfig.ApachePid,
-    ApacheExe,
-    TPath.Combine(FPaths.LogsDir, 'httpd.pid')).ProcessId;
-end;
-
 function TUniWampRuntime.ApacheIsRunning: Boolean;
 begin
   Result := FApacheManager.IsRunning;
@@ -285,157 +247,9 @@ begin
   Result := FApacheManager.ProcessId;
 end;
 
-function TUniWampRuntime.HasRequiredApacheVisualCRuntime(out ErrorMessage: string): Boolean;
-var
-  Registry: TRegistry;
-  Installed: Integer;
-  SystemRoot: string;
-  RuntimeDll: string;
-  VersionText: string;
-begin
-  ErrorMessage := '';
-  VersionText := '';
-
-  if SameText(Trim(GetEnvironmentVariable('UNIWAMP_FORCE_MISSING_VC_RUNTIME')), '1') then
-  begin
-    ErrorMessage := 'Microsoft Visual C++ Redistributable 2015-2022 (x64) is required for Apache 2.4.68 (Apache Lounge VS18). Install or repair the latest vc_redist.x64, then restart UniWamp.';
-    Exit(False);
-  end;
-
-  Registry := TRegistry.Create(KEY_READ or KEY_WOW64_64KEY);
-  try
-    Registry.RootKey := HKEY_LOCAL_MACHINE;
-    if Registry.OpenKeyReadOnly('SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64') then
-    try
-      if Registry.ValueExists('Version') then
-        VersionText := Trim(Registry.ReadString('Version'));
-      if Registry.ValueExists('Installed') then
-      begin
-        Installed := Registry.ReadInteger('Installed');
-        if Installed = 1 then
-          Exit(True);
-      end;
-    finally
-      Registry.CloseKey;
-    end;
-  finally
-    Registry.Free;
-  end;
-
-  SystemRoot := GetEnvironmentVariable('SystemRoot');
-  if SystemRoot <> '' then
-  begin
-    RuntimeDll := TPath.Combine(TPath.Combine(SystemRoot, 'System32'), 'vcruntime140.dll');
-    if FileExists(RuntimeDll) then
-      Exit(True);
-  end;
-
-  ErrorMessage := 'Microsoft Visual C++ Redistributable 2015-2022 (x64) is required for Apache 2.4.68 (Apache Lounge VS18). Install or repair the latest vc_redist.x64, then restart UniWamp.';
-  if VersionText <> '' then
-    ErrorMessage := ErrorMessage + ' Detected registry version: ' + VersionText + '.';
-  Result := False;
-end;
-
-function TUniWampRuntime.PushPhpRuntimeToPath(const PhpDir: string; out OldPath: string): Boolean;
-var
-  NewPath: string;
-begin
-  OldPath := GetEnvironmentVariable('PATH');
-  Result := Trim(PhpDir) <> '';
-  if not Result then
-    Exit;
-
-  NewPath := PhpDir;
-  if DirectoryExists(TPath.Combine(PhpDir, 'ext')) then
-    NewPath := NewPath + ';' + TPath.Combine(PhpDir, 'ext');
-  if Trim(OldPath) <> '' then
-    NewPath := NewPath + ';' + OldPath;
-  Result := SetEnvironmentVariable('PATH', PChar(NewPath));
-end;
-
-procedure TUniWampRuntime.RestorePath(const OldPath: string);
-begin
-  SetEnvironmentVariable('PATH', PChar(OldPath));
-end;
-
-function TUniWampRuntime.MariaDbExe: string;
-begin
-  Result := TPath.Combine(FPaths.MariaDbBinDir, 'mariadbd.exe');
-end;
-
-function TUniWampRuntime.MariaDbInstallDbExe: string;
-begin
-  Result := TPath.Combine(FPaths.MariaDbBinDir, 'mariadb-install-db.exe');
-  if not FileExists(Result) then
-    Result := TPath.Combine(FPaths.MariaDbBinDir, 'mysql_install_db.exe');
-end;
-
-function TUniWampRuntime.MariaDbSystemDatabaseReady(const MysqlDir: string): Boolean;
-const
-  RequiredSystemFiles: array[0..5] of string = (
-    'db.frm',
-    'db.MAD',
-    'db.MAI',
-    'user.frm',
-    'servers.frm',
-    'global_priv.frm'
-  );
-var
-  I: Integer;
-begin
-  Result := DirectoryExists(MysqlDir);
-  if not Result then
-    Exit;
-
-  for I := Low(RequiredSystemFiles) to High(RequiredSystemFiles) do
-    if not FileExists(TPath.Combine(MysqlDir, RequiredSystemFiles[I])) then
-      Exit(False);
-end;
-
 function TUniWampRuntime.MariaDbIsRunning: Boolean;
 begin
   Result := FMariaDbManager.IsRunning;
-end;
-
-function TUniWampRuntime.MysqlAdminExe: string;
-begin
-  Result := TPath.Combine(FPaths.MariaDbBinDir, 'mysqladmin.exe');
-end;
-
-procedure TUniWampRuntime.ApplyApacheState(const State: TServiceProcessState);
-begin
-  FConfig.ApachePid := State.ProcessId;
-  FConfig.ApacheRunning := State.Running;
-end;
-
-procedure TUniWampRuntime.ApplyMariaDbState(const State: TServiceProcessState);
-begin
-  FConfig.MariaDbPid := State.ProcessId;
-  FConfig.MariaDbRunning := State.Running;
-end;
-
-procedure TUniWampRuntime.ClearApacheState;
-begin
-  FConfig.ApachePid := 0;
-  FConfig.ApacheRunning := False;
-end;
-
-procedure TUniWampRuntime.ClearMariaDbState;
-begin
-  FConfig.MariaDbPid := 0;
-  FConfig.MariaDbRunning := False;
-end;
-
-procedure TUniWampRuntime.FailApacheStart(const ErrorMessage: string);
-begin
-  ClearApacheState;
-  FConfig.LastApacheError := ErrorMessage;
-end;
-
-procedure TUniWampRuntime.FailMariaDbStart(const ErrorMessage: string);
-begin
-  ClearMariaDbState;
-  FConfig.LastMariaDbError := ErrorMessage;
 end;
 
 function TUniWampRuntime.ResolvePortablePath(const PathValue: string): string;
@@ -1097,262 +911,6 @@ begin
       end;
   end;
 end;
-
-function TUniWampRuntime.ValidateApachePorts(out ErrorMessage: string): Boolean;
-var
-  ApacheRunningNow: Boolean;
-  OwnerInfo: string;
-begin
-  Result := True;
-  ErrorMessage := '';
-  ApacheRunningNow := ApacheIsRunning or FConfig.ApacheRunning;
-  if not IsTcpPortAvailable(FConfig.HttpPort) and not ApacheRunningNow then
-  begin
-    Result := False;
-    OwnerInfo := DescribeTcpPortOwner(FConfig.HttpPort);
-    if OwnerInfo <> '' then
-      ErrorMessage := Format('HTTP port %d is already in use by %s.', [FConfig.HttpPort, OwnerInfo])
-    else
-      ErrorMessage := Format('HTTP port %d is already in use.', [FConfig.HttpPort]);
-    Exit;
-  end;
-  if FConfig.EnableSsl and not IsTcpPortAvailable(FConfig.HttpsPort) and not ApacheRunningNow then
-  begin
-    Result := False;
-    OwnerInfo := DescribeTcpPortOwner(FConfig.HttpsPort);
-    if OwnerInfo <> '' then
-      ErrorMessage := Format('HTTPS port %d is already in use by %s.', [FConfig.HttpsPort, OwnerInfo])
-    else
-      ErrorMessage := Format('HTTPS port %d is already in use.', [FConfig.HttpsPort]);
-    Exit;
-  end;
-end;
-
-function TUniWampRuntime.ValidateApacheConfiguration(out ErrorMessage: string): Boolean;
-var
-  Output: string;
-begin
-  Result := False;
-  ErrorMessage := '';
-  if not FileExists(ApacheExe) then
-  begin
-    ErrorMessage := 'Apache executable not found: ' + ApacheExe;
-    Exit;
-  end;
-
-  if TProcessManager.RunAndCaptureOutput(
-    ApacheExe,
-    '-t -f "' + FPaths.ApacheHttpdConfFile + '"',
-    FPaths.ApacheBinDir,
-    Output) then
-  begin
-    Result := True;
-    Exit;
-  end;
-
-  Output := Trim(Output);
-  if Output <> '' then
-    ErrorMessage := Output
-  else
-    ErrorMessage := 'Apache configuration validation failed.';
-end;
-
-function TUniWampRuntime.WaitForApacheStartup(const ProcessId: Cardinal; out ErrorMessage: string): Boolean;
-const
-  StartupTimeoutMs = 30000;
-  PollIntervalMs = 250;
-var
-  StartTick: UInt64;
-begin
-  Result := False;
-  ErrorMessage := '';
-  StartTick := GetTickCount64;
-  repeat
-    if not TProcessManager.IsRunning(ProcessId) then
-    begin
-      ErrorMessage := 'Apache exited before it finished starting.';
-      Exit;
-    end;
-    if not IsTcpPortAvailable(FConfig.HttpPort) and
-      ((not FConfig.EnableSsl) or (not IsTcpPortAvailable(FConfig.HttpsPort))) then
-    begin
-      Result := True;
-      Exit;
-    end;
-    Sleep(PollIntervalMs);
-  until (GetTickCount64 - StartTick) >= StartupTimeoutMs;
-
-  if FConfig.EnableSsl then
-    ErrorMessage := Format(
-      'Apache did not start listening on ports %d and %d within %d seconds.',
-      [FConfig.HttpPort, FConfig.HttpsPort, StartupTimeoutMs div 1000])
-  else
-    ErrorMessage := Format(
-      'Apache did not start listening on port %d within %d seconds.',
-      [FConfig.HttpPort, StartupTimeoutMs div 1000]);
-end;
-
-function TUniWampRuntime.ValidateMariaDbPorts(out ErrorMessage: string): Boolean;
-var
-  MariaDbRunningNow: Boolean;
-  OwnerInfo: string;
-begin
-  Result := True;
-  ErrorMessage := '';
-  MariaDbRunningNow := MariaDbIsRunning or FConfig.MariaDbRunning;
-  if not IsTcpPortAvailable(FConfig.DatabasePort) and not MariaDbRunningNow then
-  begin
-    Result := False;
-    OwnerInfo := DescribeTcpPortOwner(FConfig.DatabasePort);
-    if OwnerInfo <> '' then
-      ErrorMessage := Format('Database port %d is already in use by %s.', [FConfig.DatabasePort, OwnerInfo])
-    else
-      ErrorMessage := Format('Database port %d is already in use.', [FConfig.DatabasePort]);
-    Exit;
-  end;
-end;
-
-
-
-
-
-function TUniWampRuntime.EnsureMariaDbInitialized(out ErrorMessage: string): Boolean;
-const
-  MariaDbInitTimeoutMs = 60000;
-var
-  DataDir: string;
-  MysqlDir: string;
-  DataSubDirs: TArray<string>;
-  DataFiles: TArray<string>;
-  BackupDir: string;
-  HelperExe: string;
-  ServerExe: string;
-  BootstrapOutput: string;
-  BootstrapCommand: string;
-  HadDirtyDataDir: Boolean;
-begin
-  Result := False;
-  ErrorMessage := '';
-  HadDirtyDataDir := False;
-  DataDir := TPath.Combine(FPaths.MariaDbDir, 'data');
-  MysqlDir := TPath.Combine(DataDir, 'mysql');
-
-  if MariaDbSystemDatabaseReady(MysqlDir) then
-  begin
-    Result := True;
-    Exit;
-  end;
-
-  HelperExe := MariaDbInstallDbExe;
-  if not FileExists(HelperExe) then
-  begin
-    ErrorMessage := 'MariaDB initializer not found: ' + HelperExe;
-    Exit;
-  end;
-
-  if DirectoryExists(DataDir) then
-  begin
-    DataSubDirs := TDirectory.GetDirectories(DataDir);
-    DataFiles := TDirectory.GetFiles(DataDir);
-    if (Length(DataSubDirs) > 0) or (Length(DataFiles) > 0) or DirectoryExists(MysqlDir) then
-    begin
-      HadDirtyDataDir := True;
-      BackupDir := TPath.Combine(TPath.GetDirectoryName(DataDir),
-        'data.bak-' + FormatDateTime('yyyymmdd-hhnnss', Now));
-      AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log'),
-        'MariaDB data directory is not clean. Moving "' + DataDir + '" to "' + BackupDir + '".');
-      try
-        TDirectory.Move(DataDir, BackupDir);
-      except
-        on E: Exception do
-        begin
-          ErrorMessage := 'MariaDB data directory could not be backed up: ' + E.Message;
-          Exit;
-        end;
-      end;
-    end;
-    ForceDirectories(DataDir);
-  end
-  else
-    ForceDirectories(DataDir);
-
-  if not DirectoryExists(DataDir) then
-  begin
-    ErrorMessage := 'MariaDB data directory could not be created.';
-    Exit;
-  end;
-
-  ServerExe := TPath.Combine(FPaths.MariaDbBinDir, 'mysqld.exe');
-  if not FileExists(ServerExe) and FileExists(MariaDbExe) then
-    TFile.Copy(MariaDbExe, ServerExe, True);
-
-  BootstrapCommand := '--datadir="' + DataDir + '" --port=' + FConfig.DatabasePort.ToString +
-    ' --default-user --verbose-bootstrap';
-  AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log'),
-    'MariaDB init command: "' + HelperExe + '" ' + BootstrapCommand);
-
-  if not TProcessManager.RunAndCaptureOutput(
-    HelperExe,
-    BootstrapCommand,
-    FPaths.MariaDbBinDir,
-    BootstrapOutput,
-    MariaDbInitTimeoutMs) then
-  begin
-    ErrorMessage := Trim(BootstrapOutput);
-    if ErrorMessage = '' then
-      ErrorMessage := 'MariaDB initialization timed out while creating the system database.';
-    if HadDirtyDataDir then
-      ErrorMessage := ErrorMessage + ' The dirty data directory was backed up before retrying initialization.';
-    AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log'),
-      'MariaDB init output:' + sLineBreak + ErrorMessage);
-    Exit;
-  end;
-
-  AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log'),
-    'MariaDB init output:' + sLineBreak + Trim(BootstrapOutput));
-  if not MariaDbSystemDatabaseReady(MysqlDir) then
-  begin
-    ErrorMessage := 'MariaDB initialization did not create the mysql system database.';
-    if HadDirtyDataDir then
-      ErrorMessage := ErrorMessage + ' The dirty data directory was backed up before retrying initialization.';
-    Exit;
-  end;
-
-  Result := True;
-end;
-
-function TUniWampRuntime.WaitForMariaDbStartup(const ProcessId: Cardinal; out ErrorMessage: string): Boolean;
-const
-  StartupTimeoutMs = 30000;
-  PollIntervalMs = 250;
-var
-  StartTick: UInt64;
-begin
-  Result := False;
-  ErrorMessage := '';
-  StartTick := GetTickCount64;
-  repeat
-    if not TProcessManager.IsRunning(ProcessId) then
-    begin
-      ErrorMessage := 'MariaDB exited before it finished starting.';
-      Exit;
-    end;
-    if not IsTcpPortAvailable(FConfig.DatabasePort) then
-    begin
-      Result := True;
-      Exit;
-    end;
-    Sleep(PollIntervalMs);
-  until (GetTickCount64 - StartTick) >= StartupTimeoutMs;
-
-  ErrorMessage := Format(
-    'MariaDB did not start listening on port %d within %d seconds.',
-    [FConfig.DatabasePort, StartupTimeoutMs div 1000]);
-end;
-
-
-
-
 
 function NormalizeServerAliases(const Aliases: string): string;
 var
