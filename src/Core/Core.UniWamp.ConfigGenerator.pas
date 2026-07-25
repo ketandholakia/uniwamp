@@ -218,6 +218,8 @@ var
   MariaDbDataDir: string;
   TmpDir: string;
   LogsDir: string;
+  TemplateText: string;
+  RenderedText: string;
 begin
   EnsureDirectory(TPath.Combine(FPaths.MariaDbDir, 'data'));
   MariaDbDir := StringReplace(FPaths.MariaDbDir, '\', '/', [rfReplaceAll]);
@@ -231,7 +233,9 @@ begin
     Values.Add('MARIADB_DATA_DIR', MariaDbDataDir);
     Values.Add('TMP_DIR', TmpDir);
     Values.Add('LOGS_DIR', LogsDir);
-    TTemplateRenderer.RenderToFile(FPaths.MariaDbTemplateFile, FPaths.MariaDbIniFile, Values);
+    TemplateText := TFile.ReadAllText(FPaths.MariaDbTemplateFile, TEncoding.UTF8);
+    RenderedText := TTemplateRenderer.RenderTemplate(TemplateText, Values);
+    AtomicWriteTextFile(FPaths.MariaDbIniFile, RenderedText, TEncoding.ASCII);
   finally
     Values.Free;
   end;
