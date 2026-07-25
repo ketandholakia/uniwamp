@@ -436,6 +436,8 @@ function BuildHeaderTitleHint: string;
 function BuildHeaderOverviewHint: string;
 function DescribeVHostGridKeyboardAction(Key: Word; Shift: TShiftState): string;
 function DescribeVHostFilterKeyAction(Key: Word; FilterText: string): string;
+function DescribeMainFormKeyAction(Key: Word; Shift: TShiftState; FilterFocused: Boolean;
+  FilterText: string): string;
 procedure ApplyConfiguredTheme(const StyleName: string);
 
 var
@@ -893,6 +895,20 @@ begin
   begin
     if Trim(FilterText) <> '' then
       Result := 'clear'
+  end;
+end;
+
+function DescribeMainFormKeyAction(Key: Word; Shift: TShiftState;
+  FilterFocused: Boolean; FilterText: string): string;
+begin
+  Result := '';
+  if (ssCtrl in Shift) and ((Key = Ord('F')) or (Key = VK_OEM_2)) then
+    Exit('focus-search');
+  if Key = VK_ESCAPE then
+  begin
+    if FilterFocused and (Trim(FilterText) <> '') then
+      Exit('clear-filter');
+    Exit('minimize-to-tray');
   end;
 end;
 
@@ -1360,7 +1376,7 @@ begin
   FVHostEmptyLabel.Font.Color := clGrayText;
   FVHostEmptyLabel.Font.Style := [fsBold];
   FVHostEmptyLabel.Caption := 'No projects or vHosts found.' + sLineBreak + 'Use Add to create your first project.';
-  FVHostEmptyLabel.Hint := 'Click Add to create a new project or vHost. Press Ctrl+F to search existing projects.';
+  FVHostEmptyLabel.Hint := 'Click Add to create a new project or vHost. Press Ctrl+F or Ctrl+/ to search existing projects.';
   FVHostEmptyLabel.ShowHint := True;
   FVHostEmptyLabel.Cursor := crHandPoint;
   FVHostEmptyLabel.OnClick := VHostEmptyLabelClick;
@@ -1385,7 +1401,7 @@ begin
   FVHostFilterEdit.Parent := Label11;
   FVHostFilterEdit.TextHint := 'Search site, path, or alias';
   FVHostFilterEdit.Hint := BuildToolPanelHint('Filter vHosts',
-    'Search by site name, document root, or aliases. Press Esc to clear.');
+    'Search by site name, document root, or aliases. Press Esc to clear or minimize when empty.');
   FVHostFilterEdit.ShowHint := True;
   FVHostFilterEdit.OnChange := VHostFilterChanged;
   FVHostFilterEdit.OnKeyDown := VHostFilterKeyDown;
@@ -5426,21 +5442,39 @@ begin
 end;
 
 procedure TMainForm.FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+var
+  FilterText: string;
+  KeyAction: string;
 begin
-  if (ssCtrl in Shift) and ((Key = Ord('F')) or (Key = VK_OEM_2)) then
+  FilterText := '';
+  if Assigned(FVHostFilterEdit) then
+    FilterText := FVHostFilterEdit.Text;
+  KeyAction := DescribeMainFormKeyAction(Key, Shift,
+    Assigned(FVHostFilterEdit) and FVHostFilterEdit.Focused, FilterText);
+  if KeyAction = 'focus-search' then
   begin
     Key := 0;
     if Assigned(FVHostFilterEdit) then
       FVHostFilterEdit.SetFocus;
     Exit;
   end;
-  if Key = VK_ESCAPE then
+  if KeyAction = 'clear-filter' then
   begin
     Key := 0;
-    if Assigned(FVHostFilterEdit) and FVHostFilterEdit.Focused and (Trim(FVHostFilterEdit.Text) <> '') then
-      FVHostFilterEdit.Clear
-    else
-      ToggleMainWindow;
+    if Assigned(FVHostFilterEdit) then
+      FVHostFilterEdit.Clear;
+    Exit;
+  end;
+  if KeyAction = 'minimize-to-tray' then
+  begin
+    Key := 0;
+    if Visible then
+    begin
+      WindowState := wsMinimized;
+      Hide;
+      UpdateMenuState;
+    end;
+    Exit;
   end;
 end;
 

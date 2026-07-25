@@ -2733,8 +2733,8 @@ end;
 procedure TestVHostFilterSearchHintDescribesSearchFields;
 begin
   AssertTrue(
-    BuildToolPanelHint('Filter vHosts', 'Search by site name, document root, or aliases. Press Esc to clear.') =
-      'Filter vHosts' + sLineBreak + 'Search by site name, document root, or aliases. Press Esc to clear.',
+    BuildToolPanelHint('Filter vHosts', 'Search by site name, document root, or aliases. Press Esc to clear or minimize when empty.') =
+      'Filter vHosts' + sLineBreak + 'Search by site name, document root, or aliases. Press Esc to clear or minimize when empty.',
     'Filter search hint should describe the searchable fields');
 end;
 
@@ -2746,6 +2746,16 @@ begin
     'Escape should fall back to the main window tray minimize behavior when the filter is empty');
   AssertTrue(DescribeVHostFilterKeyAction(VK_RETURN, 'api') = '',
     'Non-Escape keys should not map to filter actions');
+end;
+
+procedure TestMainFormKeyActionHelperHandlesSearchAndTrayMinimize;
+begin
+  AssertTrue(DescribeMainFormKeyAction(VK_OEM_2, [ssCtrl], False, '') = 'focus-search',
+    'Ctrl+/ should focus the vHost search field');
+  AssertTrue(DescribeMainFormKeyAction(VK_ESCAPE, [], True, 'api') = 'clear-filter',
+    'Escape should clear the active vHost filter before minimizing');
+  AssertTrue(DescribeMainFormKeyAction(VK_ESCAPE, [], False, '') = 'minimize-to-tray',
+    'Escape should minimize the main window to the tray when no filter is active');
 end;
 
 procedure TestDiagnosticReportUsesConsistentServiceStateLabels;
@@ -2981,6 +2991,7 @@ begin
   TestVHostFilterHintMakesTheClearActionExplicit;
   TestVHostFilterSearchHintDescribesSearchFields;
   TestVHostFilterKeyActionHelperDistinguishesClearAndExit;
+  TestMainFormKeyActionHelperHandlesSearchAndTrayMinimize;
   TestHeaderSubtitleHintDescribesTheStackOverview;
   TestHeaderCardHintSummarizesStatusAndPorts;
   TestHeaderTitleHintStaysOnBrand;
