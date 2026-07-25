@@ -11,6 +11,7 @@ uses
   Core.UniWamp.Config,
   Core.UniWamp.MariaDbAuth,
   Core.UniWamp.ApacheManager,
+  Core.UniWamp.MariaDbManager,
   Core.UniWamp.Types,
   Core.UniWamp.Interfaces,
   Core.UniWamp.Paths,
@@ -26,6 +27,7 @@ type
     FPaths: TAppPaths;
     FConfig: TUniWampConfig;
     FApacheManager: IApacheManager;
+    FMariaDbManager: IMariaDbManager;
     function ApacheExe: string;
     function ApacheRuntimePid: Cardinal;
     function ApacheModuleForSelectedPhp: string;
@@ -250,11 +252,13 @@ begin
     begin
       GenerateAllConfigs;
     end);
+  FMariaDbManager := TMariaDbManager.Create(FPaths, FConfig);
 end;
 
 destructor TUniWampRuntime.Destroy;
 begin
   FApacheManager := nil;
+  FMariaDbManager := nil;
   inherited Destroy;
 end;
 
@@ -389,15 +393,8 @@ begin
 end;
 
 function TUniWampRuntime.MariaDbIsRunning: Boolean;
-var
-  State: TServiceProcessState;
 begin
-  State := TServiceProcessSupervisor.ResolveOwnedProcess(
-    FConfig.MariaDbPid,
-    MariaDbExe,
-    '');
-  Result := State.Running;
-  ApplyMariaDbState(State);
+  Result := FMariaDbManager.IsRunning;
 end;
 
 function TUniWampRuntime.MysqlAdminExe: string;
@@ -1600,130 +1597,18 @@ begin
 end;
 
 function TUniWampRuntime.StartMariaDb: TRuntimeActionResult;
-var
-  StartResult: TProcessStartResult;
-  ErrorMessage: string;
 begin
-  if FConfig.MariaDbRunning and not MariaDbIsRunning then
-  begin
-    FConfig.LastMariaDbError := 'Stale MariaDB state detected; retrying start.';
-    ClearMariaDbState;
-  end;
-
-  if MariaDbIsRunning then
-  begin
-    FConfig.LastMariaDbError := '';
-    Result.Success := True;
-    Result.Message := 'MariaDB already running.';
-    Exit;
-  end;
-
-  Result.Success := False;
-  if not ValidateMariaDbPorts(ErrorMessage) then
-  begin
-    FailMariaDbStart(ErrorMessage);
-    Result.Message := ErrorMessage;
-    Exit;
-  end;
-
-  if not EnsureMariaDbInitialized(ErrorMessage) then
-  begin
-    FailMariaDbStart(ErrorMessage);
-    Result.Message := ErrorMessage;
-    Exit;
-  end;
-
-  with TConfigurationGenerator.Create(FPaths, FConfig) do
-  try
-    GenerateMariaDbConfig;
-  finally
-    Free;
-  end;
-  AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log'), 'Starting MariaDB: ' + MariaDbExe);
-  StartResult := TProcessManager.StartDetached(
-    MariaDbExe,
-    '--defaults-file="' + FPaths.MariaDbIniFile + '" --console',
-    FPaths.MariaDbBinDir);
-
-  Result.Success := StartResult.Success;
-  if StartResult.Success then
-  begin
-    FConfig.MariaDbPid := StartResult.ProcessId;
-    if WaitForMariaDbStartup(StartResult.ProcessId, ErrorMessage) then
-    begin
-      FConfig.MariaDbRunning := True;
-      FConfig.LastMariaDbError := '';
-      Result.Message := 'MariaDB started.';
-      AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log'), 'MariaDB successfully started with PID ' + StartResult.ProcessId.ToString);
-    end
-    else
-    begin
-      FailMariaDbStart(ErrorMessage);
-      Result.Success := False;
-      Result.Message := ErrorMessage;
-    end;
-  end
-  else
-  begin
-    FailMariaDbStart(StartResult.ErrorMessage);
-    Result.Message := StartResult.ErrorMessage;
-    AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log'), 'MariaDB failed to start: ' + StartResult.ErrorMessage);
-  end;
+  Result := FMariaDbManager.Start;
 end;
 
 function TUniWampRuntime.StopMariaDb: TRuntimeActionResult;
-var
-  StartResult: TProcessStartResult;
-  State: TServiceProcessState;
 begin
-  Result.Success := True;
-  AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log'), 'Initiating MariaDB shutdown...');
-  State := TServiceProcessSupervisor.ResolveOwnedProcess(
-    FConfig.MariaDbPid,
-    MariaDbExe,
-    '');
-  if not State.Running then
-  begin
-    ClearMariaDbState;
-    Result.Message := 'MariaDB stopped.';
-    AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log'), Result.Message);
-    Exit;
-  end;
-  if FileExists(MysqlAdminExe) then
-  begin
-    StartResult := TProcessManager.StartDetached(
-      MysqlAdminExe,
-      '--port=' + FConfig.DatabasePort.ToString + ' shutdown',
-      FPaths.MariaDbBinDir);
-    if StartResult.Success then
-      TProcessManager.WaitForExit(StartResult.ProcessId, 4000);
-  end;
-
-  Result.Success := TServiceProcessSupervisor.StopOwnedProcess(State);
-  if not TProcessManager.IsRunning(State.ProcessId) then
-    ClearMariaDbState;
-  if Result.Success then
-    Result.Message := 'MariaDB stopped.'
-  else
-    Result.Message := 'Failed to stop MariaDB cleanly.';
-  AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'mariadb-error.log'), Result.Message);
+  Result := FMariaDbManager.Stop;
 end;
 
 function TUniWampRuntime.RestartMariaDb: TRuntimeActionResult;
 begin
-  Result := StopMariaDb;
-  if not Result.Success then
-  begin
-    Result.Message := 'MariaDB restart failed during stop: ' + Result.Message;
-    FConfig.LastMariaDbError := Result.Message;
-    Exit;
-  end;
-  Result := StartMariaDb;
-  if not Result.Success then
-  begin
-    Result.Message := 'MariaDB restart failed during start: ' + Result.Message;
-    FConfig.LastMariaDbError := Result.Message;
-  end;
+  Result := FMariaDbManager.Restart;
 end;
 
 
@@ -1731,102 +1616,8 @@ end;
 
 
 function TUniWampRuntime.SetMariaDbRootPassword(const NewPassword: string): TRuntimeActionResult;
-var
-  MysqlClientExePath: string;
-  Arguments: string;
-  Output: string;
-  LowerOutput: string;
-  CurrentPassword: string;
-  SecretError: string;
-  DefaultsFileName: string;
-  PasswordSqlFileName: string;
-  AuthError: string;
 begin
-  if Trim(NewPassword) = '' then
-  begin
-    Result.Success := False;
-    Result.Message := 'MariaDB root password cannot be empty.';
-    Exit;
-  end;
-
-  if not MariaDbIsRunning then
-  begin
-    Result.Success := False;
-    Result.Message := 'MariaDB must be running before setting the root password.';
-    Exit;
-  end;
-
-  MysqlClientExePath := MariaDbExe;
-  if not FileExists(MysqlClientExePath) then
-  begin
-    Result.Success := False;
-    Result.Message := 'mysql client executable not found: ' + MysqlClientExePath;
-    Exit;
-  end;
-
-  CurrentPassword := LoadMariaDbRootPassword(FPaths);
-  DefaultsFileName := '';
-  PasswordSqlFileName := '';
-  if CurrentPassword <> '' then
-  begin
-    if not CreateMariaDbDefaultsExtraFile(FPaths, CurrentPassword, DefaultsFileName, AuthError) then
-    begin
-      Result.Success := False;
-      Result.Message := 'MariaDB auth setup failed: ' + AuthError;
-      Exit;
-    end;
-  end;
-  if not CreateMariaDbPasswordSqlFile(FPaths, NewPassword, PasswordSqlFileName, AuthError) then
-  begin
-    DeleteMariaDbDefaultsExtraFile(DefaultsFileName);
-    Result.Success := False;
-    Result.Message := 'MariaDB password file setup failed: ' + AuthError;
-    Exit;
-  end;
-
-  try
-    Arguments := '--port=' + FConfig.DatabasePort.ToString + ' --user=root ';
-    if DefaultsFileName <> '' then
-      Arguments := PrependDefaultsExtraFileArg(DefaultsFileName, Arguments);
-    Arguments := '/c ""' + MysqlClientExePath + '" ' + Arguments +
-      '--batch --raw < "' + PasswordSqlFileName + '""';
-    if not TProcessManager.RunAndCaptureOutput('cmd.exe', Arguments, FPaths.MariaDbBinDir, Output) then
-    begin
-      Result.Success := False;
-      if Trim(Output) <> '' then
-        Result.Message := Trim(Output)
-      else
-        Result.Message := 'Failed to start mysql client.';
-      Exit;
-    end;
-  finally
-    DeleteMariaDbDefaultsExtraFile(DefaultsFileName);
-    if PasswordSqlFileName <> '' then
-      DeleteMariaDbDefaultsExtraFile(PasswordSqlFileName);
-  end;
-
-  LowerOutput := LowerCase(Output);
-  if (Pos('error', LowerOutput) > 0) or (Pos('access denied', LowerOutput) > 0) then
-  begin
-    Result.Success := False;
-    FConfig.LastMariaDbError := Trim(Output);
-    if Trim(Output) <> '' then
-      Result.Message := Trim(Output)
-    else
-      Result.Message := 'MariaDB root password could not be updated.';
-    Exit;
-  end;
-
-  if not SaveMariaDbRootPassword(FPaths, NewPassword, SecretError) then
-  begin
-    Result.Success := False;
-    Result.Message := SecretError;
-    Exit;
-  end;
-  FConfig.MariaDbRootPassword := NewPassword;
-  FConfig.LastMariaDbError := '';
-  Result.Success := True;
-  Result.Message := 'MariaDB root password updated.';
+  Result := FMariaDbManager.SetRootPassword(NewPassword);
 end;
 
 function TUniWampRuntime.LaunchUrl(const Url: string): TRuntimeActionResult;
