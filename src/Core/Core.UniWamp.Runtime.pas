@@ -1896,13 +1896,14 @@ end;
 
 function TUniWampRuntime.SetMariaDbRootPassword(const NewPassword: string): TRuntimeActionResult;
 var
-  MysqlAdminExePath: string;
+  MysqlClientExePath: string;
   Arguments: string;
   Output: string;
   LowerOutput: string;
   CurrentPassword: string;
   SecretError: string;
   DefaultsFileName: string;
+  PasswordSqlFileName: string;
   AuthError: string;
 begin
   if Trim(NewPassword) = '' then
@@ -1919,18 +1920,17 @@ begin
     Exit;
   end;
 
-  MysqlAdminExePath := MysqlAdminExe;
-  if not FileExists(MysqlAdminExePath) then
+  MysqlClientExePath := MariaDbExe;
+  if not FileExists(MysqlClientExePath) then
   begin
     Result.Success := False;
-    Result.Message := 'mysqladmin executable not found: ' + MysqlAdminExePath;
+    Result.Message := 'mysql client executable not found: ' + MysqlClientExePath;
     Exit;
   end;
 
   CurrentPassword := LoadMariaDbRootPassword(FPaths);
-  Arguments := '--port=' + FConfig.DatabasePort.ToString + ' --user=root ';
-  Arguments := Arguments + 'password "' + NewPassword + '"';
   DefaultsFileName := '';
+  PasswordSqlFileName := '';
   if CurrentPassword <> '' then
   begin
     if not CreateMariaDbDefaultsExtraFile(FPaths, CurrentPassword, DefaultsFileName, AuthError) then
@@ -1939,21 +1939,34 @@ begin
       Result.Message := 'MariaDB auth setup failed: ' + AuthError;
       Exit;
     end;
-    Arguments := PrependDefaultsExtraFileArg(DefaultsFileName, Arguments);
+  end;
+  if not CreateMariaDbPasswordSqlFile(FPaths, NewPassword, PasswordSqlFileName, AuthError) then
+  begin
+    DeleteMariaDbDefaultsExtraFile(DefaultsFileName);
+    Result.Success := False;
+    Result.Message := 'MariaDB password file setup failed: ' + AuthError;
+    Exit;
   end;
 
   try
-    if not TProcessManager.RunAndCaptureOutput(MysqlAdminExePath, Arguments, FPaths.MariaDbBinDir, Output) then
+    Arguments := '--port=' + FConfig.DatabasePort.ToString + ' --user=root ';
+    if DefaultsFileName <> '' then
+      Arguments := PrependDefaultsExtraFileArg(DefaultsFileName, Arguments);
+    Arguments := '/c ""' + MysqlClientExePath + '" ' + Arguments +
+      '--batch --raw < "' + PasswordSqlFileName + '""';
+    if not TProcessManager.RunAndCaptureOutput('cmd.exe', Arguments, FPaths.MariaDbBinDir, Output) then
     begin
       Result.Success := False;
       if Trim(Output) <> '' then
         Result.Message := Trim(Output)
       else
-        Result.Message := 'Failed to start mysqladmin.';
+        Result.Message := 'Failed to start mysql client.';
       Exit;
     end;
   finally
     DeleteMariaDbDefaultsExtraFile(DefaultsFileName);
+    if PasswordSqlFileName <> '' then
+      DeleteMariaDbDefaultsExtraFile(PasswordSqlFileName);
   end;
 
   LowerOutput := LowerCase(Output);

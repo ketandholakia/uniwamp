@@ -8,6 +8,8 @@ uses
 
 function CreateMariaDbDefaultsExtraFile(const Paths: TAppPaths; const Password: string;
   out FileName, ErrorMessage: string): Boolean;
+function CreateMariaDbPasswordSqlFile(const Paths: TAppPaths; const Password: string;
+  out FileName, ErrorMessage: string): Boolean;
 procedure DeleteMariaDbDefaultsExtraFile(const FileName: string);
 function PrependDefaultsExtraFileArg(const DefaultsFileName, Arguments: string): string;
 
@@ -21,6 +23,12 @@ function EscapeOptionValue(const Value: string): string;
 begin
   Result := StringReplace(Value, '\', '\\', [rfReplaceAll]);
   Result := StringReplace(Result, '"', '\"', [rfReplaceAll]);
+end;
+
+function EscapeSqlLiteral(const Value: string): string;
+begin
+  Result := StringReplace(Value, '\', '\\', [rfReplaceAll]);
+  Result := StringReplace(Result, '''', '''''', [rfReplaceAll]);
 end;
 
 function CreateMariaDbDefaultsExtraFile(const Paths: TAppPaths; const Password: string;
@@ -45,6 +53,34 @@ begin
     finally
       Contents.Free;
     end;
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      ErrorMessage := E.Message;
+      if (FileName <> '') and TFile.Exists(FileName) then
+        TFile.Delete(FileName);
+      FileName := '';
+    end;
+  end;
+end;
+
+function CreateMariaDbPasswordSqlFile(const Paths: TAppPaths; const Password: string;
+  out FileName, ErrorMessage: string): Boolean;
+var
+  GuidValue: TGuid;
+  SqlText: string;
+begin
+  Result := False;
+  FileName := '';
+  ErrorMessage := '';
+  try
+    EnsureDirectory(Paths.TmpDir);
+    CreateGUID(GuidValue);
+    FileName := TPath.Combine(Paths.TmpDir,
+      'mariadb-password-' + GUIDToString(GuidValue).Replace('{', '').Replace('}', '') + '.sql');
+    SqlText := 'SET PASSWORD = PASSWORD(''' + EscapeSqlLiteral(Password) + ''');' + sLineBreak;
+    TFile.WriteAllText(FileName, SqlText, TEncoding.ASCII);
     Result := True;
   except
     on E: Exception do

@@ -20,6 +20,8 @@ type
     [Test]
     procedure TestCreateMariaDbDefaultsExtraFile_WritesPasswordAndDeletesCleanly;
     [Test]
+    procedure TestCreateMariaDbPasswordSqlFile_EscapesPasswordAndDeletesCleanly;
+    [Test]
     procedure TestPrependDefaultsExtraFileArg_PrefixesArguments;
   end;
 
@@ -63,6 +65,23 @@ begin
 
   DeleteMariaDbDefaultsExtraFile(FileName);
   Assert.IsFalse(FileExists(FileName), 'Defaults file should be deleted after cleanup.');
+end;
+
+procedure TMariaDbAuthTests.TestCreateMariaDbPasswordSqlFile_EscapesPasswordAndDeletesCleanly;
+var
+  FileName: string;
+  ErrorMessage: string;
+  Contents: string;
+begin
+  Assert.IsTrue(CreateMariaDbPasswordSqlFile(FPaths, 'p@ss\''word', FileName, ErrorMessage),
+    ErrorMessage);
+  Assert.IsTrue(FileExists(FileName), 'SQL file should be created.');
+  Contents := TFile.ReadAllText(FileName, TEncoding.ASCII);
+  Assert.Contains(Contents, 'SET PASSWORD = PASSWORD(''p@ss\\''''word'');',
+    'Password should be quoted and escaped in the SQL file.');
+
+  DeleteMariaDbDefaultsExtraFile(FileName);
+  Assert.IsFalse(FileExists(FileName), 'SQL file should be deleted after cleanup.');
 end;
 
 procedure TMariaDbAuthTests.TestPrependDefaultsExtraFileArg_PrefixesArguments;
