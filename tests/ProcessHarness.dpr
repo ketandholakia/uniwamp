@@ -1109,6 +1109,7 @@ var
   Runtime: TUniWampRuntime;
   ResultInfo: TRuntimeActionResult;
   PreviousOverride: string;
+  ReservedPort: Integer;
 begin
   RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-apache-vc-runtime-' + TGuid.NewGuid.ToString);
   TDirectory.CreateDirectory(RootDir);
@@ -1125,6 +1126,9 @@ begin
     Config := TUniWampConfig.Create;
     try
       Config.SetDefaults(Paths);
+      ReservedPort := FindAvailableTcpPort(18080, 19080);
+      AssertTrue(ReservedPort > 0, 'A free HTTP port should be available for the VC runtime test');
+      Config.HttpPort := ReservedPort;
       Runtime := TUniWampRuntime.Create(Paths, Config);
       try
         PreviousOverride := GetEnvironmentVariable('UNIWAMP_FORCE_MISSING_VC_RUNTIME');
@@ -1335,6 +1339,7 @@ var
   PhpExePath: string;
   PhpModulePath: string;
   ConfText: string;
+  ReservedPort: Integer;
 begin
   RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-apache-validate-' + TGuid.NewGuid.ToString);
   TDirectory.CreateDirectory(RootDir);
@@ -1358,6 +1363,9 @@ begin
     Config := TUniWampConfig.Create;
     try
       Config.SetDefaults(Paths);
+      ReservedPort := FindAvailableTcpPort(18080, 19080);
+      AssertTrue(ReservedPort > 0, 'A free HTTP port should be available for the validation test');
+      Config.HttpPort := ReservedPort;
       Runtime := TUniWampRuntime.Create(Paths, Config);
       try
         ResultInfo := Runtime.StartApache;
