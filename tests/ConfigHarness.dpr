@@ -747,6 +747,58 @@ begin
   end;
 end;
 
+procedure TestDeleteVHostLeavesExternalSslFilesUntouched;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Manager: IVHostManager;
+  ResultInfo: TRuntimeActionResult;
+  OldHostsFile: string;
+  HostsFilePath: string;
+  CertFile: string;
+  KeyFile: string;
+  Entry: TVHostEntry;
+begin
+  RootDir := CreateTempRoot('vhost-ssl-cleanup');
+  try
+    Paths := BuildPaths(RootDir);
+    EnsureTestLayout(Paths);
+    TTemplateRenderer.EnsureDefaultTemplates(Paths);
+    HostsFilePath := TPath.Combine(RootDir, 'hosts');
+    OldHostsFile := GetEnvironmentVariable('UNIWAMP_HOSTS_FILE');
+    SetEnvironmentVariable('UNIWAMP_HOSTS_FILE', PChar(HostsFilePath));
+    CertFile := TPath.Combine(RootDir, 'external-cert.crt');
+    KeyFile := TPath.Combine(RootDir, 'external-key.key');
+    TFile.WriteAllText(CertFile, 'cert', TEncoding.ASCII);
+    TFile.WriteAllText(KeyFile, 'key', TEncoding.ASCII);
+    Config := TUniWampConfig.Create;
+    try
+      AssertTrue(Config.LoadOrCreate(Paths), 'Test config should load');
+      Entry.ServerName := 'externalssl.local';
+      Entry.ServerAliases := '';
+      Entry.DocumentRoot := TPath.Combine(Paths.WwwDir, 'externalssl');
+      Entry.EnableSsl := True;
+      Entry.SslCertFile := CertFile;
+      Entry.SslKeyFile := KeyFile;
+      Entry.PinnedSyncUploadProfile := '';
+      Entry.PinnedSyncDownloadProfile := '';
+      Config.AddOrUpdateVHost(Entry);
+      Manager := TVHostManager.Create(Paths, Config);
+      ResultInfo := Manager.DeleteVHost('externalssl.local');
+      AssertTrue(ResultInfo.Success, ResultInfo.Message);
+      AssertTrue(FileExists(CertFile), 'External certificate should not be deleted.');
+      AssertTrue(FileExists(KeyFile), 'External key should not be deleted.');
+      AssertIntEquals(0, Length(Config.VHosts), 'Config should remove the vHost.');
+    finally
+      Config.Free;
+      SetEnvironmentVariable('UNIWAMP_HOSTS_FILE', PChar(OldHostsFile));
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 begin
   try
     TestMalformedConfigRecovery;
@@ -759,6 +811,7 @@ begin
     TestConnectionSecretsMigrateFromLegacySyncKeys;
     TestSyncEngineRejectsUnsafeRemoteEntries;
     TestProjectRestoreRollsBackWhenHostsSyncFails;
+    TestDeleteVHostLeavesExternalSslFilesUntouched;
     TestAtomicSaveCreatesDirectoryAndFile;
     Writeln('Config harness passed.');
   except
