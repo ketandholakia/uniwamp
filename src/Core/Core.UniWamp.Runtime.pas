@@ -10,6 +10,7 @@ uses
   System.Win.Registry,
   Core.UniWamp.Config,
   Core.UniWamp.MariaDbAuth,
+  Core.UniWamp.ApacheManager,
   Core.UniWamp.Types,
   Core.UniWamp.Interfaces,
   Core.UniWamp.Paths,
@@ -20,11 +21,11 @@ function DescribeTerminalLaunchMode(const TerminalExecutable: string): string;
 
 type
 
-
   TUniWampRuntime = class(TInterfacedObject, IRuntime)
   private
     FPaths: TAppPaths;
     FConfig: TUniWampConfig;
+    FApacheManager: IApacheManager;
     function ApacheExe: string;
     function ApacheRuntimePid: Cardinal;
     function ApacheModuleForSelectedPhp: string;
@@ -68,6 +69,7 @@ type
     function ValidateMariaDbPorts(out ErrorMessage: string): Boolean;
   public
     constructor Create(const Paths: TAppPaths; Config: TUniWampConfig);
+    destructor Destroy; override;
     function DetectPhpVersions: TArray<string>;
     procedure SyncPhpVersions;
     function DetectNodeVersions: TArray<string>;
@@ -229,6 +231,31 @@ begin
   inherited Create;
   FPaths := Paths;
   FConfig := Config;
+  FApacheManager := TApacheManager.Create(
+    FPaths,
+    FConfig,
+    function: string
+    begin
+      Result := SelectedPhpDir;
+    end,
+    function: string
+    begin
+      Result := SelectedPhpExe;
+    end,
+    function: string
+    begin
+      Result := ApacheModuleForSelectedPhp;
+    end,
+    procedure
+    begin
+      GenerateAllConfigs;
+    end);
+end;
+
+destructor TUniWampRuntime.Destroy;
+begin
+  FApacheManager := nil;
+  inherited Destroy;
 end;
 
 function TUniWampRuntime.ApacheExe: string;
@@ -245,20 +272,13 @@ begin
 end;
 
 function TUniWampRuntime.ApacheIsRunning: Boolean;
-var
-  State: TServiceProcessState;
 begin
-  State := TServiceProcessSupervisor.ResolveOwnedProcess(
-    FConfig.ApachePid,
-    ApacheExe,
-    TPath.Combine(FPaths.LogsDir, 'httpd.pid'));
-  Result := State.Running;
-  ApplyApacheState(State);
+  Result := FApacheManager.IsRunning;
 end;
 
 function TUniWampRuntime.ApacheProcessId: Cardinal;
 begin
-  Result := ApacheRuntimePid;
+  Result := FApacheManager.ProcessId;
 end;
 
 function TUniWampRuntime.HasRequiredApacheVisualCRuntime(out ErrorMessage: string): Boolean;
@@ -1564,203 +1584,19 @@ begin
 end;
 
 function TUniWampRuntime.StartApache: TRuntimeActionResult;
-var
-  StartResult: TProcessStartResult;
-  ErrorMessage: string;
-  VHostManager: TVHostManager;
-  OldPath: string;
 begin
-  if FConfig.ApacheRunning and not ApacheIsRunning then
-  begin
-    FConfig.LastApacheError := 'Stale Apache state detected; retrying start.';
-    ClearApacheState;
-  end;
-
-  if ApacheIsRunning then
-  begin
-    FConfig.LastApacheError := '';
-    Result.Success := True;
-    Result.Message := 'Apache already running.';
-    Exit;
-  end;
-
   SyncPhpVersions;
-  Result.Success := False;
-  if not ValidateApachePorts(ErrorMessage) then
-  begin
-    FailApacheStart(ErrorMessage);
-    Result.Message := ErrorMessage;
-    Exit;
-  end;
-
-  if not FileExists(SelectedPhpExe) then
-  begin
-    FailApacheStart('Selected PHP runtime is missing: ' + SelectedPhpExe);
-    Result.Message := 'Selected PHP runtime is missing: ' + SelectedPhpExe;
-    Exit;
-  end;
-
-  if not FileExists(ApacheModuleForSelectedPhp) then
-  begin
-    FailApacheStart('Apache PHP module missing for ' + FConfig.SelectedPhpVersion);
-    Result.Message := 'Apache PHP module missing for ' + FConfig.SelectedPhpVersion;
-    Exit;
-  end;
-
-  if not HasRequiredApacheVisualCRuntime(ErrorMessage) then
-  begin
-    FailApacheStart(ErrorMessage);
-    Result.Message := ErrorMessage;
-    Exit;
-  end;
-
-  if FConfig.EnableSsl then
-  begin
-    VHostManager := TVHostManager.Create(FPaths, FConfig);
-    try
-      if not VHostManager.EnsureDefaultSslCertificate(ErrorMessage) then
-      begin
-        FailApacheStart(ErrorMessage);
-        Result.Message := ErrorMessage;
-        Exit;
-      end;
-    finally
-      VHostManager.Free;
-    end;
-  end;
-
-  GenerateAllConfigs;
-  if not ValidateApacheConfiguration(ErrorMessage) then
-  begin
-    FailApacheStart(ErrorMessage);
-    Result.Message := ErrorMessage;
-    Exit;
-  end;
-  AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'apache-error.log'), 'Starting Apache: ' + ApacheExe);
-  if not PushPhpRuntimeToPath(SelectedPhpDir, OldPath) then
-  begin
-    FailApacheStart('Unable to prepare PHP runtime environment for Apache.');
-    Result.Success := False;
-    Result.Message := 'Unable to prepare PHP runtime environment for Apache.';
-    Exit;
-  end;
-  try
-    StartResult := TProcessManager.StartDetached(
-      ApacheExe,
-      '-f "' + FPaths.ApacheHttpdConfFile + '"',
-      FPaths.ApacheBinDir);
-  finally
-    RestorePath(OldPath);
-  end;
-
-  Result.Success := StartResult.Success;
-  if StartResult.Success then
-  begin
-    FConfig.ApachePid := StartResult.ProcessId;
-    if WaitForApacheStartup(StartResult.ProcessId, ErrorMessage) then
-    begin
-      FConfig.ApacheRunning := True;
-      FConfig.LastApacheError := '';
-      Result.Message := 'Apache started.';
-      AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'activity.log'), 'Apache started.');
-      AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'apache-error.log'), 'Apache successfully started with PID ' + StartResult.ProcessId.ToString);
-    end
-    else
-    begin
-      FailApacheStart(ErrorMessage);
-      Result.Success := False;
-      Result.Message := ErrorMessage;
-    end;
-  end
-  else
-  begin
-    FailApacheStart(StartResult.ErrorMessage);
-    Result.Message := StartResult.ErrorMessage;
-    AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'apache-error.log'), 'Apache failed to start: ' + StartResult.ErrorMessage);
-  end;
+  Result := FApacheManager.Start;
 end;
 
 function TUniWampRuntime.StopApache: TRuntimeActionResult;
-var
-  StartResult: TProcessStartResult;
-  State: TServiceProcessState;
-  SystemRoot: string;
 begin
-  Result.Success := True;
-  AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'apache-error.log'), 'Initiating Apache shutdown...');
-  State := TServiceProcessSupervisor.ResolveOwnedProcess(
-    FConfig.ApachePid,
-    ApacheExe,
-    TPath.Combine(FPaths.LogsDir, 'httpd.pid'));
-  if not State.Running then
-  begin
-    ClearApacheState;
-    Result.Message := 'Apache stopped.';
-    AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'apache-error.log'), Result.Message);
-    Exit;
-  end;
-  if FileExists(ApacheExe) then
-  begin
-    StartResult := TProcessManager.StartDetached(
-      ApacheExe,
-      '-k stop -f "' + FPaths.ApacheHttpdConfFile + '"',
-      FPaths.ApacheBinDir);
-    if StartResult.Success then
-      TProcessManager.WaitForExit(StartResult.ProcessId, 4000);
-  end;
-
-  Result.Success := TServiceProcessSupervisor.StopOwnedProcess(State) and Result.Success;
-
-  if (State.ProcessId <> 0) and not IsTcpPortAvailable(FConfig.HttpPort) then
-  begin
-    SystemRoot := TPath.Combine(GetEnvironmentVariable('SystemRoot'), 'System32');
-    StartResult := TProcessManager.StartDetached(
-      TPath.Combine(SystemRoot, 'taskkill.exe'),
-      '/PID ' + State.ProcessId.ToString + ' /T /F',
-      SystemRoot);
-    if StartResult.Success then
-      TProcessManager.WaitForExit(StartResult.ProcessId, 4000);
-  end;
-
-  if (State.ProcessId <> 0) and FConfig.EnableSsl and (not IsTcpPortAvailable(FConfig.HttpsPort)) then
-  begin
-    SystemRoot := TPath.Combine(GetEnvironmentVariable('SystemRoot'), 'System32');
-    StartResult := TProcessManager.StartDetached(
-      TPath.Combine(SystemRoot, 'taskkill.exe'),
-      '/PID ' + State.ProcessId.ToString + ' /T /F',
-      SystemRoot);
-    if StartResult.Success then
-      TProcessManager.WaitForExit(StartResult.ProcessId, 4000);
-  end;
-
-  Sleep(1000);
-
-  ClearApacheState;
-  Result.Success := Result.Success and IsTcpPortAvailable(FConfig.HttpPort) and
-    ((not FConfig.EnableSsl) or IsTcpPortAvailable(FConfig.HttpsPort));
-  if Result.Success then
-    Result.Message := 'Apache stopped.'
-  else
-    Result.Message := 'Failed to stop Apache cleanly.';
-  AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'apache-error.log'), Result.Message);
+  Result := FApacheManager.Stop;
 end;
 
 function TUniWampRuntime.RestartApache: TRuntimeActionResult;
 begin
-  Result := StopApache;
-  if not Result.Success then
-  begin
-    Result.Message := 'Apache restart failed during stop: ' + Result.Message;
-    FConfig.LastApacheError := Result.Message;
-    Exit;
-  end;
-  Sleep(500);
-  Result := StartApache;
-  if not Result.Success then
-  begin
-    Result.Message := 'Apache restart failed during start: ' + Result.Message;
-    FConfig.LastApacheError := Result.Message;
-  end;
+  Result := FApacheManager.Restart;
 end;
 
 function TUniWampRuntime.StartMariaDb: TRuntimeActionResult;
