@@ -12,7 +12,8 @@ uses
   Core.UniWamp.Paths,
   Core.UniWamp.Interfaces,
   Core.UniWamp.TemplateRenderer,
-  Core.UniWamp.Security;
+  Core.UniWamp.Security,
+  Core.UniWamp.AtomicFile;
 
 type
   TConfigurationGenerator = class(TInterfacedObject, IConfigurationGenerator)
@@ -61,6 +62,7 @@ begin
     end;
     Result := TrimRight(Lines.Text);
   finally
+    AtomicWriteTextFile(FPaths.EnvBatFile, Lines.Text, TEncoding.ASCII);
     Lines.Free;
   end;
 end;

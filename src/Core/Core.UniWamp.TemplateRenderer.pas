@@ -24,7 +24,8 @@ implementation
 
 uses
   System.Classes,
-  System.IOUtils;
+  System.IOUtils,
+  Core.UniWamp.AtomicFile;
 
 class function TTemplateRenderer.RenderTemplate(const TemplateText: string;
   const Values: TDictionary<string, string>): string;
@@ -40,11 +41,9 @@ class procedure TTemplateRenderer.RenderToFile(const TemplateFile, OutputFile: s
   const Values: TDictionary<string, string>);
 var
   TemplateText: string;
-  OutputBytes: TBytes;
 begin
   TemplateText := TFile.ReadAllText(TemplateFile, TEncoding.UTF8);
-  OutputBytes := TEncoding.UTF8.GetBytes(RenderTemplate(TemplateText, Values));
-  TFile.WriteAllBytes(OutputFile, OutputBytes);
+  AtomicWriteTextFile(OutputFile, RenderTemplate(TemplateText, Values), TEncoding.UTF8);
 end;
 
 class function TTemplateRenderer.DefaultApacheTemplate: string;
@@ -102,7 +101,7 @@ var
   ApacheTemplateText: string;
 begin
   if not FileExists(Paths.ApacheTemplateFile) then
-    TFile.WriteAllText(Paths.ApacheTemplateFile, DefaultApacheTemplate, TEncoding.UTF8);
+    AtomicWriteTextFile(Paths.ApacheTemplateFile, DefaultApacheTemplate, TEncoding.UTF8);
 
   // Migrate any existing template - including ones from before this fix - that is
   // missing the module-line marker or is still bound to every network interface.
@@ -111,29 +110,29 @@ begin
     ApacheTemplateText := TFile.ReadAllText(Paths.ApacheTemplateFile, TEncoding.UTF8);
     if (Pos('{{APACHE_MODULE_LINES}}', ApacheTemplateText) = 0) or
        (Pos('Listen 127.0.0.1:{{HTTP_PORT}}', ApacheTemplateText) = 0) then
-      TFile.WriteAllText(Paths.ApacheTemplateFile, DefaultApacheTemplate, TEncoding.UTF8);
+      AtomicWriteTextFile(Paths.ApacheTemplateFile, DefaultApacheTemplate, TEncoding.UTF8);
   end;
 
   if not FileExists(Paths.ApacheSslTemplateFile) then
-    TFile.WriteAllText(Paths.ApacheSslTemplateFile, DefaultApacheSslTemplate, TEncoding.UTF8)
+    AtomicWriteTextFile(Paths.ApacheSslTemplateFile, DefaultApacheSslTemplate, TEncoding.UTF8)
   else if Pos('Listen 127.0.0.1:{{HTTPS_PORT}}',
     TFile.ReadAllText(Paths.ApacheSslTemplateFile, TEncoding.UTF8)) = 0 then
-    TFile.WriteAllText(Paths.ApacheSslTemplateFile, DefaultApacheSslTemplate, TEncoding.UTF8);
+    AtomicWriteTextFile(Paths.ApacheSslTemplateFile, DefaultApacheSslTemplate, TEncoding.UTF8);
 
   if not FileExists(Paths.ApacheVHostsTemplateFile) then
-    TFile.WriteAllText(Paths.ApacheVHostsTemplateFile,
+    AtomicWriteTextFile(Paths.ApacheVHostsTemplateFile,
       '# Managed by UniWamp' + sLineBreak +
       '{{VHOSTS}}', TEncoding.UTF8);
 
   if not FileExists(Paths.VHostIndexTemplateFile) then
-    TFile.WriteAllText(Paths.VHostIndexTemplateFile,
+    AtomicWriteTextFile(Paths.VHostIndexTemplateFile,
       '<!doctype html>' + sLineBreak +
       '<html><head><meta charset="utf-8"><title>{{ServerName}}</title></head>' + sLineBreak +
       '<body><h1>{{ServerName}} is ready</h1><p>Document root: {{DocumentRoot}}</p><p>Created: {{Timestamp}}</p></body></html>',
       TEncoding.UTF8);
 
   if not FileExists(Paths.MariaDbTemplateFile) then
-    TFile.WriteAllText(Paths.MariaDbTemplateFile,
+    AtomicWriteTextFile(Paths.MariaDbTemplateFile,
       '[mysqld]' + sLineBreak +
       'port={{DB_PORT}}' + sLineBreak +
       'basedir={{MARIADB_DIR}}' + sLineBreak +
@@ -151,7 +150,7 @@ begin
   if (PhpTemplateText = '') or
      (Pos('{{PHP_EXTENSION_LINES}}', PhpTemplateText) = 0) or
      (Pos('{{ERROR_REPORTING}}', PhpTemplateText) = 0) then
-    TFile.WriteAllText(Paths.PhpTemplateFile,
+    AtomicWriteTextFile(Paths.PhpTemplateFile,
       '[PHP]' + sLineBreak +
       'display_errors={{DISPLAY_ERRORS}}' + sLineBreak +
       'error_reporting={{ERROR_REPORTING}}' + sLineBreak +
