@@ -40,8 +40,12 @@ end;
 procedure AtomicWriteTextFile(const FileName, Content: string; Encoding: TEncoding;
   const BackupFileName: string);
 var
+  DirectoryName: string;
   TempFileName: string;
 begin
+  DirectoryName := TPath.GetDirectoryName(FileName);
+  if DirectoryName <> '' then
+    ForceDirectories(DirectoryName);
   TempFileName := FileName + '.' + GUIDToString(TGUID.NewGuid) + '.tmp';
   WriteTextAndFlush(TempFileName, Content, Encoding);
   AtomicReplaceFile(TempFileName, FileName, BackupFileName);

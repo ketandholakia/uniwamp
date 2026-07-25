@@ -13,6 +13,7 @@ uses
   Vcl.Forms,
   Vcl.Graphics,
   Vcl.StdCtrls,
+  System.UITypes,
   Core.UniWamp.Config,
   Core.UniWamp.Diagnostics,
   Core.UniWamp.Types,
@@ -38,6 +39,10 @@ type
     procedure AddMessage(const Text: string);
     procedure AppendActivityLog(const Text: string);
     procedure AppendMariaDbFailureDetails;
+    procedure SyncCheckingMariaDbFiles;
+    procedure SyncStartingMariaDb;
+    procedure SyncStartupFinished;
+    procedure SyncStartupFailed;
     procedure FormShow(Sender: TObject);
     procedure FormCloseQuery(Sender: TObject; var CanClose: Boolean);
     procedure RunStartup;
@@ -53,6 +58,7 @@ implementation
 uses
   System.IOUtils,
   System.Threading,
+  Vcl.Dialogs,
   Core.UniWamp.ProcessManager;
 
 constructor TStartProgressForm.Create(AOwner: TComponent);
@@ -173,6 +179,48 @@ begin
   end;
 end;
 
+procedure TStartProgressForm.SyncCheckingMariaDbFiles;
+begin
+  AddMessage('Checking MariaDB runtime files...');
+end;
+
+procedure TStartProgressForm.SyncStartingMariaDb;
+begin
+  AddMessage('Starting MariaDB service...');
+end;
+
+procedure TStartProgressForm.SyncStartupFinished;
+begin
+  ProgressBar.Position := 85;
+  AddMessage(FResultInfo.Message);
+  AppendActivityLog('Startup: ' + FResultInfo.Message);
+  FStarting := False;
+  if FResultInfo.Success then
+  begin
+    AddMessage('MariaDB startup completed.');
+    ProgressBar.Position := ProgressBar.Max;
+    ModalResult := mrOk;
+  end
+  else
+  begin
+    AddMessage('MariaDB startup failed.');
+    AppendMariaDbFailureDetails;
+    ProgressBar.Position := ProgressBar.Max div 2;
+    ModalResult := mrCancel;
+  end;
+end;
+
+procedure TStartProgressForm.SyncStartupFailed;
+begin
+  AddMessage('MariaDB startup failed.');
+  AddMessage(FResultInfo.Message);
+  AppendMariaDbFailureDetails;
+  AppendActivityLog('Startup: ' + FResultInfo.Message);
+  ProgressBar.Position := ProgressBar.Max div 2;
+  FStarting := False;
+  ModalResult := mrCancel;
+end;
+
 procedure TStartProgressForm.FormShow(Sender: TObject);
 begin
   if FExecuted then
@@ -211,55 +259,17 @@ begin
       ResultInfo: TRuntimeActionResult;
     begin
       try
-        TThread.Synchronize(nil,
-          procedure
-          begin
-            AddMessage('Checking MariaDB runtime files...');
-          end);
-        TThread.Synchronize(nil,
-          procedure
-          begin
-            AddMessage('Starting MariaDB service...');
-          end);
+        TThread.Synchronize(nil, SyncCheckingMariaDbFiles);
+        TThread.Synchronize(nil, SyncStartingMariaDb);
         ResultInfo := FRuntime.StartMariaDb;
         FResultInfo := ResultInfo;
-          TThread.Synchronize(nil,
-          procedure
-          begin
-            ProgressBar.Position := 85;
-            AddMessage(FResultInfo.Message);
-            AppendActivityLog('Startup: ' + FResultInfo.Message);
-            FStarting := False;
-            if FResultInfo.Success then
-            begin
-              AddMessage('MariaDB startup completed.');
-              ProgressBar.Position := ProgressBar.Max;
-              ModalResult := mrOk;
-            end
-            else
-            begin
-              AddMessage('MariaDB startup failed.');
-              AppendMariaDbFailureDetails;
-              ProgressBar.Position := ProgressBar.Max div 2;
-              ModalResult := mrCancel;
-            end;
-          end);
+        TThread.Synchronize(nil, SyncStartupFinished);
       except
         on E: Exception do
         begin
           FResultInfo.Success := False;
           FResultInfo.Message := E.Message;
-          TThread.Synchronize(nil,
-          procedure
-          begin
-            AddMessage('MariaDB startup failed.');
-            AddMessage(FResultInfo.Message);
-            AppendMariaDbFailureDetails;
-            AppendActivityLog('Startup: ' + FResultInfo.Message);
-            ProgressBar.Position := ProgressBar.Max div 2;
-            FStarting := False;
-            ModalResult := mrCancel;
-          end);
+          TThread.Synchronize(nil, SyncStartupFailed);
         end;
       end;
     end);
