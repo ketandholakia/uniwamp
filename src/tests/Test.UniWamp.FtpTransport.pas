@@ -17,6 +17,10 @@ type
     procedure TestFtpsHostMatchesCertificateSubject_WildcardCn;
     [Test]
     procedure TestFtpsHostMatchesCertificateSubject_RejectsWrongHost;
+    [Test]
+    procedure TestFtpsHostMatchesCertificate_UsesSubjectAltNameWhenPresent;
+    [Test]
+    procedure TestFtpsHostMatchesCertificate_WildcardSanMatchesSingleLabelOnly;
   end;
 
 implementation
@@ -55,6 +59,30 @@ begin
   Assert.IsFalse(FtpsHostMatchesCertificateSubject('deep.cdn.example.test',
     '/C=US/ST=WA/L=Seattle/O=Example/CN=*.example.test'),
     'Wildcard CN should not match multi-label subdomains.');
+end;
+
+procedure TFtpTransportTests.TestFtpsHostMatchesCertificate_UsesSubjectAltNameWhenPresent;
+begin
+  Assert.IsTrue(FtpsHostMatchesCertificate('ftp.example.test',
+    '/C=US/ST=WA/L=Seattle/O=Example/CN=api.example.test',
+    'X509v3 Subject Alternative Name:'#13#10'    DNS:ftp.example.test'),
+    'SubjectAltName should override a mismatched CN when it contains the host.');
+  Assert.IsFalse(FtpsHostMatchesCertificate('ftp.example.test',
+    '/C=US/ST=WA/L=Seattle/O=Example/CN=ftp.example.test',
+    'X509v3 Subject Alternative Name:'#13#10'    DNS:api.example.test'),
+    'SubjectAltName should reject a mismatched host even if the CN matches.');
+end;
+
+procedure TFtpTransportTests.TestFtpsHostMatchesCertificate_WildcardSanMatchesSingleLabelOnly;
+begin
+  Assert.IsTrue(FtpsHostMatchesCertificate('cdn.example.test',
+    '/C=US/ST=WA/L=Seattle/O=Example/CN=api.example.test',
+    'X509v3 Subject Alternative Name:'#13#10'    DNS:*.example.test'),
+    'Wildcard SAN should match a single-label subdomain.');
+  Assert.IsFalse(FtpsHostMatchesCertificate('deep.cdn.example.test',
+    '/C=US/ST=WA/L=Seattle/O=Example/CN=api.example.test',
+    'X509v3 Subject Alternative Name:'#13#10'    DNS:*.example.test'),
+    'Wildcard SAN should not match multi-label subdomains.');
 end;
 
 initialization

@@ -5,6 +5,7 @@ interface
 uses
   System.SysUtils,
   System.Classes,
+  System.RegularExpressions,
   IdFTP,
   IdFTPList,
   IdComponent,
@@ -14,6 +15,7 @@ uses
 
 function DefaultFtpsCaBundleFile: string;
 function FtpsHostMatchesCertificateSubject(const HostName, SubjectLine: string): Boolean;
+function FtpsHostMatchesCertificate(const HostName, SubjectLine, DisplayInfoText: string): Boolean;
 
 type
   // FTP (plain) and FTPS (explicit AUTH TLS) over Indy's TIdFTP.
@@ -99,20 +101,40 @@ begin
 end;
 
 function FtpsHostMatchesCertificateSubject(const HostName, SubjectLine: string): Boolean;
+begin
+  Result := FtpsHostMatchesCertificate(HostName, SubjectLine, '');
+end;
+
+function FtpsHostMatchesCertificateName(const HostName, CandidateName: string): Boolean;
 var
-  CommonName: string;
   DotPos: Integer;
 begin
-  CommonName := LowerCase(ExtractCommonName(SubjectLine));
-  Result := SameText(CommonName, HostName);
+  Result := SameText(CandidateName, HostName);
   if Result then
     Exit;
-  if (Length(CommonName) > 2) and (Copy(CommonName, 1, 2) = '*.') then
+  if (Length(CandidateName) > 2) and (Copy(CandidateName, 1, 2) = '*.') then
   begin
     DotPos := Pos('.', LowerCase(HostName));
     if DotPos > 0 then
-      Result := SameText(Copy(CommonName, 3, MaxInt), Copy(LowerCase(HostName), DotPos + 1, MaxInt));
+      Result := SameText(Copy(CandidateName, 3, MaxInt), Copy(LowerCase(HostName), DotPos + 1, MaxInt));
   end;
+end;
+
+function FtpsHostMatchesCertificate(const HostName, SubjectLine, DisplayInfoText: string): Boolean;
+var
+  CommonName: string;
+  Match: TMatch;
+begin
+  if Pos('Subject Alternative Name', DisplayInfoText) > 0 then
+  begin
+    for Match in TRegEx.Matches(DisplayInfoText, 'DNS:([^,\r\n]+)', [roIgnoreCase]) do
+      if FtpsHostMatchesCertificateName(HostName, Trim(Match.Groups[1].Value)) then
+        Exit(True);
+    Exit(False);
+  end;
+
+  CommonName := ExtractCommonName(SubjectLine);
+  Result := FtpsHostMatchesCertificateName(HostName, CommonName);
 end;
 
 { TFtpTransport }
@@ -269,7 +291,8 @@ begin
       FPeerSerialNumber := Certificate.SerialNumber;
       FPeerNotBefore := Certificate.NotBefore;
       FPeerNotAfter := Certificate.NotAfter;
-      HostMatched := FtpsHostMatchesCertificateSubject(FCredentials.Host, FPeerSubject);
+      HostMatched := FtpsHostMatchesCertificate(FCredentials.Host, FPeerSubject,
+        Certificate.DisplayInfo.Text);
       FPeerHostMatched := HostMatched;
       if not HostMatched then
         Result := False;
