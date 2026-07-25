@@ -36,14 +36,15 @@ nav:
       - Connection and Sync Profiles: SYNC_PROFILES.md
       - Security and Operations: SECURITY_AND_OPERATIONS.md
       - Test Plan: TEST_PLAN.md
-  - Planning:
-      - Development Plan: DEVELOPMENT_PLAN.md
-      - Repository Review: REPOSITORY_REVIEW.md
-      - Scripts Maintenance: SCRIPTS_MAINTENANCE.md
-  - Testing:
+  - Release Tracking:
+      - Overview: testing/index.md
       - Alpha Release Checklist: testing/ALPHA_RELEASE_CHECKLIST.md
       - Release Readiness: testing/UNIWAMP_RELEASE_READINESS.md
       - Testing Checklist: testing/UNIWAMP_TESTING_CHECKLIST.md
       - Test Report: testing/UNIWAMP_TEST_REPORT.md
+  - Planning:
+      - Development Plan: DEVELOPMENT_PLAN.md
+      - Repository Review: REPOSITORY_REVIEW.md
+      - Scripts Maintenance: SCRIPTS_MAINTENANCE.md
   - Releases:
       - v0.1.0-alpha: releases/v0.1.0-alpha.md
