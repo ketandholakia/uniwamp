@@ -2742,8 +2742,8 @@ procedure TestVHostFilterKeyActionHelperDistinguishesClearAndExit;
 begin
   AssertTrue(DescribeVHostFilterKeyAction(VK_ESCAPE, 'api') = 'clear',
     'Escape should clear a non-empty vHost filter');
-  AssertTrue(DescribeVHostFilterKeyAction(VK_ESCAPE, '') = 'exit',
-    'Escape should exit the filter when it is already empty');
+  AssertTrue(DescribeVHostFilterKeyAction(VK_ESCAPE, '') = '',
+    'Escape should fall back to the main window tray minimize behavior when the filter is empty');
   AssertTrue(DescribeVHostFilterKeyAction(VK_RETURN, 'api') = '',
     'Non-Escape keys should not map to filter actions');
 end;

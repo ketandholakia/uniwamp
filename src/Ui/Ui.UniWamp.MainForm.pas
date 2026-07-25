@@ -893,8 +893,6 @@ begin
   begin
     if Trim(FilterText) <> '' then
       Result := 'clear'
-    else
-      Result := 'exit';
   end;
 end;
 
@@ -5429,7 +5427,7 @@ end;
 
 procedure TMainForm.FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
 begin
-  if (ssCtrl in Shift) and (Key = Ord('F')) then
+  if (ssCtrl in Shift) and ((Key = Ord('F')) or (Key = VK_OEM_2)) then
   begin
     Key := 0;
     if Assigned(FVHostFilterEdit) then
@@ -5440,11 +5438,9 @@ begin
   begin
     Key := 0;
     if Assigned(FVHostFilterEdit) and FVHostFilterEdit.Focused and (Trim(FVHostFilterEdit.Text) <> '') then
-    begin
-      FVHostFilterEdit.Clear;
-      Exit;
-    end;
-    ExitButtonClick(Sender);
+      FVHostFilterEdit.Clear
+    else
+      ToggleMainWindow;
   end;
 end;
 
@@ -5460,11 +5456,6 @@ begin
     Key := 0;
     FVHostFilterEdit.Clear;
     Exit;
-  end;
-  if DescribeVHostFilterKeyAction(Key, FVHostFilterEdit.Text) = 'exit' then
-  begin
-    Key := 0;
-    ActiveControl := nil;
   end;
 end;
 
