@@ -57,7 +57,7 @@ Known alpha limitations:
 - Start here in the repo docs: [`docs/index.md`](docs/index.md)
 - Installation guide: [`docs/installation.md`](docs/installation.md)
 - Usage guide: [`docs/usage.md`](docs/usage.md)
-- Reference docs: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/SYNC_PROFILES.md`](docs/SYNC_PROFILES.md), [`docs/SECURITY_AND_OPERATIONS.md`](docs/SECURITY_AND_OPERATIONS.md), [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md)
+- Reference docs: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/CONFIG_SCHEMA.md`](docs/CONFIG_SCHEMA.md), [`docs/SYNC_PROFILES.md`](docs/SYNC_PROFILES.md), [`docs/SECURITY_AND_OPERATIONS.md`](docs/SECURITY_AND_OPERATIONS.md), [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md)
 - Published static site output is built into `site/` when you run `mkdocs build`
 
 ## Requirements
