@@ -1,0 +1,2296 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Portable Windows WAMP dashboard documentation">
+      
+      
+      
+        <link rel="canonical" href="https://ketandholakia.github.io/uniwamp/REPOSITORY_REVIEW/">
+      
+      
+        <link rel="prev" href="../DEVELOPMENT_PLAN/">
+      
+      
+        <link rel="next" href="../SCRIPTS_MAINTENANCE/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Repository Review - UniWamp Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="amber">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#uniwamp-repository-review" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="UniWamp Docs" class="md-header__button md-logo" aria-label="UniWamp Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            UniWamp Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Repository Review
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="amber"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="amber"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ketandholakia/uniwamp" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="UniWamp Docs" class="md-nav__button md-logo" aria-label="UniWamp Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    UniWamp Docs
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ketandholakia/uniwamp" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../screenshots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Screenshots
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Get Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Get Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ARCHITECTURE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../SYNC_PROFILES/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connection and Sync Profiles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../SECURITY_AND_OPERATIONS/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security and Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../TEST_PLAN/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release Tracking
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Release Tracking
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/ALPHA_RELEASE_CHECKLIST/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Alpha Release Checklist
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/UNIWAMP_RELEASE_READINESS/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release Readiness
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/UNIWAMP_TESTING_CHECKLIST/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Checklist
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/UNIWAMP_TEST_REPORT/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Report
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Planning
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Planning
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../DEVELOPMENT_PLAN/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Repository Review
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Repository Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#executive-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Executive Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#confirmed-findings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Confirmed Findings
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Confirmed Findings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#critical-sftp-is-not-implemented" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Critical: SFTP Is Not Implemented
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#critical-connection-credentials-use-the-wrong-secret-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Critical: Connection Credentials Use the Wrong Secret Key
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#critical-remote-sync-names-can-escape-the-local-root" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Critical: Remote Sync Names Can Escape the Local Root
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#high-background-threads-can-outlive-tmainform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        High: Background Threads Can Outlive TMainForm
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#high-local-dashboard-has-no-csrf-protection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        High: Local Dashboard Has No CSRF Protection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#high-configuration-has-two-competing-control-planes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        High: Configuration Has Two Competing Control Planes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#medium-persistence-is-not-fully-atomic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Medium: Persistence Is Not Fully Atomic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#medium-vhost-certificate-deletion-is-not-contained" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Medium: VHost Certificate Deletion Is Not Contained
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#medium-backup-restore-is-not-transactional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Medium: Backup Restore Is Not Transactional
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#medium-ftps-validation-is-not-demonstrably-secure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Medium: FTPS Validation Is Not Demonstrably Secure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#medium-secrets-appear-in-process-command-lines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Medium: Secrets Appear in Process Command Lines
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture-and-maintainability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture and Maintainability
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Architecture and Maintainability">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#strengths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strengths
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#weaknesses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Weaknesses
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sync-engine-reliability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sync Engine Reliability
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing Results
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installer-and-distribution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installer and Distribution
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documentation-and-open-source-readiness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation and Open-Source Readiness
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#market-position" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Market Position
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prioritized-action-plan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prioritized Action Plan
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Prioritized Action Plan">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#must-fix-before-alpha" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Must Fix Before Alpha
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#should-do-before-wider-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Should Do Before Wider Testing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nice-to-have" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Nice to Have
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../SCRIPTS_MAINTENANCE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scripts Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Releases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Releases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../releases/v0.1.0-alpha/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    v0.1.0-alpha
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#executive-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Executive Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#confirmed-findings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Confirmed Findings
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Confirmed Findings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#critical-sftp-is-not-implemented" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Critical: SFTP Is Not Implemented
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#critical-connection-credentials-use-the-wrong-secret-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Critical: Connection Credentials Use the Wrong Secret Key
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#critical-remote-sync-names-can-escape-the-local-root" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Critical: Remote Sync Names Can Escape the Local Root
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#high-background-threads-can-outlive-tmainform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        High: Background Threads Can Outlive TMainForm
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#high-local-dashboard-has-no-csrf-protection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        High: Local Dashboard Has No CSRF Protection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#high-configuration-has-two-competing-control-planes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        High: Configuration Has Two Competing Control Planes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#medium-persistence-is-not-fully-atomic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Medium: Persistence Is Not Fully Atomic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#medium-vhost-certificate-deletion-is-not-contained" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Medium: VHost Certificate Deletion Is Not Contained
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#medium-backup-restore-is-not-transactional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Medium: Backup Restore Is Not Transactional
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#medium-ftps-validation-is-not-demonstrably-secure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Medium: FTPS Validation Is Not Demonstrably Secure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#medium-secrets-appear-in-process-command-lines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Medium: Secrets Appear in Process Command Lines
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture-and-maintainability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture and Maintainability
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Architecture and Maintainability">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#strengths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strengths
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#weaknesses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Weaknesses
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sync-engine-reliability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sync Engine Reliability
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing Results
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installer-and-distribution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installer and Distribution
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documentation-and-open-source-readiness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation and Open-Source Readiness
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#market-position" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Market Position
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prioritized-action-plan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prioritized Action Plan
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Prioritized Action Plan">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#must-fix-before-alpha" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Must Fix Before Alpha
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#should-do-before-wider-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Should Do Before Wider Testing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nice-to-have" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Nice to Have
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/ketandholakia/uniwamp/edit/main/docs/REPOSITORY_REVIEW.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="uniwamp-repository-review">UniWamp Repository Review</h1>
+<p>Review date: 2026-07-24</p>
+<p>Reviewed commit: <code>a626114</code> (<code>Refactor sync profiles and connection manager</code>)</p>
+<h2 id="executive-summary">Executive Summary</h2>
+<p>UniWamp has a credible foundation for a portable Windows development stack:
+typed configuration, generated runtime files, PID ownership checks, safe ZIP
+extraction, DPAPI-protected secrets, backup workflows, and dedicated VCL
+management forms.</p>
+<p>The repository is still alpha-quality and should not be released broadly yet.
+The main blockers are:</p>
+<ol>
+<li>SFTP is presented as supported but is only a runtime-error stub.</li>
+<li>Connection-profile credentials are loaded using the wrong profile name.</li>
+<li>A malicious or malformed remote filename can escape the local sync directory.</li>
+<li>Background threads can access the main form, runtime, and config after destruction.</li>
+<li>The localhost PHP dashboard allows state-changing requests without CSRF protection.</li>
+<li>The current test suite compiles but does not pass.</li>
+<li>There is no repository license, despite positioning the project as open source.</li>
+</ol>
+<p>Overall assessment: promising architecture, but the newest sync implementation
+and asynchronous UI lifecycle need another hardening pass before the alpha
+release.</p>
+<h2 id="confirmed-findings">Confirmed Findings</h2>
+<h3 id="critical-sftp-is-not-implemented">Critical: SFTP Is Not Implemented</h3>
+<p><code>src/Core/Core.UniWamp.SftpTransport.pas</code> explicitly says the implementation is
+a stub. Every meaningful operation calls <code>RaiseUnavailable</code>.</p>
+<p>Meanwhile, both connection and sync profile forms offer SFTP as a normal
+selectable protocol:</p>
+<ul>
+<li><code>src/Ui/Ui.UniWamp.ConnectionProfilesForm.pas</code></li>
+<li><code>src/Ui/Ui.UniWamp.SyncProfilesForm.pas</code></li>
+</ul>
+<p>Impact:</p>
+<ul>
+<li>Users can create and save apparently valid SFTP profiles.</li>
+<li>Connection tests fail only at runtime.</li>
+<li>Documentation and UI imply a capability the executable does not provide.</li>
+</ul>
+<p>Recommendation:</p>
+<ul>
+<li>Implement the native SFTP transport before release.</li>
+<li>Until then, hide or disable SFTP and display "not available in this build."</li>
+<li>Add an explicit transport-capability query instead of hardcoding protocol
+  names in forms.</li>
+</ul>
+<h3 id="critical-connection-credentials-use-the-wrong-secret-key">Critical: Connection Credentials Use the Wrong Secret Key</h3>
+<p>The connection profile form stores secrets under the connection profile name,
+but <code>TSyncService.BuildCredentials</code> loads them using the sync profile name:</p>
+<pre><code class="language-pascal">Result.Password := LoadSecret(FPaths, SyncPasswordKey(Profile.Name));
+Result.KeyPassphrase := LoadSecret(FPaths, SyncKeyPassphraseKey(Profile.Name));
+</code></pre>
+<p>If a sync profile named <code>Deploy Production</code> uses a connection profile named
+<code>Production Server</code>, the service looks for credentials belonging to
+<code>Deploy Production</code>, not <code>Production Server</code>.</p>
+<p>Impact:</p>
+<ul>
+<li>Most connection-profile-backed sync operations authenticate with an empty or
+  unrelated password.</li>
+<li>Profiles only appear to work when both names happen to match.</li>
+<li>Renaming either profile can silently break authentication.</li>
+</ul>
+<p>Recommendation:</p>
+<ul>
+<li>Resolve the effective connection profile first.</li>
+<li>Load secrets using <code>ConnectionProfile.Name</code>.</li>
+<li>Separate key helpers into <code>ConnectionPasswordKey</code> and legacy
+  <code>SyncPasswordKey</code>.</li>
+<li>Add migration logic for existing saved secrets.</li>
+</ul>
+<p>Related issue: connection testing reads the previously stored secret rather
+than the password currently typed into the editor. A user editing a password
+may therefore test stale credentials.</p>
+<h3 id="critical-remote-sync-names-can-escape-the-local-root">Critical: Remote Sync Names Can Escape the Local Root</h3>
+<p><code>RemoteFileTree</code> accepts every remote entry name except exactly <code>.</code>, <code>..</code>, or
+empty. The resulting remote-controlled relative path is combined directly with
+the local path.</p>
+<p>A hostile or malformed FTP server could return names containing separators or
+traversal components such as <code>..\..\target.ini</code>. Download and delete plans
+could then operate outside the selected local directory.</p>
+<p>This affects:</p>
+<ul>
+<li>Downloads</li>
+<li>Local deletion with mirroring enabled</li>
+<li>Recursive remote traversal</li>
+<li>Remote-path construction for upload and deletion</li>
+</ul>
+<p>Recommendation:</p>
+<ul>
+<li>Apply the same normalized relative-path validation used by safe ZIP extraction.</li>
+<li>Reject rooted paths, colons, empty components, <code>.</code> and <code>..</code>.</li>
+<li>Resolve the final local path with <code>ExpandFileName</code>.</li>
+<li>Verify it remains under the canonical local sync root before every write or
+  delete.</li>
+<li>Reject remote names containing <code>/</code> or <code>\</code> when returned as a single directory
+  entry.</li>
+</ul>
+<h3 id="high-background-threads-can-outlive-tmainform">High: Background Threads Can Outlive <code>TMainForm</code></h3>
+<p>The main form creates many anonymous threads and queues callbacks with
+<code>TThread.Queue(nil, ...)</code>.</p>
+<p>The destructor immediately frees <code>FRuntime</code>, <code>FConfig</code>, and UI-owned resources.
+There is no cancellation token, operation counter, thread join, closing flag,
+or queued-event removal. Because queued callbacks are associated with <code>nil</code>,
+they cannot reliably be removed by form identity.</p>
+<p>Impact:</p>
+<ul>
+<li>Closing UniWamp during start, stop, backup, restore, vhost, or password
+  operations can cause access violations.</li>
+<li>Worker threads access shared <code>FConfig</code> and <code>FRuntime</code> without synchronization.</li>
+<li>The four-second status timer may read state while workers modify it.</li>
+</ul>
+<p>This is a plausible source of future access violations similar to the startup
+errors already encountered.</p>
+<p>Recommendation:</p>
+<ul>
+<li>Introduce a form-owned background-operation coordinator.</li>
+<li>Associate queued events with the form or a dedicated thread object.</li>
+<li>Set <code>FClosing := True</code> before shutdown.</li>
+<li>Disable new operations during closure.</li>
+<li>Wait for active workers before freeing runtime/config.</li>
+<li>Keep mutable runtime state behind a lock or confine state updates to the main
+  thread.</li>
+</ul>
+<h3 id="high-local-dashboard-has-no-csrf-protection">High: Local Dashboard Has No CSRF Protection</h3>
+<p>The Apache templates correctly bind to loopback and restrict dashboard access.
+However, the PHP dashboard executes state-changing POST actions without any
+nonce, session token, <code>Origin</code> validation, or <code>Sec-Fetch-Site</code> check.</p>
+<p>Actions include:</p>
+<ul>
+<li>Starting and stopping the stack</li>
+<li>Restarting Apache or MariaDB</li>
+<li>Rewriting <code>uniwamp.json</code></li>
+<li>Regenerating configuration</li>
+<li>Enabling PHP extensions or Apache modules</li>
+</ul>
+<p>A malicious website opened in the user's browser can submit a form to
+<code>http://127.0.0.1:8080/dashboard/services.php</code>. Same-origin policy prevents
+reading the response, but it does not prevent a cross-origin form POST.</p>
+<p>The PHP stop implementation also falls back to killing every matching
+executable:</p>
+<pre><code class="language-text">taskkill /IM httpd.exe /T /F
+</code></pre>
+<p>This bypasses the safer executable-identity checks in the Delphi service
+supervisor.</p>
+<p>Recommendation:</p>
+<ul>
+<li>Best option: make the PHP dashboard read-only and leave management in the VCL
+  application.</li>
+<li>Otherwise, generate a random dashboard token at application start and require
+  it for every mutation.</li>
+<li>Validate <code>Origin</code> and reject cross-site requests.</li>
+<li>Never use image-name process termination.</li>
+<li>Route mutations through one localhost IPC/API owned by the Delphi runtime.</li>
+</ul>
+<h3 id="high-configuration-has-two-competing-control-planes">High: Configuration Has Two Competing Control Planes</h3>
+<p>The architecture document says the PHP dashboard should not become a second
+service-management implementation. It currently is one.</p>
+<p>The PHP code independently implements:</p>
+<ul>
+<li>Config loading and saving</li>
+<li>Apache/PHP/MariaDB config generation</li>
+<li>Runtime discovery</li>
+<li>Process start/stop</li>
+<li>State refresh</li>
+</ul>
+<p>This duplicates behavior already present in:</p>
+<ul>
+<li><code>Core.UniWamp.Config</code></li>
+<li><code>Core.UniWamp.ConfigGenerator</code></li>
+<li><code>Core.UniWamp.Runtime</code></li>
+<li><code>Core.UniWamp.ServiceSupervisor</code></li>
+</ul>
+<p>The two implementations already differ in validation, process ownership, error
+handling, and persistence strategy.</p>
+<p>Recommendation:</p>
+<ul>
+<li>Designate Delphi as the only writer and process controller.</li>
+<li>Make the PHP dashboard consume a generated read-only status JSON file.</li>
+<li>If browser control is required later, expose a minimal authenticated loopback
+  API from the Delphi process.</li>
+</ul>
+<h3 id="medium-persistence-is-not-fully-atomic">Medium: Persistence Is Not Fully Atomic</h3>
+<p>Configuration save writes a temporary file, but replaces the live file by
+deleting it and then moving the temporary file. A crash between deletion and
+move leaves no primary config, although the backup may survive.</p>
+<p>The hosts service copies a backup but then writes directly to the hosts file.
+This contradicts the documented requirement to write through a temporary file.
+A failed write can truncate or partially rewrite the hosts file.</p>
+<p>The PHP dashboard is weaker again, using direct <code>file_put_contents</code>.</p>
+<p>Recommendation:</p>
+<ul>
+<li>Centralize an <code>AtomicReplaceFile</code> helper.</li>
+<li>Write and flush a sibling temporary file.</li>
+<li>Use <code>ReplaceFileW</code> or <code>MoveFileEx</code> with replace/write-through semantics.</li>
+<li>Restore the backup automatically if replacement fails.</li>
+<li>Serialize config writes across UI, workers, and dashboard.</li>
+</ul>
+<h3 id="medium-vhost-certificate-deletion-is-not-contained">Medium: VHost Certificate Deletion Is Not Contained</h3>
+<p>Vhost deletion trusts certificate paths from configuration and deletes them
+directly. A manually edited or malicious config can point <code>sslCertFile</code> or
+<code>sslKeyFile</code> at an unrelated file. Deleting the vhost then deletes that file.</p>
+<p>Recommendation:</p>
+<ul>
+<li>Only delete certificates under <code>ssl\vhosts\&lt;validated-name&gt;</code>.</li>
+<li>Canonicalize and verify root containment.</li>
+<li>Check file existence before deletion.</li>
+<li>Treat external custom certificate paths as user-owned and never delete them
+  automatically.</li>
+</ul>
+<h3 id="medium-backup-restore-is-not-transactional">Medium: Backup Restore Is Not Transactional</h3>
+<p>Project restore creates the target directory and extracts directly into it. If
+extraction or vhost creation fails, partial files remain. There is no rollback.</p>
+<p>Manifest fields such as <code>projectArchiveFile</code>, <code>sslCertFile</code>, and <code>sslKeyFile</code>
+are not constrained to plain filenames. The archive checksum is optional, so
+an empty checksum disables integrity verification.</p>
+<p>Recommendation:</p>
+<ul>
+<li>Validate all manifest filenames with a plain-filename validator.</li>
+<li>Require SHA-256 for supported manifest versions.</li>
+<li>Extract into a temporary staging directory.</li>
+<li>Validate the complete result.</li>
+<li>Atomically rename into the destination.</li>
+<li>Remove staging data on failure.</li>
+<li>Roll back the vhost/config/hosts changes if finalization fails.</li>
+</ul>
+<h3 id="medium-ftps-validation-is-not-demonstrably-secure">Medium: FTPS Validation Is Not Demonstrably Secure</h3>
+<p><code>Core.UniWamp.FtpTransport</code> configures TLS 1.2 and provides a handler that
+accepts every certificate when <code>IgnoreCertErrors</code> is enabled.</p>
+<p>For normal mode, the code does not explicitly establish:</p>
+<ul>
+<li>A trusted root certificate store</li>
+<li>Certificate hostname matching</li>
+<li>Minimum/maximum protocol negotiation</li>
+<li>Actionable certificate diagnostics</li>
+</ul>
+<p>Depending on Indy/OpenSSL defaults, this may either reject valid servers
+unexpectedly or fail to provide full hostname-authenticated TLS.</p>
+<p>Recommendation:</p>
+<ul>
+<li>Add explicit chain and hostname verification.</li>
+<li>Rename the checkbox to a strongly worded insecure option.</li>
+<li>Log certificate subject, issuer, fingerprint, and verification result without
+  credentials.</li>
+<li>Test expired, self-signed, wrong-host, and valid public certificates.</li>
+<li>Allow modern TLS negotiation rather than forcing only TLS 1.2 where the
+  bundled libraries support it.</li>
+</ul>
+<h3 id="medium-secrets-appear-in-process-command-lines">Medium: Secrets Appear in Process Command Lines</h3>
+<p>MariaDB passwords are included in command-line arguments in backup, restore,
+password management, and script installation flows.</p>
+<p>Other processes running as the same user may inspect process command lines.
+Generated application and database passwords can also appear in live script
+output.</p>
+<p>Recommendation:</p>
+<ul>
+<li>Use a temporary <code>--defaults-extra-file</code> with restrictive ACLs.</li>
+<li>Delete it immediately after execution.</li>
+<li>Add systematic output redaction for generated database and admin passwords.</li>
+<li>Avoid retaining raw secrets in long-lived object fields.</li>
+</ul>
+<h2 id="architecture-and-maintainability">Architecture and Maintainability</h2>
+<h3 id="strengths">Strengths</h3>
+<ul>
+<li><code>TAppPaths</code> provides a clear portable root abstraction.</li>
+<li>Generated files are separated from templates.</li>
+<li><code>TServiceProcessSupervisor</code> validates executable identity before stopping
+  saved PIDs.</li>
+<li>ZIP extraction performs traversal and containment checks.</li>
+<li>DPAPI keeps MariaDB and sync secrets out of portable JSON.</li>
+<li>Interfaces exist for runtime, vhosts, sync, backups, hosts, and config
+  generation.</li>
+<li>The installer uses a user-writable location and <code>PrivilegesRequired=lowest</code>.</li>
+<li>Runtime startup validates Apache configuration before launch.</li>
+<li>Update staging includes hash verification, backup, promotion, and rollback
+  concepts.</li>
+</ul>
+<h3 id="weaknesses">Weaknesses</h3>
+<p>The largest units are too broad:</p>
+<table>
+<thead>
+<tr>
+<th>Unit</th>
+<th style="text-align: right;">Approximate size</th>
+<th>Concern</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Ui.UniWamp.MainForm.pas</code></td>
+<td style="text-align: right;">5,390 lines</td>
+<td>UI, orchestration, async lifecycle, settings, backups, sync and tool launching</td>
+</tr>
+<tr>
+<td><code>Core.UniWamp.Runtime.pas</code></td>
+<td style="text-align: right;">2,124 lines</td>
+<td>Runtime discovery, service lifecycle, updates, diagnostics, tools and database operations</td>
+</tr>
+<tr>
+<td><code>Ui.UniWamp.SyncProfilesForm.pas</code></td>
+<td style="text-align: right;">1,681 lines</td>
+<td>Form construction, validation, import/export, secrets, testing and execution</td>
+</tr>
+<tr>
+<td><code>Core.UniWamp.Config.pas</code></td>
+<td style="text-align: right;">1,247 lines</td>
+<td>Model, defaults, parsing, migrations, normalization and persistence</td>
+</tr>
+</tbody>
+</table>
+<p>Recommended boundaries:</p>
+<ul>
+<li><code>TApacheRuntime</code></li>
+<li><code>TMariaDbRuntime</code></li>
+<li><code>TToolLauncher</code></li>
+<li><code>TUpdateService</code></li>
+<li><code>TConfigRepository</code></li>
+<li><code>TConfigMigrator</code></li>
+<li><code>TBackgroundOperationCoordinator</code></li>
+<li><code>TConnectionProfileRepository</code></li>
+<li><code>TSyncProfileRepository</code></li>
+</ul>
+<p>The global service locator is a modest improvement over direct construction but
+hides dependencies and makes isolated tests harder. Prefer constructor
+injection into forms/controllers where practical.</p>
+<h2 id="sync-engine-reliability">Sync Engine Reliability</h2>
+<p>Additional concerns:</p>
+<ul>
+<li>Downloads write directly to final files, so cancellation or network failure
+  can leave truncated files.</li>
+<li>Uploads overwrite remote files directly.</li>
+<li>Mirror deletion has no recycle bin, quarantine, or rollback.</li>
+<li>Full local and remote trees are loaded into memory before execution.</li>
+<li>Local tree construction opens every file stream just to obtain its size.</li>
+<li>Recursive remote listing has no depth, item-count, or cycle guard.</li>
+<li>Same-sized files with unavailable or equal timestamps are assumed identical.</li>
+<li>Empty remote directories are not fully represented or mirrored.</li>
+</ul>
+<p>Recommended transfer model:</p>
+<ol>
+<li>Build and validate a plan.</li>
+<li>Show transfer and deletion counts.</li>
+<li>Require explicit confirmation when deletion is enabled.</li>
+<li>Download into <code>.uniwamp-part</code> files and atomically rename.</li>
+<li>Upload to a temporary remote name and rename where supported.</li>
+<li>Set destination timestamps after successful transfer.</li>
+<li>Add optional hashing for high-integrity profiles.</li>
+<li>Cap recursion depth and maximum planned operations.</li>
+</ol>
+<h2 id="testing-results">Testing Results</h2>
+<p>The verification result at the reviewed commit was not green:</p>
+<ul>
+<li>Main Delphi application: compiled successfully.</li>
+<li>Config harness: compiled successfully.</li>
+<li>Process harness: compiled successfully.</li>
+<li>Layout smoke test: passed.</li>
+<li>Config harness execution: failed with
+  <code>EInOutArgumentException: Path is empty</code>.</li>
+<li>Process harness execution: failed because live Apache owned port 8080 and the
+  test expected a different startup error.</li>
+</ul>
+<p>The config failure is caused by stale test path construction:
+<code>tests/ConfigHarness.dpr</code> does not initialize the newer backup-directory fields
+before calling <code>EnsurePortableLayout</code>.</p>
+<p>The process harness is coupled to real machine ports and currently running
+services. Tests should allocate temporary free ports and never depend on
+UniWamp being stopped.</p>
+<p>There are no tests for:</p>
+<ul>
+<li>Connection-profile secret resolution</li>
+<li>SFTP availability behavior</li>
+<li>FTP/FTPS transport</li>
+<li>Remote path traversal</li>
+<li>Sync planning and deletion</li>
+<li>Partial transfer cleanup</li>
+<li>Connection-profile import/export</li>
+<li>Dashboard CSRF</li>
+<li>Main-form shutdown during active workers</li>
+</ul>
+<p>Recommended test architecture:</p>
+<ul>
+<li>Introduce an in-memory <code>ISyncTransport</code> fake.</li>
+<li>Unit-test plans without network access.</li>
+<li>Add a local disposable FTP/FTPS integration fixture.</li>
+<li>Separate deterministic core tests from machine/runtime integration tests.</li>
+<li>Run tests in GitHub Actions on Windows.</li>
+<li>Make PowerShell 7 an explicit prerequisite or document the
+  <code>powershell.exe</code> fallback.</li>
+</ul>
+<h2 id="installer-and-distribution">Installer and Distribution</h2>
+<p>The profile-based Inno Setup structure is understandable and reusable.
+Installing under <code>{userdocs}\UniWamp</code> avoids normal Program Files write
+restrictions.</p>
+<p>Remaining issues:</p>
+<ul>
+<li>Runtime binaries are not tracked in Git, so reproducing release installers
+  requires undocumented external payload preparation.</li>
+<li>There is no lockfile or manifest recording exact Apache, PHP, MariaDB, Node,
+  Adminer, Cmder, and tool hashes.</li>
+<li>The installer hard-blocks when the VC++ runtime is missing but does not
+  provide a guided trusted installation path.</li>
+<li>No CI currently assembles and verifies installer payloads.</li>
+<li>There is no signature or documented Authenticode release process.</li>
+<li>Uninstall/data-retention behavior should explicitly preserve <code>www</code>,
+  databases, backups, certificates, and configuration unless the user opts in
+  to deleting them.</li>
+</ul>
+<p>Create a versioned <code>distribution-manifest.json</code> containing every bundled
+component's version, source URL, SHA-256, license, and target path.</p>
+<h2 id="documentation-and-open-source-readiness">Documentation and Open-Source Readiness</h2>
+<p>The architecture, security checklist, test plan, release checklist, and user
+manual are valuable. They are more structured than most early-stage desktop
+projects.</p>
+<p>Important gaps:</p>
+<ul>
+<li>No <code>LICENSE</code> file exists. Without one, others have no legal permission to
+  modify or redistribute the code.</li>
+<li>No <code>.github</code> directory exists.</li>
+<li>No contribution guide, issue templates, pull-request template, security
+  policy, or CI workflow.</li>
+<li>README does not explain the new connection/sync profile model.</li>
+<li>README does not disclose that SFTP is unavailable.</li>
+<li>The documented <code>pwsh</code> verification command assumes PowerShell 7 without
+  listing it as a prerequisite.</li>
+<li>Some security documentation describes controls, such as temporary hosts-file
+  replacement, that the implementation does not yet provide.</li>
+</ul>
+<p>Recommended files:</p>
+<ul>
+<li><code>LICENSE</code></li>
+<li><code>CONTRIBUTING.md</code></li>
+<li><code>SECURITY.md</code></li>
+<li><code>CHANGELOG.md</code></li>
+<li><code>docs/SYNC_PROFILES.md</code></li>
+<li><code>docs/CONFIG_SCHEMA.md</code></li>
+<li><code>docs/RELEASE_PROCESS.md</code></li>
+<li><code>.github/workflows/windows-build.yml</code></li>
+<li><code>.github/ISSUE_TEMPLATE/bug_report.yml</code></li>
+</ul>
+<h2 id="market-position">Market Position</h2>
+<table>
+<thead>
+<tr>
+<th>Product</th>
+<th>Current advantage</th>
+<th>UniWamp position</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>XAMPP</td>
+<td>Mature, cross-platform, simple Apache/MariaDB/PHP bundle. See <a href="https://www.apachefriends.org/about.html">Apache Friends</a>.</td>
+<td>UniWamp can provide a more modern Windows-native dashboard, stronger vhost workflow, backups, and multi-runtime tooling.</td>
+</tr>
+<tr>
+<td>Laragon</td>
+<td>Portable, lightweight, automatic virtual hosts, automatic SSL, quick-app workflows, and broad language support. See <a href="https://laragon.org/docs">Laragon documentation</a> and <a href="https://laragon.org/docs/pretty-urls">Pretty URLs</a>.</td>
+<td>This is UniWamp's strongest direct competitor. UniWamp needs comparable reliability, auto-vhosts, SSL polish, and package management.</td>
+</tr>
+<tr>
+<td>WampServer</td>
+<td>Mature Apache/PHP/MySQL/MariaDB version and add-on ecosystem. See <a href="https://www.wampserver.com/en/php-addons/">WampServer</a>.</td>
+<td>UniWamp's cleaner portable directory model and modern VCL dashboard can differentiate it, but runtime add-ons are currently less mature.</td>
+</tr>
+<tr>
+<td>Bearsampp</td>
+<td>Portable, modular, version switching, extensive binary/tool catalog, and active component updates. See <a href="https://bearsampp.com/">Bearsampp</a> and its <a href="https://bearsampp.com/module">module catalog</a>.</td>
+<td>UniWamp is currently smaller and easier to understand, but needs a signed, hash-verified component catalog to compete.</td>
+</tr>
+<tr>
+<td>Modern container environments</td>
+<td>Reproducible per-project environments and team consistency.</td>
+<td>UniWamp is faster and simpler for Windows-local PHP work, but cannot match container isolation or cross-platform reproducibility.</td>
+</tr>
+</tbody>
+</table>
+<p>Best positioning:</p>
+<blockquote>
+<p>A lightweight, Windows-native, portable PHP development workspace with
+explicit configuration, project backups, secure connection profiles, and a
+transparent Delphi codebase.</p>
+</blockquote>
+<p>Avoid competing only on "another WAMP bundle." The stronger differentiation is
+project lifecycle management: vhosts, backups, diagnostics, sync, runtime
+switching, and predictable portable state.</p>
+<h2 id="prioritized-action-plan">Prioritized Action Plan</h2>
+<h3 id="must-fix-before-alpha">Must Fix Before Alpha</h3>
+<ol>
+<li>Fix connection-profile secret lookup and migration.</li>
+<li>Hide SFTP or implement it completely.</li>
+<li>Validate all remote sync entry paths and enforce local-root containment.</li>
+<li>Add background-operation shutdown coordination.</li>
+<li>Add CSRF protection or make the PHP dashboard read-only.</li>
+<li>Remove PHP-side process termination by executable name.</li>
+<li>Repair <code>ConfigHarness</code> path initialization.</li>
+<li>Isolate process tests from live ports and services.</li>
+<li>Add sync engine and connection-profile tests.</li>
+<li>Add a repository license.</li>
+</ol>
+<h3 id="should-do-before-wider-testing">Should Do Before Wider Testing</h3>
+<ol>
+<li>Centralize atomic file replacement.</li>
+<li>Make project restore transactional.</li>
+<li>Contain certificate deletion to managed SSL directories.</li>
+<li>Implement explicit FTPS certificate and hostname verification.</li>
+<li>Move MariaDB credentials out of process command lines.</li>
+<li>Split <code>MainForm</code> and <code>Runtime</code> into smaller controllers/services.</li>
+<li>Remove the duplicate PHP configuration generator.</li>
+<li>Add a versioned configuration migration pipeline.</li>
+<li>Add component manifests and SHA-256 verification for release payloads.</li>
+<li>Add Windows CI.</li>
+</ol>
+<h3 id="nice-to-have">Nice to Have</h3>
+<ol>
+<li>Automatic <code>.test</code> vhost discovery.</li>
+<li>Per-project PHP version selection.</li>
+<li>Read-only JSON status endpoint for the dashboard.</li>
+<li>Transfer resume and atomic upload support.</li>
+<li>Backup retention policies.</li>
+<li>Mailpit/Redis/Memcached lifecycle supervision.</li>
+<li>Signed update manifests and signed installers.</li>
+<li>Exportable redacted diagnostic bundles.</li>
+<li>Accessibility and keyboard-navigation review.</li>
+<li>Plugin API for runtime and project templates.</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.sections", "navigation.top", "content.code.copy", "content.action.edit"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
