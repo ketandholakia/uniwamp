@@ -61,6 +61,7 @@ type
     FProgressBar: TProgressBar;
     FCreateDatabaseCheck: TCheckBox;
     FInstallLogFile: string;
+    procedure FormCloseQuery(Sender: TObject; var CanClose: Boolean);
     procedure Populate;
     procedure BindControls;
     procedure PopulateCategoryFilter;
@@ -143,6 +144,7 @@ begin
   inherited Create(AOwner);
   FPaths := Paths;
   FCatalog := TScriptCatalog.LoadFromFile(TPath.Combine(FPaths.AppRoot, 'scripts\catalog.json'));
+  OnCloseQuery := FormCloseQuery;
 end;
 
 procedure TScriptManagerForm.Loaded;
@@ -1102,7 +1104,21 @@ end;
 
 procedure TScriptManagerForm.CloseClick(Sender: TObject);
 begin
+  if FInstalling then
+  begin
+    MessageDlg('Please wait for the current install to finish before closing this window.',
+      mtInformation, [mbOK], 0);
+    Exit;
+  end;
   ModalResult := mrClose;
+end;
+
+procedure TScriptManagerForm.FormCloseQuery(Sender: TObject; var CanClose: Boolean);
+begin
+  CanClose := not FInstalling;
+  if not CanClose then
+    MessageDlg('Please wait for the current install to finish before closing this window.',
+      mtInformation, [mbOK], 0);
 end;
 
 initialization
