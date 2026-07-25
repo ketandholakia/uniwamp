@@ -18,6 +18,7 @@
 /tailadmin-free-tailwind-dashboard-template-main/node_modules/
 /tailadmin-free-tailwind-dashboard-template-main/build/
 /installer/Output/
+/site/
 
 # Generated website worktrees under www/
 /www/*/

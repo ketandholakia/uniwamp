@@ -1,0 +1,49 @@
+site_name: UniWamp Docs
+site_description: Portable Windows WAMP dashboard documentation
+site_url: https://ketandholakia.github.io/uniwamp/
+repo_url: https://github.com/ketandholakia/uniwamp
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: teal
+      accent: amber
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: slate
+      primary: teal
+      accent: amber
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - content.action.edit
+
+nav:
+  - Home: index.md
+  - Get Started:
+      - Installation: installation.md
+      - Usage: usage.md
+  - Reference:
+      - Architecture: ARCHITECTURE.md
+      - Connection and Sync Profiles: SYNC_PROFILES.md
+      - Security and Operations: SECURITY_AND_OPERATIONS.md
+      - Test Plan: TEST_PLAN.md
+  - Planning:
+      - Development Plan: DEVELOPMENT_PLAN.md
+      - Repository Review: REPOSITORY_REVIEW.md
+      - Scripts Maintenance: SCRIPTS_MAINTENANCE.md
+  - Testing:
+      - Alpha Release Checklist: testing/ALPHA_RELEASE_CHECKLIST.md
+      - Release Readiness: testing/UNIWAMP_RELEASE_READINESS.md
+      - Testing Checklist: testing/UNIWAMP_TESTING_CHECKLIST.md
+      - Test Report: testing/UNIWAMP_TEST_REPORT.md
+  - Releases:
+      - v0.1.0-alpha: releases/v0.1.0-alpha.md
