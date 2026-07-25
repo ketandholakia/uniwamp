@@ -273,6 +273,7 @@ type
     FBackgroundOpLock: TCriticalSection;
     FBackgroundOpsDone: TEvent;
     FActiveBackgroundOperations: Integer;
+    FPendingUiUpdates: Integer;
     function BeginBackgroundOperation: Boolean;
     procedure EndBackgroundOperation;
     procedure StartBackgroundThread(const Work: TProc);
@@ -1264,6 +1265,7 @@ begin
   FBackgroundOpLock := TCriticalSection.Create;
   FBackgroundOpsDone := TEvent.Create(nil, True, True, '');
   FActiveBackgroundOperations := 0;
+  FPendingUiUpdates := 0;
   FUiUpdateQueueThread := TThread.CreateAnonymousThread(
     procedure
     begin
@@ -2703,13 +2705,24 @@ begin
 end;
 
 destructor TMainForm.Destroy;
+var
+  PendingWork: Integer;
 begin
   FIsShuttingDown := True;
   SetStatusRefreshEnabled(False);
-  if Assigned(FBackgroundOpsDone) then
-    while True do
-      if FBackgroundOpsDone.WaitFor(100) = wrSignaled then
-        Break;
+  while True do
+  begin
+    FBackgroundOpLock.Enter;
+    try
+      PendingWork := FActiveBackgroundOperations + FPendingUiUpdates;
+    finally
+      FBackgroundOpLock.Leave;
+    end;
+    if PendingWork = 0 then
+      Break;
+    Application.ProcessMessages;
+    Sleep(10);
+  end;
   TThread.RemoveQueuedEvents(FUiUpdateQueueThread);
   FUiUpdateQueueThread.Free;
   FBackgroundOpsDone.Free;
@@ -2898,14 +2911,28 @@ begin
   if FIsShuttingDown or Application.Terminated or (csDestroying in ComponentState) or
     not Assigned(FUiUpdateQueueThread) then
     Exit;
+  FBackgroundOpLock.Enter;
+  try
+    Inc(FPendingUiUpdates);
+  finally
+    FBackgroundOpLock.Leave;
+  end;
   TThread.Queue(FUiUpdateQueueThread, TThreadProcedure(
     procedure
     begin
-      if FIsShuttingDown or Application.Terminated or (csDestroying in ComponentState) or
-        not HandleAllocated then
-        Exit;
-      if Assigned(Action) then
-        Action();
+      try
+        if not (FIsShuttingDown or Application.Terminated or (csDestroying in ComponentState) or
+          not HandleAllocated) and Assigned(Action) then
+          Action();
+      finally
+        FBackgroundOpLock.Enter;
+        try
+          if FPendingUiUpdates > 0 then
+            Dec(FPendingUiUpdates);
+        finally
+          FBackgroundOpLock.Leave;
+        end;
+      end;
     end));
 end;
 
@@ -5462,8 +5489,6 @@ procedure TMainForm.FormCloseQuery(Sender: TObject; var CanClose: Boolean);
 begin
   FIsShuttingDown := True;
   SetStatusRefreshEnabled(False);
-  if Assigned(FUiUpdateQueueThread) then
-    TThread.RemoveQueuedEvents(FUiUpdateQueueThread);
   if not SaveUiIntoState then
   begin
     CanClose := False;
