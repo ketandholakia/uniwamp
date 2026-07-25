@@ -2790,31 +2790,38 @@ begin
         VHosts[High(VHosts)] := Entry;
       end;
   end;
-  VHostGrid.RowCount := Length(VHosts) + 1;
-  if VHostGrid.RowCount < 2 then
-    VHostGrid.RowCount := 2;
-  VHostGrid.Cells[0, 0] := 'Site Name';
-  VHostGrid.Cells[1, 0] := 'Document Path';
-  VHostGrid.Cells[2, 0] := 'Type';
-  VHostGrid.Cells[3, 0] := 'URL';
-  VHostGrid.Cells[4, 0] := 'Actions';
-  VHostGrid.RowHeights[0] := 30;
-  for RowIndex := 1 to VHostGrid.RowCount - 1 do
-  begin
-    VHostGrid.Cells[0, RowIndex] := '';
-    VHostGrid.Cells[1, RowIndex] := '';
-    VHostGrid.Cells[2, RowIndex] := '';
-    VHostGrid.Cells[3, RowIndex] := '';
-    VHostGrid.Cells[4, RowIndex] := '';
-  end;
-  for RowIndex := 0 to High(VHosts) do
-  begin
-    Entry := VHosts[RowIndex];
-    VHostGrid.Cells[0, RowIndex + 1] := Entry.ServerName;
-    VHostGrid.Cells[1, RowIndex + 1] := Entry.DocumentRoot;
-    ProjectTypeText := DetectProjectTypeLabel(Entry.DocumentRoot);
-    VHostGrid.Cells[2, RowIndex + 1] := ProjectTypeText;
-    VHostGrid.Cells[3, RowIndex + 1] := VHostUrl(Entry.ServerName);
+  VHostGrid.BeginUpdate;
+  try
+    VHostGrid.FixedRows := 1;
+    VHostGrid.RowCount := 1;
+    VHostGrid.RowCount := Length(VHosts) + 1;
+    if VHostGrid.RowCount < 2 then
+      VHostGrid.RowCount := 2;
+    VHostGrid.Cells[0, 0] := 'Site Name';
+    VHostGrid.Cells[1, 0] := 'Document Path';
+    VHostGrid.Cells[2, 0] := 'Type';
+    VHostGrid.Cells[3, 0] := 'URL';
+    VHostGrid.Cells[4, 0] := 'Actions';
+    VHostGrid.RowHeights[0] := 30;
+    for RowIndex := 1 to VHostGrid.RowCount - 1 do
+    begin
+      VHostGrid.Cells[0, RowIndex] := '';
+      VHostGrid.Cells[1, RowIndex] := '';
+      VHostGrid.Cells[2, RowIndex] := '';
+      VHostGrid.Cells[3, RowIndex] := '';
+      VHostGrid.Cells[4, RowIndex] := '';
+    end;
+    for RowIndex := 0 to High(VHosts) do
+    begin
+      Entry := VHosts[RowIndex];
+      VHostGrid.Cells[0, RowIndex + 1] := Entry.ServerName;
+      VHostGrid.Cells[1, RowIndex + 1] := Entry.DocumentRoot;
+      ProjectTypeText := DetectProjectTypeLabel(Entry.DocumentRoot);
+      VHostGrid.Cells[2, RowIndex + 1] := ProjectTypeText;
+      VHostGrid.Cells[3, RowIndex + 1] := VHostUrl(Entry.ServerName);
+    end;
+  finally
+    VHostGrid.EndUpdate;
   end;
   UpdateVHostEmptyState;
 end;
