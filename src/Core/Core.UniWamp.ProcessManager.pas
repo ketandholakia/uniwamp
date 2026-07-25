@@ -26,7 +26,8 @@ type
       out Output: string; const TimeoutMs: Cardinal = 0;
       const OnOutput: TProcessOutputEvent = nil): Boolean; static;
     class procedure RunAndCaptureOutputAsync(const ExecutablePath, Arguments, WorkingDirectory: string;
-      const TimeoutMs: Cardinal; const OnComplete: TProcessResultCallback); static;
+      const TimeoutMs: Cardinal; const OnComplete: TProcessResultCallback;
+      const QueueThread: TThread = nil); static;
     class function StopProcess(const ProcessId: Cardinal; const ForceAfterMs: Cardinal = 4000): Boolean; static;
     class function WaitForExit(const ProcessId: Cardinal; const TimeoutMs: Cardinal): Boolean; static;
     class function IsRunning(const ProcessId: Cardinal): Boolean; static;
@@ -40,7 +41,8 @@ uses
   Core.UniWamp.TaskRunner;
 
 class procedure TProcessManager.RunAndCaptureOutputAsync(const ExecutablePath, Arguments,
-  WorkingDirectory: string; const TimeoutMs: Cardinal; const OnComplete: TProcessResultCallback);
+  WorkingDirectory: string; const TimeoutMs: Cardinal; const OnComplete: TProcessResultCallback;
+  const QueueThread: TThread);
 begin
   TTaskRunner.Run(
     procedure
@@ -51,13 +53,19 @@ begin
       Success := RunAndCaptureOutput(ExecutablePath, Arguments, WorkingDirectory, Output, TimeoutMs);
       if Assigned(OnComplete) then
       begin
-        TThread.Queue(nil,
-          procedure
-          begin
-            OnComplete(Success, Output);
-          end);
+        if Assigned(QueueThread) then
+          TThread.Queue(QueueThread,
+            procedure
+            begin
+              OnComplete(Success, Output);
+            end)
+        else
+          OnComplete(Success, Output);
       end;
-    end);
+    end,
+    nil,
+    nil,
+    QueueThread);
 end;
 
 class function TProcessManager.StartDetached(const ExecutablePath, Arguments,

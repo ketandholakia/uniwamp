@@ -16,14 +16,16 @@ type
   public
     class procedure Run(const Action: TTaskAction;
       const OnSuccess: TTaskCallback = nil;
-      const OnError: TTaskErrorCallback = nil); static;
+      const OnError: TTaskErrorCallback = nil;
+      const QueueThread: TThread = nil); static;
   end;
 
 implementation
 
 class procedure TTaskRunner.Run(const Action: TTaskAction;
   const OnSuccess: TTaskCallback;
-  const OnError: TTaskErrorCallback);
+  const OnError: TTaskErrorCallback;
+  const QueueThread: TThread);
 begin
   TTask.Run(TProc(
     procedure
@@ -34,11 +36,14 @@ begin
 
         if Assigned(OnSuccess) then
         begin
-          TThread.Queue(nil, TThreadProcedure(
-            procedure
-            begin
-              OnSuccess();
-            end));
+          if Assigned(QueueThread) then
+            TThread.Queue(QueueThread, TThreadProcedure(
+              procedure
+              begin
+                OnSuccess();
+              end))
+          else
+            OnSuccess();
         end;
       except
         on E: Exception do
@@ -47,11 +52,14 @@ begin
           begin
             // Capture message to local variable for closure
             var ErrorMsg := E.Message;
-            TThread.Queue(nil, TThreadProcedure(
-              procedure
-              begin
-                OnError(ErrorMsg);
-              end));
+            if Assigned(QueueThread) then
+              TThread.Queue(QueueThread, TThreadProcedure(
+                procedure
+                begin
+                  OnError(ErrorMsg);
+                end))
+            else
+              OnError(ErrorMsg);
           end;
         end;
       end;
