@@ -1,0 +1,22 @@
+name: Windows Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  verify:
+    name: Build and verify
+    runs-on: [self-hosted, windows]
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Run repository verification
+        shell: powershell
+        run: |
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+          .\tests\run-all.ps1
