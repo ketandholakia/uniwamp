@@ -33,6 +33,11 @@ runtime files under `config\generated\`.
 - The app updates the generated Apache vHost file and the managed hosts block
   for you.
 
+## Visual reference
+
+See the [Screenshots](screenshots.md) page for the current dashboard, connection
+profile, and sync profile forms.
+
 ## Connection and sync profiles
 
 Use the dedicated connection profile and sync profile forms to manage remote

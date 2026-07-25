@@ -28,6 +28,7 @@ theme:
 
 nav:
   - Home: index.md
+  - Screenshots: screenshots.md
   - Get Started:
       - Installation: installation.md
       - Usage: usage.md

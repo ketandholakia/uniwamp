@@ -8,6 +8,7 @@ security notes.
 
 - [Installation](installation.md)
 - [Usage](usage.md)
+- [Screenshots](screenshots.md)
 - [Architecture](ARCHITECTURE.md)
 - [Connection and Sync Profiles](SYNC_PROFILES.md)
 - [Security and Operations](SECURITY_AND_OPERATIONS.md)
@@ -19,6 +20,7 @@ security notes.
 - Connection profiles and sync profiles for FTP, FTPS, and SFTP
 - Backup, restore, and update workflows
 - Verification and release planning
+- Visual reference screenshots for the main forms
 
 ## Quick commands
 
