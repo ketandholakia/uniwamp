@@ -21,6 +21,15 @@ function HasSecret(const Paths: TAppPaths; const Key: string): Boolean;
 function SyncPasswordKey(const ProfileName: string): string;
 function SyncKeyPassphraseKey(const ProfileName: string): string;
 procedure DeleteAllSyncSecrets(const Paths: TAppPaths; const ProfileName: string);
+function ConnectionPasswordKey(const ProfileName: string): string;
+function ConnectionKeyPassphraseKey(const ProfileName: string): string;
+function LoadConnectionPassword(const Paths: TAppPaths; const ProfileName: string): string;
+function LoadConnectionKeyPassphrase(const Paths: TAppPaths; const ProfileName: string): string;
+function SaveConnectionPassword(const Paths: TAppPaths; const ProfileName, Value: string;
+  out ErrorMessage: string): Boolean;
+function SaveConnectionKeyPassphrase(const Paths: TAppPaths; const ProfileName, Value: string;
+  out ErrorMessage: string): Boolean;
+procedure DeleteAllConnectionSecrets(const Paths: TAppPaths; const ProfileName: string);
 
 implementation
 
@@ -267,6 +276,16 @@ begin
   Result := LoadSecret(Paths, Key) <> '';
 end;
 
+function ConnectionPasswordKey(const ProfileName: string): string;
+begin
+  Result := 'connection:' + LowerCase(Trim(ProfileName)) + ':password';
+end;
+
+function ConnectionKeyPassphraseKey(const ProfileName: string): string;
+begin
+  Result := 'connection:' + LowerCase(Trim(ProfileName)) + ':keypassphrase';
+end;
+
 function SyncPasswordKey(const ProfileName: string): string;
 begin
   Result := 'sync:' + LowerCase(Trim(ProfileName)) + ':password';
@@ -277,12 +296,62 @@ begin
   Result := 'sync:' + LowerCase(Trim(ProfileName)) + ':keypassphrase';
 end;
 
+function LoadAndMigrateSecret(const Paths: TAppPaths; const CurrentKey, LegacyKey: string): string;
+var
+  ErrorMessage: string;
+begin
+  Result := LoadSecret(Paths, CurrentKey);
+  if (Result <> '') or (Trim(LegacyKey) = '') then
+    Exit;
+  Result := LoadSecret(Paths, LegacyKey);
+  if Result = '' then
+    Exit;
+  if SaveSecret(Paths, CurrentKey, Result, ErrorMessage) then
+    DeleteSecret(Paths, LegacyKey, ErrorMessage);
+end;
+
+function LoadConnectionPassword(const Paths: TAppPaths; const ProfileName: string): string;
+begin
+  Result := LoadAndMigrateSecret(Paths, ConnectionPasswordKey(ProfileName), SyncPasswordKey(ProfileName));
+end;
+
+function LoadConnectionKeyPassphrase(const Paths: TAppPaths; const ProfileName: string): string;
+begin
+  Result := LoadAndMigrateSecret(Paths, ConnectionKeyPassphraseKey(ProfileName),
+    SyncKeyPassphraseKey(ProfileName));
+end;
+
+function SaveConnectionPassword(const Paths: TAppPaths; const ProfileName, Value: string;
+  out ErrorMessage: string): Boolean;
+begin
+  Result := SaveSecret(Paths, ConnectionPasswordKey(ProfileName), Value, ErrorMessage);
+  if Result then
+    DeleteSecret(Paths, SyncPasswordKey(ProfileName), ErrorMessage);
+end;
+
+function SaveConnectionKeyPassphrase(const Paths: TAppPaths; const ProfileName, Value: string;
+  out ErrorMessage: string): Boolean;
+begin
+  Result := SaveSecret(Paths, ConnectionKeyPassphraseKey(ProfileName), Value, ErrorMessage);
+  if Result then
+    DeleteSecret(Paths, SyncKeyPassphraseKey(ProfileName), ErrorMessage);
+end;
+
 procedure DeleteAllSyncSecrets(const Paths: TAppPaths; const ProfileName: string);
 var
   ErrorMessage: string;
 begin
   DeleteSecret(Paths, SyncPasswordKey(ProfileName), ErrorMessage);
   DeleteSecret(Paths, SyncKeyPassphraseKey(ProfileName), ErrorMessage);
+end;
+
+procedure DeleteAllConnectionSecrets(const Paths: TAppPaths; const ProfileName: string);
+var
+  ErrorMessage: string;
+begin
+  DeleteSecret(Paths, ConnectionPasswordKey(ProfileName), ErrorMessage);
+  DeleteSecret(Paths, ConnectionKeyPassphraseKey(ProfileName), ErrorMessage);
+  DeleteAllSyncSecrets(Paths, ProfileName);
 end;
 
 end.

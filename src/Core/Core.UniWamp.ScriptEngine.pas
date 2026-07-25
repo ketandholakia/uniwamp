@@ -73,6 +73,7 @@ type
 implementation
 
 uses
+  Core.UniWamp.MariaDbAuth,
   Core.UniWamp.Security,
   Core.UniWamp.Secrets,
   System.Classes,
@@ -380,6 +381,8 @@ function TScriptEngine.CreateDatabase(const DatabaseName: string; out Output: st
 var
   ClientExe: string;
   Arguments: string;
+  DefaultsFileName: string;
+  AuthError: string;
 begin
   Output := '';
   ClientExe := MariaDbAdminExe;
@@ -389,10 +392,22 @@ begin
     Exit(False);
   end;
   Arguments := '--protocol=tcp --host=127.0.0.1 --port=' + IntToStr(DatabasePort) + ' -uroot';
-  if MariaDbRootPassword <> '' then
-    Arguments := Arguments + ' --password="' + MariaDbRootPassword + '"';
   Arguments := Arguments + ' create "' + DatabaseName + '"';
-  Result := TProcessManager.RunAndCaptureOutput(ClientExe, Arguments, FPaths.MariaDbBinDir, Output, 600000);
+  DefaultsFileName := '';
+  if MariaDbRootPassword <> '' then
+  begin
+    if not CreateMariaDbDefaultsExtraFile(FPaths, MariaDbRootPassword, DefaultsFileName, AuthError) then
+    begin
+      Output := 'MariaDB auth setup failed: ' + AuthError;
+      Exit(False);
+    end;
+    Arguments := PrependDefaultsExtraFileArg(DefaultsFileName, Arguments);
+  end;
+  try
+    Result := TProcessManager.RunAndCaptureOutput(ClientExe, Arguments, FPaths.MariaDbBinDir, Output, 600000);
+  finally
+    DeleteMariaDbDefaultsExtraFile(DefaultsFileName);
+  end;
 end;
 
 function TScriptEngine.CreateDatabaseUser(const DatabaseName, Username, Password: string;
@@ -402,6 +417,8 @@ var
   Arguments: string;
   Sql: string;
   UserOutput: string;
+  DefaultsFileName: string;
+  AuthError: string;
 begin
   Output := '';
   if not CreateDatabase(DatabaseName, Output) then
@@ -425,12 +442,24 @@ begin
     'FLUSH PRIVILEGES;', [Username, Password, DatabaseName]);
 
   Arguments := '--protocol=tcp --host=127.0.0.1 --port=' + IntToStr(DatabasePort) + ' -uroot';
-  if MariaDbRootPassword <> '' then
-    Arguments := Arguments + ' --password="' + MariaDbRootPassword + '"';
   Arguments := Arguments + ' -e "' + Sql + '"';
+  DefaultsFileName := '';
+  if MariaDbRootPassword <> '' then
+  begin
+    if not CreateMariaDbDefaultsExtraFile(FPaths, MariaDbRootPassword, DefaultsFileName, AuthError) then
+    begin
+      Output := Output + 'MariaDB auth setup failed: ' + AuthError;
+      Exit(False);
+    end;
+    Arguments := PrependDefaultsExtraFileArg(DefaultsFileName, Arguments);
+  end;
 
   UserOutput := '';
-  Result := TProcessManager.RunAndCaptureOutput(ClientExe, Arguments, FPaths.MariaDbBinDir, UserOutput, 600000);
+  try
+    Result := TProcessManager.RunAndCaptureOutput(ClientExe, Arguments, FPaths.MariaDbBinDir, UserOutput, 600000);
+  finally
+    DeleteMariaDbDefaultsExtraFile(DefaultsFileName);
+  end;
   Output := Output + UserOutput;
   if Result then
   begin

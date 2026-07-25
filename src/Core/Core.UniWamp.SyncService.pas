@@ -161,8 +161,16 @@ begin
     Result.PassiveMode := Profile.PassiveMode;
     Result.IgnoreCertErrors := Profile.IgnoreCertErrors;
   end;
-  Result.Password := LoadSecret(FPaths, SyncPasswordKey(SecretProfileName));
-  Result.KeyPassphrase := LoadSecret(FPaths, SyncKeyPassphraseKey(SecretProfileName));
+  if SameText(SecretProfileName, Profile.Name) and (Trim(Profile.ConnectionProfileName) = '') then
+  begin
+    Result.Password := LoadSecret(FPaths, SyncPasswordKey(SecretProfileName));
+    Result.KeyPassphrase := LoadSecret(FPaths, SyncKeyPassphraseKey(SecretProfileName));
+  end
+  else
+  begin
+    Result.Password := LoadConnectionPassword(FPaths, SecretProfileName);
+    Result.KeyPassphrase := LoadConnectionKeyPassphrase(FPaths, SecretProfileName);
+  end;
 end;
 
 function TSyncService.ResolveLocalAndWorkingDir(const Profile: TSyncProfile; const Entry: TVHostEntry;

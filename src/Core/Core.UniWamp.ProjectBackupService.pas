@@ -23,7 +23,8 @@ type
     function ResolveRestoreDocumentRoot(const PathValue: string; out ResolvedPath, ErrorMessage: string): Boolean;
     function ReadProjectBackupManifest(const ManifestFileName: string; out Manifest: TProjectBackupManifest;
       out ErrorMessage: string): Boolean;
-    procedure RestoreSslFilesIfPresent(const BackupDir: string; const ServerName, CertFileName, KeyFileName: string);
+    function RestoreSslFilesIfPresent(const BackupDir: string; const ServerName, CertFileName, KeyFileName: string;
+      out ErrorMessage: string): Boolean;
     function WriteProjectBackupManifest(const BackupDir: string; const Entry: TVHostEntry;
       const ArchiveFileName, ArchiveSha256, MetadataFileName: string): Boolean;
   public
@@ -42,8 +43,53 @@ uses
   System.IOUtils,
   System.JSON,
   System.Zip,
+  Winapi.Windows,
   Core.UniWamp.Security,
   Core.UniWamp.VHostManager;
+
+function IsPlainFileNameValue(const Value: string): Boolean;
+var
+  NormalizedValue: string;
+begin
+  NormalizedValue := Trim(Value);
+  Result := (NormalizedValue <> '') and
+    SameText(ExtractFileName(NormalizedValue), NormalizedValue) and
+    not TPath.IsPathRooted(NormalizedValue) and
+    (Pos(PathDelim, NormalizedValue) = 0) and
+    (Pos('/', NormalizedValue) = 0) and
+    (Pos('\', NormalizedValue) = 0);
+end;
+
+function IsSha256HexValue(const Value: string): Boolean;
+var
+  I: Integer;
+begin
+  Result := Length(Value) = 64;
+  if not Result then
+    Exit;
+  for I := 1 to Length(Value) do
+    if not CharInSet(Value[I], ['0'..'9', 'A'..'F', 'a'..'f']) then
+      Exit(False);
+end;
+
+function BuildUniqueRestoreWorkspace(const RootDir, Slug: string): string;
+var
+  GuidValue: TGuid;
+  Suffix: string;
+begin
+  CreateGUID(GuidValue);
+  Suffix := StringReplace(GUIDToString(GuidValue), '{', '', [rfReplaceAll]);
+  Suffix := StringReplace(Suffix, '}', '', [rfReplaceAll]);
+  Result := TPath.Combine(RootDir, Slug + '-' + Suffix);
+end;
+
+function PromoteDirectoryAtomically(const SourceDir, TargetDir: string; out ErrorMessage: string): Boolean;
+begin
+  ErrorMessage := '';
+  Result := MoveFileEx(PChar(SourceDir), PChar(TargetDir), MOVEFILE_WRITE_THROUGH);
+  if not Result then
+    ErrorMessage := SysErrorMessage(GetLastError);
+end;
 
 constructor TProjectBackupService.Create(const Paths: TAppPaths; Config: TUniWampConfig);
 begin
@@ -220,6 +266,7 @@ var
   JsonValue: TJSONValue;
   JsonObject: TJSONObject;
   DocumentRoot: string;
+  RequiredHash: string;
 begin
   Result := False;
   ErrorMessage := '';
@@ -286,31 +333,80 @@ begin
       ErrorMessage := 'Project backup manifest is missing projectArchiveFile.';
       Exit;
     end;
+    if not IsPlainFileNameValue(Manifest.ProjectArchiveFile) then
+    begin
+      ErrorMessage := 'Project backup manifest projectArchiveFile must be a plain file name.';
+      Exit;
+    end;
+    if (Trim(Manifest.SslCertFile) <> '') and not IsPlainFileNameValue(Manifest.SslCertFile) then
+    begin
+      ErrorMessage := 'Project backup manifest sslCertFile must be a plain file name.';
+      Exit;
+    end;
+    if (Trim(Manifest.SslKeyFile) <> '') and not IsPlainFileNameValue(Manifest.SslKeyFile) then
+    begin
+      ErrorMessage := 'Project backup manifest sslKeyFile must be a plain file name.';
+      Exit;
+    end;
+    if (Trim(Manifest.MetadataFileName) <> '') and not IsPlainFileNameValue(Manifest.MetadataFileName) then
+    begin
+      ErrorMessage := 'Project backup manifest metadataFileName must be a plain file name.';
+      Exit;
+    end;
+    RequiredHash := Trim(Manifest.ProjectArchiveSha256);
+    if SameText(Trim(Manifest.UniWampVersion), '1') then
+    begin
+      if RequiredHash = '' then
+      begin
+        ErrorMessage := 'Project backup manifest is missing projectArchiveSha256.';
+        Exit;
+      end;
+      if not IsSha256HexValue(RequiredHash) then
+      begin
+        ErrorMessage := 'Project backup manifest projectArchiveSha256 must be a 64-character SHA-256 hex string.';
+        Exit;
+      end;
+    end
+    else if (RequiredHash <> '') and not IsSha256HexValue(RequiredHash) then
+    begin
+      ErrorMessage := 'Project backup manifest projectArchiveSha256 must be a 64-character SHA-256 hex string.';
+      Exit;
+    end;
     Result := True;
   finally
     JsonValue.Free;
   end;
 end;
 
-procedure TProjectBackupService.RestoreSslFilesIfPresent(const BackupDir: string; const ServerName,
-  CertFileName, KeyFileName: string);
+function TProjectBackupService.RestoreSslFilesIfPresent(const BackupDir: string; const ServerName,
+  CertFileName, KeyFileName: string; out ErrorMessage: string): Boolean;
 var
   Entry: TVHostEntry;
   SourcePath: string;
 begin
+  Result := True;
+  ErrorMessage := '';
   if not TryFindVHost(ServerName, Entry) then
     Exit;
-  if (CertFileName <> '') and (Entry.SslCertFile <> '') then
-  begin
-    SourcePath := TPath.Combine(BackupDir, CertFileName);
-    if FileExists(SourcePath) then
-      TFile.Copy(SourcePath, Entry.SslCertFile, True);
-  end;
-  if (KeyFileName <> '') and (Entry.SslKeyFile <> '') then
-  begin
-    SourcePath := TPath.Combine(BackupDir, KeyFileName);
-    if FileExists(SourcePath) then
-      TFile.Copy(SourcePath, Entry.SslKeyFile, True);
+  try
+    if (CertFileName <> '') and (Entry.SslCertFile <> '') then
+    begin
+      SourcePath := TPath.Combine(BackupDir, CertFileName);
+      if FileExists(SourcePath) then
+        TFile.Copy(SourcePath, Entry.SslCertFile, True);
+    end;
+    if (KeyFileName <> '') and (Entry.SslKeyFile <> '') then
+    begin
+      SourcePath := TPath.Combine(BackupDir, KeyFileName);
+      if FileExists(SourcePath) then
+        TFile.Copy(SourcePath, Entry.SslKeyFile, True);
+    end;
+  except
+    on E: Exception do
+    begin
+      Result := False;
+      ErrorMessage := E.Message;
+    end;
   end;
 end;
 
@@ -401,6 +497,10 @@ var
   NormalizedServerName: string;
   NormalizedDocumentRoot: string;
   NormalizedServerAliases: string;
+  RestoreWorkspaceRoot: string;
+  RestoreWorkspaceDir: string;
+  PromoteError: string;
+  RollbackInfo: TRuntimeActionResult;
 begin
   Result.Success := False;
   Result.Message := '';
@@ -461,7 +561,9 @@ begin
     Exit;
   end;
 
-  EnsureDirectory(NormalizedDocumentRoot);
+  RestoreWorkspaceRoot := TPath.Combine(FPaths.TmpDir, 'project-restore');
+  EnsureDirectory(RestoreWorkspaceRoot);
+  RestoreWorkspaceDir := BuildUniqueRestoreWorkspace(RestoreWorkspaceRoot, BuildBackupSlug(NormalizedServerName));
   Zip := TZipFile.Create;
   try
     Zip.Open(ArchivePath, zmRead);
@@ -470,7 +572,7 @@ begin
       Result.Message := ErrorMessage;
       Exit;
     end;
-    if not ExtractZipSafely(Zip, NormalizedDocumentRoot, ErrorMessage) then
+    if not ExtractZipSafely(Zip, RestoreWorkspaceDir, ErrorMessage) then
     begin
       Result.Message := ErrorMessage;
       Exit;
@@ -479,13 +581,51 @@ begin
     Zip.Free;
   end;
 
-  VHostManager := TVHostManager.Create(FPaths, FConfig);
-  Result := VHostManager.AddVHost(NormalizedServerName, NormalizedDocumentRoot, NormalizedServerAliases, TargetEnableSsl);
-  if not Result.Success then
+  if not PromoteDirectoryAtomically(RestoreWorkspaceDir, NormalizedDocumentRoot, PromoteError) then
+  begin
+    Result.Message := 'Project restore promotion failed: ' + PromoteError;
+    if TDirectory.Exists(RestoreWorkspaceDir) then
+      TDirectory.Delete(RestoreWorkspaceDir, True);
     Exit;
+  end;
 
-  if TargetEnableSsl then
-    RestoreSslFilesIfPresent(BackupDir, NormalizedServerName, Manifest.SslCertFile, Manifest.SslKeyFile);
+  VHostManager := TVHostManager.Create(FPaths, FConfig);
+  try
+    Result := VHostManager.AddVHost(NormalizedServerName, NormalizedDocumentRoot, NormalizedServerAliases, TargetEnableSsl);
+    if not Result.Success then
+    begin
+      if TDirectory.Exists(NormalizedDocumentRoot) then
+        TDirectory.Delete(NormalizedDocumentRoot, True);
+      Exit;
+    end;
+
+    if TargetEnableSsl and not RestoreSslFilesIfPresent(BackupDir, NormalizedServerName,
+      Manifest.SslCertFile, Manifest.SslKeyFile, ErrorMessage) then
+    begin
+      if TryFindVHost(NormalizedServerName, ExistingEntry) then
+      begin
+        RollbackInfo := VHostManager.DeleteVHost(NormalizedServerName);
+        if not RollbackInfo.Success then
+          ErrorMessage := ErrorMessage + ' Rollback warning: ' + RollbackInfo.Message;
+      end;
+      if TDirectory.Exists(NormalizedDocumentRoot) then
+        TDirectory.Delete(NormalizedDocumentRoot, True);
+      Result.Success := False;
+      Result.Message := 'Project restore SSL recovery failed: ' + ErrorMessage;
+      Exit;
+    end;
+  except
+    on E: Exception do
+    begin
+      if TryFindVHost(NormalizedServerName, ExistingEntry) then
+        VHostManager.DeleteVHost(NormalizedServerName);
+      if TDirectory.Exists(NormalizedDocumentRoot) then
+        TDirectory.Delete(NormalizedDocumentRoot, True);
+      Result.Success := False;
+      Result.Message := 'Project restore failed: ' + E.Message;
+      Exit;
+    end;
+  end;
 
   RestoredServerName := NormalizedServerName;
   Result.Message := 'Project restored: ' + NormalizedServerName;

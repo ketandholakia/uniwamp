@@ -175,10 +175,18 @@ begin
       finally
         Stream.Free;
       end;
-      if (Response.StatusCode = 200) and TFile.Exists(TargetFile) and (TFile.GetSize(TargetFile) > 0) then
+      if (Response.StatusCode = 200) and TFile.Exists(TargetFile) then
       begin
-        ErrorMessage := '';
-        Exit(True);
+        Stream := TFileStream.Create(TargetFile, fmOpenRead or fmShareDenyNone);
+        try
+          if Stream.Size > 0 then
+          begin
+            ErrorMessage := '';
+            Exit(True);
+          end;
+        finally
+          Stream.Free;
+        end;
       end;
       if FileExists(TargetFile) then
         TFile.Delete(TargetFile);
@@ -588,6 +596,7 @@ var
   Output: string;
   Entry: TRemoteEntry;
   ParentPath: string;
+  Stream: TFileStream;
 begin
   RequireConnected;
   TDirectory.CreateDirectory(ExtractFilePath(LocalPath));
@@ -609,7 +618,14 @@ begin
       QuoteBatchArgument(LocalPath)], Output) then
     raise ESyncTransportError.CreateFmt('Download failed for "%s": %s', [RemotePath, Trim(Output)]);
   if Assigned(OnProgress) then
-    OnProgress(RemotePath, TFile.GetSize(LocalPath), TotalBytes, False);
+  begin
+    Stream := TFileStream.Create(LocalPath, fmOpenRead or fmShareDenyNone);
+    try
+      OnProgress(RemotePath, Stream.Size, TotalBytes, False);
+    finally
+      Stream.Free;
+    end;
+  end;
 end;
 
 procedure TSftpTransport.UploadFile(const LocalPath, RemotePath: string;
@@ -618,6 +634,7 @@ var
   TotalBytes: Int64;
   Output: string;
   ParentPath: string;
+  Stream: TFileStream;
 begin
   RequireConnected;
   if not TFile.Exists(LocalPath) then
@@ -625,7 +642,12 @@ begin
   ParentPath := ExtractFileDir(NormalizeRemotePath(RemotePath)).Replace('\', '/');
   if ParentPath <> '' then
     EnsureRemoteDirectory(ParentPath);
-  TotalBytes := TFile.GetSize(LocalPath);
+  Stream := TFileStream.Create(LocalPath, fmOpenRead or fmShareDenyNone);
+  try
+    TotalBytes := Stream.Size;
+  finally
+    Stream.Free;
+  end;
   if Assigned(OnProgress) and not OnProgress(RemotePath, 0, TotalBytes, True) then
     raise ESyncTransportError.Create('Upload cancelled.');
   if not RunCommands(['put ' + QuoteBatchArgument(LocalPath) + ' ' +

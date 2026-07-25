@@ -12,6 +12,9 @@ uses
   IdExplicitTLSClientServerBase,
   Core.UniWamp.SyncTransport;
 
+function DefaultFtpsCaBundleFile: string;
+function FtpsHostMatchesCertificateSubject(const HostName, SubjectLine: string): Boolean;
+
 type
   // FTP (plain) and FTPS (explicit AUTH TLS) over Indy's TIdFTP.
   // Implicit FTPS is uncommon on modern hosts and is not implemented here;
@@ -27,6 +30,14 @@ type
     FCurrentFileName: string;
     FCurrentIsUpload: Boolean;
     FCurrentTotalBytes: Int64;
+    FPeerCertSeen: Boolean;
+    FPeerSubject: string;
+    FPeerIssuer: string;
+    FPeerSerialNumber: string;
+    FPeerNotBefore: TDateTime;
+    FPeerNotAfter: TDateTime;
+    FPeerVerifyError: Integer;
+    FPeerHostMatched: Boolean;
     procedure Log(const Text: string);
     procedure HandleWorkBegin(ASender: TObject; AWorkMode: TWorkMode; AWorkCountMax: Int64);
     procedure HandleWork(ASender: TObject; AWorkMode: TWorkMode; AWorkCount: Int64);
@@ -59,7 +70,50 @@ implementation
 uses
   System.StrUtils,
   System.DateUtils,
-  IdFTPCommon;
+  System.IOUtils,
+  IdFTPCommon,
+  Core.UniWamp.Paths;
+
+function DefaultFtpsCaBundleFile: string;
+var
+  Paths: TAppPaths;
+begin
+  Paths := TAppPaths.Detect;
+  Result := TPath.Combine(Paths.RuntimeDir, TPath.Combine('certs', 'cacert.pem'));
+end;
+
+function ExtractCommonName(const SubjectLine: string): string;
+var
+  StartPos: Integer;
+  EndPos: Integer;
+begin
+  Result := '';
+  StartPos := Pos('CN=', UpperCase(SubjectLine));
+  if StartPos = 0 then
+    Exit;
+  Inc(StartPos, 3);
+  EndPos := StartPos;
+  while (EndPos <= Length(SubjectLine)) and not CharInSet(SubjectLine[EndPos], ['/', ',']) do
+    Inc(EndPos);
+  Result := Trim(Copy(SubjectLine, StartPos, EndPos - StartPos));
+end;
+
+function FtpsHostMatchesCertificateSubject(const HostName, SubjectLine: string): Boolean;
+var
+  CommonName: string;
+  DotPos: Integer;
+begin
+  CommonName := LowerCase(ExtractCommonName(SubjectLine));
+  Result := SameText(CommonName, HostName);
+  if Result then
+    Exit;
+  if (Length(CommonName) > 2) and (Copy(CommonName, 1, 2) = '*.') then
+  begin
+    DotPos := Pos('.', LowerCase(HostName));
+    if DotPos > 0 then
+      Result := SameText(Copy(CommonName, 3, MaxInt), Copy(LowerCase(HostName), DotPos + 1, MaxInt));
+  end;
+end;
 
 { TFtpTransport }
 
@@ -120,14 +174,29 @@ begin
 
   FClient.OnWorkBegin := HandleWorkBegin;
   FClient.OnWork := HandleWork;
+  FPeerCertSeen := False;
+  FPeerSubject := '';
+  FPeerIssuer := '';
+  FPeerSerialNumber := '';
+  FPeerNotBefore := 0;
+  FPeerNotAfter := 0;
+  FPeerVerifyError := 0;
+  FPeerHostMatched := False;
 
   if FUseTls then
   begin
     FSsl := TIdSSLIOHandlerSocketOpenSSL.Create(nil);
-    FSsl.SSLOptions.Method := sslvTLSv1_2;
+    FSsl.SSLOptions.Method := sslvSSLv23;
     FSsl.SSLOptions.Mode := sslmClient;
-    if FCredentials.IgnoreCertErrors then
-      FSsl.OnVerifyPeer := VerifyPeer;
+    FSsl.SSLOptions.VerifyMode := [sslvrfPeer];
+    FSsl.SSLOptions.VerifyDepth := 4;
+    if not FCredentials.IgnoreCertErrors then
+    begin
+      FSsl.SSLOptions.RootCertFile := DefaultFtpsCaBundleFile;
+      if not FileExists(FSsl.SSLOptions.RootCertFile) then
+        raise ESyncTransportError.Create('FTPS CA bundle not found: ' + FSsl.SSLOptions.RootCertFile);
+    end;
+    FSsl.OnVerifyPeer := VerifyPeer;
     FClient.IOHandler := FSsl;
     FClient.UseTLS := utUseExplicitTLS;
   end;
@@ -138,6 +207,20 @@ begin
     on E: Exception do
       raise ESyncTransportError.CreateFmt('FTP connect to %s:%d failed: %s',
         [FCredentials.Host, FClient.Port, E.Message]);
+  end;
+  if FUseTls then
+  begin
+    if not FPeerCertSeen then
+      raise ESyncTransportError.Create('FTPS server did not present a certificate.');
+    Log(Format('FTPS certificate subject: %s', [FPeerSubject]));
+    Log(Format('FTPS certificate issuer: %s', [FPeerIssuer]));
+    Log(Format('FTPS certificate serial: %s', [FPeerSerialNumber]));
+    Log(Format('FTPS certificate validity: %s to %s',
+      [DateTimeToStr(FPeerNotBefore), DateTimeToStr(FPeerNotAfter)]));
+    if FCredentials.IgnoreCertErrors then
+      Log('FTPS certificate verification result: insecure override enabled.')
+    else
+      Log('FTPS certificate verification result: verified.');
   end;
   Log(Format('Connected to %s:%d (%s).', [FCredentials.Host, FClient.Port,
     IfThen(FUseTls, 'FTPS', 'FTP')]));
@@ -171,8 +254,49 @@ begin
 end;
 
 function TFtpTransport.VerifyPeer(Certificate: TIdX509; AOk: Boolean; ADepth, AError: Integer): Boolean;
+var
+  HostMatched: Boolean;
+  ErrorDetail: string;
 begin
-  Result := True;
+  Result := AOk;
+  if ADepth = 0 then
+  begin
+    FPeerCertSeen := Assigned(Certificate);
+    if Assigned(Certificate) then
+    begin
+      FPeerSubject := Certificate.Subject.OneLine;
+      FPeerIssuer := Certificate.Issuer.OneLine;
+      FPeerSerialNumber := Certificate.SerialNumber;
+      FPeerNotBefore := Certificate.NotBefore;
+      FPeerNotAfter := Certificate.NotAfter;
+      HostMatched := FtpsHostMatchesCertificateSubject(FCredentials.Host, FPeerSubject);
+      FPeerHostMatched := HostMatched;
+      if not HostMatched then
+        Result := False;
+    end;
+    FPeerVerifyError := AError;
+  end;
+
+  if FCredentials.IgnoreCertErrors then
+  begin
+    if (ADepth = 0) and (not AOk or not FPeerHostMatched) then
+    begin
+      ErrorDetail := '';
+      if not AOk then
+        ErrorDetail := 'peer verification error ' + IntToStr(AError);
+      if not FPeerHostMatched then
+      begin
+        if ErrorDetail <> '' then
+          ErrorDetail := ErrorDetail + '; ';
+        ErrorDetail := ErrorDetail + 'hostname mismatch for ' + FCredentials.Host;
+      end;
+      Log('FTPS certificate warning: ' + ErrorDetail + '.');
+    end;
+    Exit(True);
+  end;
+
+  if (ADepth = 0) and not FPeerHostMatched then
+    Log('FTPS certificate hostname mismatch for ' + FCredentials.Host + '.');
 end;
 
 function TFtpTransport.ListDirectory(const RemotePath: string): TRemoteEntries;

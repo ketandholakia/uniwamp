@@ -25,6 +25,9 @@ type
     FConfig: TUniWampConfig;
   private
     procedure EnsureVHostStarterPage(const ServerName, DocumentRoot: string);
+    function BuildManagedSslDir(const ServerName: string): string;
+    function IsPathUnderRoot(const CandidatePath, RootPath: string): Boolean;
+    procedure DeleteManagedSslFileIfOwned(const FileName, ManagedDir: string);
   public
     constructor Create(const Paths: TAppPaths; Config: TUniWampConfig);
     function AddVHost(const ServerName, DocumentRoot, ServerAliases: string; EnableSsl: Boolean): TRuntimeActionResult;
@@ -36,6 +39,42 @@ type
   end;
 
 implementation
+
+function TVHostManager.BuildManagedSslDir(const ServerName: string): string;
+var
+  SslDirName: string;
+begin
+  SslDirName := ServerName;
+  SslDirName := StringReplace(SslDirName, ':', '_', [rfReplaceAll]);
+  SslDirName := StringReplace(SslDirName, '/', '_', [rfReplaceAll]);
+  SslDirName := StringReplace(SslDirName, '\', '_', [rfReplaceAll]);
+  Result := TPath.Combine(FPaths.SslDir, TPath.Combine('vhosts', SslDirName));
+end;
+
+function TVHostManager.IsPathUnderRoot(const CandidatePath, RootPath: string): Boolean;
+var
+  Candidate: string;
+  Root: string;
+begin
+  Candidate := ExpandFileName(CandidatePath);
+  Root := IncludeTrailingPathDelimiter(ExpandFileName(RootPath));
+  Result := SameText(Candidate, ExcludeTrailingPathDelimiter(Root)) or
+    (Pos(LowerCase(Root), LowerCase(IncludeTrailingPathDelimiter(Candidate))) = 1);
+end;
+
+procedure TVHostManager.DeleteManagedSslFileIfOwned(const FileName, ManagedDir: string);
+var
+  CanonicalFileName: string;
+begin
+  if Trim(FileName) = '' then
+    Exit;
+  CanonicalFileName := ExpandFileName(FileName);
+  if not FileExists(CanonicalFileName) then
+    Exit;
+  if not IsPathUnderRoot(CanonicalFileName, ManagedDir) then
+    Exit;
+  TFile.Delete(CanonicalFileName);
+end;
 
 procedure TVHostManager.EnsureVHostStarterPage(const ServerName, DocumentRoot: string);
 var
@@ -72,7 +111,6 @@ function TVHostManager.AddVHost(const ServerName, DocumentRoot, ServerAliases: s
 var
   Entry: TVHostEntry;
   HostsError: string;
-  SslDirName: string;
   ConfigGenerator: TConfigurationGenerator;
   HostsFileService: THostsFileService;
   NormalizedServerName: string;
@@ -111,12 +149,8 @@ begin
   Entry.SslKeyFile := '';
   if EnableSsl then
   begin
-    SslDirName := NormalizedServerName;
-    SslDirName := StringReplace(SslDirName, ':', '_', [rfReplaceAll]);
-    SslDirName := StringReplace(SslDirName, '/', '_', [rfReplaceAll]);
-    SslDirName := StringReplace(SslDirName, '\', '_', [rfReplaceAll]);
-    Entry.SslCertFile := TPath.Combine(FPaths.SslDir, TPath.Combine('vhosts', TPath.Combine(SslDirName, 'server.crt')));
-    Entry.SslKeyFile := TPath.Combine(FPaths.SslDir, TPath.Combine('vhosts', TPath.Combine(SslDirName, 'server.key')));
+    Entry.SslCertFile := TPath.Combine(BuildManagedSslDir(NormalizedServerName), 'server.crt');
+    Entry.SslKeyFile := TPath.Combine(BuildManagedSslDir(NormalizedServerName), 'server.key');
     Result := GenerateSslCertificateFor(NormalizedServerName, Entry.SslCertFile, Entry.SslKeyFile);
     if not Result.Success then
       Exit;
@@ -147,6 +181,7 @@ var
   HostsError: string;
   ConfigGenerator: TConfigurationGenerator;
   HostsFileService: THostsFileService;
+  ManagedSslDir: string;
 begin
   Entry.ServerName := '';
   Entry.ServerAliases := '';
@@ -172,10 +207,13 @@ begin
   end;
   if Entry.EnableSsl then
   begin
-    if Entry.SslCertFile <> '' then
-      TFile.Delete(Entry.SslCertFile);
-    if Entry.SslKeyFile <> '' then
-      TFile.Delete(Entry.SslKeyFile);
+    ManagedSslDir := BuildManagedSslDir(ServerName);
+    DeleteManagedSslFileIfOwned(Entry.SslCertFile, ManagedSslDir);
+    DeleteManagedSslFileIfOwned(Entry.SslKeyFile, ManagedSslDir);
+    if TDirectory.Exists(ManagedSslDir) and not TDirectory.IsEmpty(ManagedSslDir) then
+      ;
+    if TDirectory.Exists(ManagedSslDir) and TDirectory.IsEmpty(ManagedSslDir) then
+      TDirectory.Delete(ManagedSslDir);
   end;
   HostsFileService := THostsFileService.Create(FPaths, FConfig);
   try
@@ -267,7 +305,6 @@ function TVHostManager.RefreshVHostSslCertificate(const ServerName: string): TRu
 var
   Entry: TVHostEntry;
   Found: Boolean;
-  SslDirName: string;
   ConfigGenerator: TConfigurationGenerator;
 begin
   Result.Success := False;
@@ -293,21 +330,9 @@ begin
   end;
 
   if Entry.SslCertFile = '' then
-  begin
-    SslDirName := ServerName;
-    SslDirName := StringReplace(SslDirName, ':', '_', [rfReplaceAll]);
-    SslDirName := StringReplace(SslDirName, '/', '_', [rfReplaceAll]);
-    SslDirName := StringReplace(SslDirName, '\', '_', [rfReplaceAll]);
-    Entry.SslCertFile := TPath.Combine(FPaths.SslDir, TPath.Combine('vhosts', TPath.Combine(SslDirName, 'server.crt')));
-  end;
+    Entry.SslCertFile := TPath.Combine(BuildManagedSslDir(ServerName), 'server.crt');
   if Entry.SslKeyFile = '' then
-  begin
-    SslDirName := ServerName;
-    SslDirName := StringReplace(SslDirName, ':', '_', [rfReplaceAll]);
-    SslDirName := StringReplace(SslDirName, '/', '_', [rfReplaceAll]);
-    SslDirName := StringReplace(SslDirName, '\', '_', [rfReplaceAll]);
-    Entry.SslKeyFile := TPath.Combine(FPaths.SslDir, TPath.Combine('vhosts', TPath.Combine(SslDirName, 'server.key')));
-  end;
+    Entry.SslKeyFile := TPath.Combine(BuildManagedSslDir(ServerName), 'server.key');
 
   Result := GenerateSslCertificateFor(Entry.ServerName, Entry.SslCertFile, Entry.SslKeyFile);
   if not Result.Success then

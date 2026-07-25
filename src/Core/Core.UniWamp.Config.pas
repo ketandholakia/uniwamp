@@ -132,6 +132,7 @@ uses
   System.IOUtils,
   System.StrUtils,
   System.JSON,
+  Core.UniWamp.AtomicFile,
   Core.UniWamp.Secrets;
 
 function NormalizePortablePath(const PathValue: string): string;
@@ -920,7 +921,6 @@ var
   SyncProfile: TSyncProfile;
   Obj: TJSONObject;
   JsonText: string;
-  TempFile: string;
   BackupFile: string;
 begin
   Root := TJSONObject.Create;
@@ -1033,17 +1033,8 @@ begin
     Root.AddPair('connectionProfiles', ConnectionProfilesArray);
 
     JsonText := Root.Format(2);
-    TempFile := Paths.AppConfigFile + '.tmp';
     BackupFile := Paths.AppConfigFile + '.bak';
-    TFile.WriteAllText(TempFile, JsonText, TEncoding.UTF8);
-    if FileExists(Paths.AppConfigFile) then
-    begin
-      TFile.Copy(Paths.AppConfigFile, BackupFile, True);
-      TFile.Delete(Paths.AppConfigFile);
-      TFile.Move(TempFile, Paths.AppConfigFile);
-    end
-    else
-      TFile.Move(TempFile, Paths.AppConfigFile);
+    AtomicWriteTextFile(Paths.AppConfigFile, JsonText, TEncoding.UTF8, BackupFile);
   finally
     Root.Free;
   end;

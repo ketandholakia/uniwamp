@@ -23,7 +23,7 @@ dashboardRenderLayout($state, 'apache-modules', 'Apache Modules', static functio
       <div class="flex flex-col gap-4 lg:flex-row lg:items-start">
         <div class="min-w-0 lg:flex-[1_1_0%] lg:min-w-[520px]">
           <h2 class="text-xl font-semibold text-slate-950">Apache modules</h2>
-          <p class="mt-2 text-sm text-slate-600">Choose which modules should be written into the generated Apache config.</p>
+          <p class="mt-2 text-sm text-slate-600">Read-only view of the generated Apache module set. Use the UniWamp desktop app to change it.</p>
         </div>
         <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 lg:mt-0 lg:self-start">
           Selected PHP runtime: <span class="font-medium text-slate-950"><?php echo dashboardH($state['phpVersion']); ?></span>
@@ -38,8 +38,10 @@ dashboardRenderLayout($state, 'apache-modules', 'Apache Modules', static functio
         </div>
       </div>
 
-      <form method="post" class="mt-6">
-        <input type="hidden" name="dashboard_action" value="apache_modules_save">
+      <div class="mt-6">
+        <div class="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Read-only mode: module changes are disabled in the web dashboard.
+        </div>
         <div class="grid gap-4 xl:grid-cols-[1fr_1.2fr]">
           <div>
             <div class="max-h-[28rem] space-y-2 overflow-auto rounded-3xl border border-slate-200 bg-slate-50 p-3">
@@ -53,7 +55,7 @@ dashboardRenderLayout($state, 'apache-modules', 'Apache Modules', static functio
                     data-description="<?php echo dashboardH($module['description']); ?>"
                     data-label="<?php echo dashboardH($module['label']); ?>"
                   >
-                    <input type="checkbox" name="apache_modules[]" value="<?php echo dashboardH($module['file']); ?>" <?php echo $module['checked'] ? 'checked' : ''; ?> class="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500">
+                    <input type="checkbox" disabled value="<?php echo dashboardH($module['file']); ?>" <?php echo $module['checked'] ? 'checked' : ''; ?> class="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500">
                     <span class="font-medium text-slate-950"><?php echo dashboardH($module['label']); ?></span>
                   </label>
                 <?php endforeach; ?>
@@ -64,15 +66,14 @@ dashboardRenderLayout($state, 'apache-modules', 'Apache Modules', static functio
           <div class="rounded-3xl border border-slate-200 bg-slate-50 p-5">
             <h3 class="text-lg font-semibold text-slate-950">Description</h3>
             <p id="apache-module-description" class="mt-3 text-sm leading-6 text-slate-600">Select a module to see its purpose in the list.</p>
-            <p class="mt-4 text-sm text-slate-600">This page writes the enabled module set to <code>apacheEnabledModules</code> and regenerates <code>httpd.conf</code>.</p>
+            <p class="mt-4 text-sm text-slate-600">The enabled module set is managed in the UniWamp desktop app and rendered here for reference only.</p>
           </div>
         </div>
 
         <div class="mt-6 flex flex-wrap justify-end gap-3">
           <a class="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-medium text-slate-700" href="<?php echo dashboardH($state['overviewUrl']); ?>">Cancel</a>
-          <button class="rounded-2xl bg-brand-500 px-5 py-3 text-sm font-medium text-white shadow-sm" type="submit">Save</button>
         </div>
-      </form>
+      </div>
     </section>
 
     <script>

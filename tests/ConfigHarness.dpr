@@ -4,12 +4,15 @@ program ConfigHarness;
 
 uses
   System.Classes,
+  System.Generics.Collections,
   System.IOUtils,
   System.SysUtils,
   System.JSON,
   Core.UniWamp.Config,
   Core.UniWamp.Paths,
-  Core.UniWamp.Secrets;
+  Core.UniWamp.Secrets,
+  Core.UniWamp.SyncEngine,
+  Core.UniWamp.SyncTransport;
 
 procedure Fail(const MessageText: string);
 begin
@@ -26,6 +29,12 @@ procedure AssertEquals(const Expected, Actual, MessageText: string);
 begin
   if not SameText(Expected, Actual) then
     Fail(Format('%s Expected="%s" Actual="%s"', [MessageText, Expected, Actual]));
+end;
+
+procedure AssertContains(const Haystack, Needle, MessageText: string);
+begin
+  if Pos(LowerCase(Needle), LowerCase(Haystack)) = 0 then
+    Fail(Format('%s Haystack="%s" Needle="%s"', [MessageText, Haystack, Needle]));
 end;
 
 procedure AssertIntEquals(const Expected, Actual: Integer; const MessageText: string);
@@ -61,6 +70,7 @@ end;
 
 function BuildPaths(const Root: string): TAppPaths;
 begin
+  Result := Default(TAppPaths);
   Result.AppRoot := Root;
   Result.BinDir := TPath.Combine(Root, 'bin');
   Result.ConfigDir := TPath.Combine(Root, 'config');
@@ -70,6 +80,7 @@ begin
   Result.ToolsDir := TPath.Combine(Result.RuntimeDir, 'tools');
   Result.ComposerDir := TPath.Combine(Result.ToolsDir, 'composer');
   Result.GitDir := TPath.Combine(Result.ToolsDir, 'git');
+  Result.PuttyDir := TPath.Combine(Result.ToolsDir, 'putty');
   Result.WpCliDir := TPath.Combine(Result.ToolsDir, 'wp-cli');
   Result.MailpitDir := TPath.Combine(Result.ToolsDir, 'mailpit');
   Result.RedisDir := TPath.Combine(Result.ToolsDir, 'redis');
@@ -90,6 +101,9 @@ begin
   Result.LogsDir := TPath.Combine(Root, 'logs');
   Result.TmpDir := TPath.Combine(Root, 'tmp');
   Result.UpdatesDir := TPath.Combine(Result.TmpDir, 'updates');
+  Result.BackupsDir := TPath.Combine(Root, 'backups');
+  Result.ProjectBackupsDir := TPath.Combine(Result.BackupsDir, 'projects');
+  Result.DatabaseBackupsDir := TPath.Combine(Result.BackupsDir, 'databases');
   Result.WwwDir := TPath.Combine(Root, 'www');
   Result.VHostsDir := Result.WwwDir;
   Result.SslDir := TPath.Combine(Root, 'ssl');
@@ -111,12 +125,133 @@ end;
 
 procedure EnsureTestLayout(const Paths: TAppPaths);
 begin
+  AssertTrue(Paths.AppRoot <> '', 'AppRoot must be initialized');
+  AssertTrue(Paths.BinDir <> '', 'BinDir must be initialized');
+  AssertTrue(Paths.ConfigDir <> '', 'ConfigDir must be initialized');
+  AssertTrue(Paths.GeneratedConfigDir <> '', 'GeneratedConfigDir must be initialized');
+  AssertTrue(Paths.TemplatesDir <> '', 'TemplatesDir must be initialized');
+  AssertTrue(Paths.RuntimeDir <> '', 'RuntimeDir must be initialized');
+  AssertTrue(Paths.ToolsDir <> '', 'ToolsDir must be initialized');
+  AssertTrue(Paths.MkcertDir <> '', 'MkcertDir must be initialized');
+  AssertTrue(Paths.ComposerDir <> '', 'ComposerDir must be initialized');
+  AssertTrue(Paths.GitDir <> '', 'GitDir must be initialized');
+  AssertTrue(Paths.PuttyDir <> '', 'PuttyDir must be initialized');
+  AssertTrue(Paths.WpCliDir <> '', 'WpCliDir must be initialized');
+  AssertTrue(Paths.MailpitDir <> '', 'MailpitDir must be initialized');
+  AssertTrue(Paths.RedisDir <> '', 'RedisDir must be initialized');
+  AssertTrue(Paths.MemcachedDir <> '', 'MemcachedDir must be initialized');
+  AssertTrue(Paths.ApacheDir <> '', 'ApacheDir must be initialized');
+  AssertTrue(Paths.ApacheBinDir <> '', 'ApacheBinDir must be initialized');
+  AssertTrue(Paths.ApacheConfDir <> '', 'ApacheConfDir must be initialized');
+  AssertTrue(Paths.MariaDbDir <> '', 'MariaDbDir must be initialized');
+  AssertTrue(Paths.MariaDbBinDir <> '', 'MariaDbBinDir must be initialized');
+  AssertTrue(Paths.PhpDir <> '', 'PhpDir must be initialized');
+  AssertTrue(Paths.NodeDir <> '', 'NodeDir must be initialized');
+  AssertTrue(Paths.CmderDir <> '', 'CmderDir must be initialized');
+  AssertTrue(Paths.HomeDir <> '', 'HomeDir must be initialized');
+  AssertTrue(Paths.AdminerDir <> '', 'AdminerDir must be initialized');
+  AssertTrue(Paths.DashboardDir <> '', 'DashboardDir must be initialized');
+  AssertTrue(Paths.LogsDir <> '', 'LogsDir must be initialized');
+  AssertTrue(Paths.TmpDir <> '', 'TmpDir must be initialized');
+  AssertTrue(Paths.UpdatesDir <> '', 'UpdatesDir must be initialized');
+  AssertTrue(Paths.BackupsDir <> '', 'BackupsDir must be initialized');
+  AssertTrue(Paths.ProjectBackupsDir <> '', 'ProjectBackupsDir must be initialized');
+  AssertTrue(Paths.DatabaseBackupsDir <> '', 'DatabaseBackupsDir must be initialized');
+  AssertTrue(Paths.WwwDir <> '', 'WwwDir must be initialized');
+  AssertTrue(Paths.VHostsDir <> '', 'VHostsDir must be initialized');
+  AssertTrue(Paths.SslDir <> '', 'SslDir must be initialized');
   EnsurePortableLayout(Paths);
 end;
 
 procedure WriteTextFile(const FileName, Content: string);
 begin
   TFile.WriteAllText(FileName, Content, TEncoding.UTF8);
+end;
+
+type
+  TMockSyncTransport = class(TInterfacedObject, ISyncTransport)
+  private
+    FEntries: TDictionary<string, TRemoteEntries>;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    procedure AddEntries(const RemotePath: string; const Entries: TRemoteEntries);
+    procedure Connect;
+    procedure Disconnect;
+    function IsConnected: Boolean;
+    function ListDirectory(const RemotePath: string): TRemoteEntries;
+    function RemoteDirectoryExists(const RemotePath: string): Boolean;
+    procedure EnsureRemoteDirectory(const RemotePath: string);
+    procedure DeleteRemoteFile(const RemotePath: string);
+    procedure DeleteRemoteDirectory(const RemotePath: string; const Recursive: Boolean);
+    procedure DownloadFile(const RemotePath, LocalPath: string; const OnProgress: TSyncTransferProgressEvent);
+    procedure UploadFile(const LocalPath, RemotePath: string; const OnProgress: TSyncTransferProgressEvent);
+    procedure SetLogHandler(const Handler: TSyncLogEvent);
+  end;
+
+constructor TMockSyncTransport.Create;
+begin
+  inherited Create;
+  FEntries := TDictionary<string, TRemoteEntries>.Create;
+end;
+
+destructor TMockSyncTransport.Destroy;
+begin
+  FEntries.Free;
+  inherited Destroy;
+end;
+
+procedure TMockSyncTransport.AddEntries(const RemotePath: string; const Entries: TRemoteEntries);
+begin
+  FEntries.AddOrSetValue(RemotePath, Entries);
+end;
+
+procedure TMockSyncTransport.Connect;
+begin
+end;
+
+procedure TMockSyncTransport.Disconnect;
+begin
+end;
+
+function TMockSyncTransport.IsConnected: Boolean;
+begin
+  Result := True;
+end;
+
+function TMockSyncTransport.ListDirectory(const RemotePath: string): TRemoteEntries;
+begin
+  if not FEntries.TryGetValue(RemotePath, Result) then
+    SetLength(Result, 0);
+end;
+
+function TMockSyncTransport.RemoteDirectoryExists(const RemotePath: string): Boolean;
+begin
+  Result := FEntries.ContainsKey(RemotePath);
+end;
+
+procedure TMockSyncTransport.EnsureRemoteDirectory(const RemotePath: string);
+begin
+end;
+
+procedure TMockSyncTransport.DeleteRemoteFile(const RemotePath: string);
+begin
+end;
+
+procedure TMockSyncTransport.DeleteRemoteDirectory(const RemotePath: string; const Recursive: Boolean);
+begin
+end;
+
+procedure TMockSyncTransport.DownloadFile(const RemotePath, LocalPath: string; const OnProgress: TSyncTransferProgressEvent);
+begin
+end;
+
+procedure TMockSyncTransport.UploadFile(const LocalPath, RemotePath: string; const OnProgress: TSyncTransferProgressEvent);
+begin
+end;
+
+procedure TMockSyncTransport.SetLogHandler(const Handler: TSyncLogEvent);
+begin
 end;
 
 procedure TestMalformedConfigRecovery;
@@ -240,12 +375,11 @@ begin
   end;
 end;
 
-procedure TestAtomicSaveFailure;
+procedure TestAtomicSaveCreatesDirectoryAndFile;
 var
   RootDir: string;
   Paths: TAppPaths;
   Config: TUniWampConfig;
-  SaveFailed: Boolean;
 begin
   RootDir := CreateTempRoot('save-failure');
   try
@@ -257,17 +391,11 @@ begin
       Config.ThemeStyleName := 'Windows';
       Paths.ConfigDir := TPath.Combine(RootDir, 'missing-config-dir');
       Paths.AppConfigFile := TPath.Combine(Paths.ConfigDir, 'uniwamp.json');
-      SaveFailed := False;
-      try
-        Config.Save(Paths);
-      except
-        on E: Exception do
-          SaveFailed := True;
-      end;
-      AssertTrue(SaveFailed, 'Save should fail when the target directory does not exist');
-      AssertTrue(not TFile.Exists(Paths.AppConfigFile), 'Save failure should not create the target file');
-      AssertTrue(not TFile.Exists(Paths.AppConfigFile + '.tmp'), 'Save failure should not leave a temp file behind');
-      AssertTrue(not TFile.Exists(Paths.AppConfigFile + '.bak'), 'Save failure should not leave a backup file behind');
+      Config.Save(Paths);
+      AssertTrue(TDirectory.Exists(Paths.ConfigDir), 'Save should create the missing config directory');
+      AssertTrue(TFile.Exists(Paths.AppConfigFile), 'Save should create the config file');
+      AssertTrue(not TFile.Exists(Paths.AppConfigFile + '.tmp'), 'Save should not leave a temp file behind');
+      AssertTrue(Config.ThemeStyleName = 'Windows', 'Saved config object should preserve the theme style');
     finally
       Config.Free;
     end;
@@ -512,16 +640,81 @@ begin
   end;
 end;
 
+procedure TestConnectionSecretsMigrateFromLegacySyncKeys;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  ErrorMessage: string;
+begin
+  RootDir := CreateTempRoot('connection-secret-migration');
+  try
+    Paths := BuildPaths(RootDir);
+    EnsureTestLayout(Paths);
+    AssertTrue(SaveSecret(Paths, SyncPasswordKey('prod-sftp'), 'legacy-pass', ErrorMessage),
+      'Legacy sync password should save');
+    AssertTrue(SaveSecret(Paths, SyncKeyPassphraseKey('prod-sftp'), 'legacy-key-pass', ErrorMessage),
+      'Legacy sync key passphrase should save');
+
+    AssertEquals('legacy-pass', LoadConnectionPassword(Paths, 'prod-sftp'),
+      'Connection password should migrate from the legacy sync key');
+    AssertEquals('legacy-key-pass', LoadConnectionKeyPassphrase(Paths, 'prod-sftp'),
+      'Connection key passphrase should migrate from the legacy sync key');
+    AssertTrue(not HasSecret(Paths, SyncPasswordKey('prod-sftp')),
+      'Legacy sync password should be deleted after migration');
+    AssertTrue(not HasSecret(Paths, SyncKeyPassphraseKey('prod-sftp')),
+      'Legacy sync key passphrase should be deleted after migration');
+  finally
+    DeleteAllConnectionSecrets(Paths, 'prod-sftp');
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TestSyncEngineRejectsUnsafeRemoteEntries;
+var
+  RootDir: string;
+  LocalRoot: string;
+  Transport: ISyncTransport;
+  RootEntries: TRemoteEntries;
+begin
+  RootDir := CreateTempRoot('sync-engine-safety');
+  try
+    LocalRoot := TPath.Combine(RootDir, 'www');
+    TDirectory.CreateDirectory(LocalRoot);
+    Transport := TMockSyncTransport.Create as ISyncTransport;
+    try
+      SetLength(RootEntries, 1);
+      RootEntries[0].Name := '..\outside.txt';
+      RootEntries[0].IsDirectory := False;
+      RootEntries[0].Size := 1;
+      RootEntries[0].ModifiedUtc := 0;
+      TMockSyncTransport(Transport).AddEntries('/remote', RootEntries);
+      try
+        TSyncEngine.BuildPlan(Transport, LocalRoot, '/remote', 'download', [], False);
+        Fail('Sync engine should reject unsafe remote entries.');
+      except
+        on E: ESyncTransportError do
+          AssertContains(E.Message, 'unsafe entry name', 'Sync engine should report the unsafe remote entry');
+      end;
+    finally
+      Transport := nil;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 begin
   try
     TestMalformedConfigRecovery;
-  TestCurrentConfigDoesNotMigrate;
-  TestUnknownThemeStylePersistsWithoutMigration;
-  TestRelativePathMigration;
+    TestCurrentConfigDoesNotMigrate;
+    TestUnknownThemeStylePersistsWithoutMigration;
+    TestRelativePathMigration;
     TestInvalidPortsAndDefaults;
     TestPartiallyValidConfigMigratesOnlyInvalidValues;
     TestLegacyMariaDbPasswordMigratesToProtectedStorage;
-    TestAtomicSaveFailure;
+    TestConnectionSecretsMigrateFromLegacySyncKeys;
+    TestSyncEngineRejectsUnsafeRemoteEntries;
+    TestAtomicSaveCreatesDirectoryAndFile;
     Writeln('Config harness passed.');
   except
     on E: Exception do

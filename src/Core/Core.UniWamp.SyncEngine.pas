@@ -38,6 +38,9 @@ type
 
   TSyncEngine = class
   private
+    class function EnsureContainedLocalPath(const RootPath, RelativePath: string): string; static;
+    class function NormalizeRelativePath(const RelativePath: string): string; static;
+    class function ValidateRemoteEntryName(const Name, ParentPath: string): string; static;
     class function LocalFileTree(const RootPath: string): TDictionary<string, TPair<Int64, TDateTime>>;
     class function RemoteFileTree(const Transport: ISyncTransport; const RootPath: string): TDictionary<string, TPair<Int64, TDateTime>>;
     class function IsExcluded(const RelativePath: string; const Excludes: TArray<string>): Boolean;
@@ -74,6 +77,39 @@ begin
 end;
 
 { TSyncEngine }
+
+class function TSyncEngine.NormalizeRelativePath(const RelativePath: string): string;
+begin
+  Result := Trim(StringReplace(RelativePath, '\', '/', [rfReplaceAll]));
+  while Result.StartsWith('/') do
+    Delete(Result, 1, 1);
+  while Result.EndsWith('/') do
+    Delete(Result, Length(Result), 1);
+end;
+
+class function TSyncEngine.ValidateRemoteEntryName(const Name, ParentPath: string): string;
+begin
+  Result := Trim(Name);
+  if (Result = '') or (Result = '.') or (Result = '..') then
+    raise ESyncTransportError.CreateFmt('Remote listing returned an invalid entry name under "%s".',
+      [ParentPath]);
+  if (Pos('/', Result) > 0) or (Pos('\', Result) > 0) or (Pos(':', Result) > 0) then
+    raise ESyncTransportError.CreateFmt(
+      'Remote listing returned an unsafe entry name "%s" under "%s".', [Name, ParentPath]);
+end;
+
+class function TSyncEngine.EnsureContainedLocalPath(const RootPath, RelativePath: string): string;
+var
+  ExpandedRoot: string;
+  ExpandedPath: string;
+begin
+  ExpandedRoot := IncludeTrailingPathDelimiter(ExpandFileName(RootPath));
+  ExpandedPath := ExpandFileName(TPath.Combine(ExpandedRoot, RelativePath.Replace('/', PathDelim)));
+  if not SameText(Copy(ExpandedPath, 1, Length(ExpandedRoot)), ExpandedRoot) then
+    raise ESyncTransportError.CreateFmt(
+      'Sync path "%s" resolves outside the local root "%s".', [RelativePath, RootPath]);
+  Result := ExpandedPath;
+end;
 
 class function TSyncEngine.IsExcluded(const RelativePath: string; const Excludes: TArray<string>): Boolean;
 var
@@ -142,18 +178,19 @@ class function TSyncEngine.RemoteFileTree(const Transport: ISyncTransport;
     Entry: TRemoteEntry;
     Info: TPair<Int64, TDateTime>;
     ChildRelative: string;
+    EntryName: string;
   begin
     Entries := Transport.ListDirectory(RemoteDir);
     for Entry in Entries do
     begin
-      if (Entry.Name = '.') or (Entry.Name = '..') or (Entry.Name = '') then
-        Continue;
+      EntryName := ValidateRemoteEntryName(Entry.Name, RemoteDir);
       if RelativePrefix = '' then
-        ChildRelative := Entry.Name
+        ChildRelative := EntryName
       else
-        ChildRelative := RelativePrefix + '/' + Entry.Name;
+        ChildRelative := RelativePrefix + '/' + EntryName;
+      ChildRelative := NormalizeRelativePath(ChildRelative);
       if Entry.IsDirectory then
-        Walk(RemoteDir + '/' + Entry.Name, ChildRelative)
+        Walk(RemoteDir + '/' + EntryName, ChildRelative)
       else
       begin
         Info.Key := Entry.Size;
@@ -176,6 +213,7 @@ var
   Plan: TList<TSyncPlanItem>;
   Item: TSyncPlanItem;
   RelativePath: string;
+  SafeRelativePath: string;
   LocalInfo, RemoteInfo: TPair<Int64, TDateTime>;
   CreatedDirs: TDictionary<string, Boolean>;
 
@@ -207,17 +245,18 @@ begin
         begin
           for RelativePath in LocalTree.Keys do
           begin
-            if IsExcluded(RelativePath, Excludes) then
+            SafeRelativePath := NormalizeRelativePath(RelativePath);
+            if IsExcluded(SafeRelativePath, Excludes) then
               Continue;
             LocalInfo := LocalTree[RelativePath];
-            if RemoteTree.TryGetValue(RelativePath, RemoteInfo) and
+            if RemoteTree.TryGetValue(SafeRelativePath, RemoteInfo) and
               not NeedsTransfer(LocalInfo.Key, LocalInfo.Value, RemoteInfo.Key, RemoteInfo.Value) then
               Continue;
-            EnsureRemoteDirsFor(RelativePath);
+            EnsureRemoteDirsFor(SafeRelativePath);
             Item.Kind := spiUpload;
-            Item.RelativePath := RelativePath;
-            Item.LocalPath := TPath.Combine(LocalPath, RelativePath.Replace('/', PathDelim));
-            Item.RemotePath := RemotePath + '/' + RelativePath;
+            Item.RelativePath := SafeRelativePath;
+            Item.LocalPath := EnsureContainedLocalPath(LocalPath, SafeRelativePath);
+            Item.RemotePath := RemotePath + '/' + SafeRelativePath;
             Item.Size := LocalInfo.Key;
             Plan.Add(Item);
           end;
@@ -245,7 +284,7 @@ begin
               Continue;
             Item.Kind := spiDownload;
             Item.RelativePath := RelativePath;
-            Item.LocalPath := TPath.Combine(LocalPath, RelativePath.Replace('/', PathDelim));
+            Item.LocalPath := EnsureContainedLocalPath(LocalPath, RelativePath);
             Item.RemotePath := RemotePath + '/' + RelativePath;
             Item.Size := RemoteInfo.Key;
             Plan.Add(Item);
@@ -256,7 +295,7 @@ begin
               begin
                 Item.Kind := spiDeleteLocal;
                 Item.RelativePath := RelativePath;
-                Item.LocalPath := TPath.Combine(LocalPath, RelativePath.Replace('/', PathDelim));
+                Item.LocalPath := EnsureContainedLocalPath(LocalPath, RelativePath);
                 Item.RemotePath := '';
                 Item.Size := 0;
                 Plan.Add(Item);

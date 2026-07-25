@@ -12,6 +12,7 @@ uses
   System.Types,
   System.Math,
   System.UITypes,
+  System.SyncObjs,
   Vcl.Imaging.pngimage,
   Vcl.Controls,
   Vcl.ExtCtrls,
@@ -267,8 +268,17 @@ type
     FHeaderCards: array[0..2] of THeaderStatusCard;
     FProgressSpinner: TProgressBar;
     FIsBusy: Boolean;
+    FIsShuttingDown: Boolean;
+    FUiUpdateQueueThread: TThread;
+    FBackgroundOpLock: TCriticalSection;
+    FBackgroundOpsDone: TEvent;
+    FActiveBackgroundOperations: Integer;
+    function BeginBackgroundOperation: Boolean;
+    procedure EndBackgroundOperation;
+    procedure StartBackgroundThread(const Work: TProc);
     procedure ShowBusyState(const StatusText: string);
     procedure HideBusyState(const StatusText: string = '');
+    procedure QueueUiUpdate(const Action: TProc);
     procedure FormCreate(Sender: TObject);
     procedure FormResize(Sender: TObject);
     procedure FormShow(Sender: TObject);
@@ -1234,6 +1244,7 @@ var
   PathsMigrated: Boolean;
 begin
   inherited Create(AOwner);
+  FIsShuttingDown := False;
   OnCreate := FormCreate;
   OnShow := FormShow;
   Caption := 'UniWamp';
@@ -1250,6 +1261,13 @@ begin
   FMenuIconIndices := TDictionary<string, Integer>.Create;
   FConfig := TUniWampConfig.Create;
   FRuntime := TUniWampRuntime.Create(FPaths, FConfig);
+  FBackgroundOpLock := TCriticalSection.Create;
+  FBackgroundOpsDone := TEvent.Create(nil, True, True, '');
+  FActiveBackgroundOperations := 0;
+  FUiUpdateQueueThread := TThread.CreateAnonymousThread(
+    procedure
+    begin
+    end);
   FUpdateManifestDialog := TOpenDialog.Create(Self);
   FUpdateManifestDialog.Filter := 'Update manifest (*.json)|*.json|All files (*.*)|*.*';
   FUpdateManifestDialog.Title := 'Select update manifest';
@@ -2686,6 +2704,16 @@ end;
 
 destructor TMainForm.Destroy;
 begin
+  FIsShuttingDown := True;
+  SetStatusRefreshEnabled(False);
+  if Assigned(FBackgroundOpsDone) then
+    while True do
+      if FBackgroundOpsDone.WaitFor(100) = wrSignaled then
+        Break;
+  TThread.RemoveQueuedEvents(FUiUpdateQueueThread);
+  FUiUpdateQueueThread.Free;
+  FBackgroundOpsDone.Free;
+  FBackgroundOpLock.Free;
   FMainPhpProfileItems.Free;
   FMainPhpVersionItems.Free;
   FMenuIconIndices.Free;
@@ -2861,6 +2889,67 @@ begin
   UpdateStackActionState;
   UpdateVHostActionState;
   Application.ProcessMessages;
+end;
+
+procedure TMainForm.QueueUiUpdate(const Action: TProc);
+begin
+  if FIsShuttingDown or Application.Terminated or (csDestroying in ComponentState) then
+    Exit;
+  TThread.Queue(FUiUpdateQueueThread, TThreadProcedure(
+    procedure
+    begin
+      if FIsShuttingDown or Application.Terminated or (csDestroying in ComponentState) or
+        not HandleAllocated then
+        Exit;
+      if Assigned(Action) then
+        Action();
+    end));
+end;
+
+function TMainForm.BeginBackgroundOperation: Boolean;
+begin
+  Result := False;
+  if FIsShuttingDown then
+    Exit;
+  FBackgroundOpLock.Enter;
+  try
+    if FIsShuttingDown then
+      Exit;
+    Inc(FActiveBackgroundOperations);
+    FBackgroundOpsDone.ResetEvent;
+    Result := True;
+  finally
+    FBackgroundOpLock.Leave;
+  end;
+end;
+
+procedure TMainForm.EndBackgroundOperation;
+begin
+  FBackgroundOpLock.Enter;
+  try
+    if FActiveBackgroundOperations > 0 then
+      Dec(FActiveBackgroundOperations);
+    if FActiveBackgroundOperations = 0 then
+      FBackgroundOpsDone.SetEvent;
+  finally
+    FBackgroundOpLock.Leave;
+  end;
+end;
+
+procedure TMainForm.StartBackgroundThread(const Work: TProc);
+begin
+  if not BeginBackgroundOperation then
+    Exit;
+  TThread.CreateAnonymousThread(
+    procedure
+    begin
+      try
+        if Assigned(Work) then
+          Work();
+      finally
+        EndBackgroundOperation;
+      end;
+    end).Start;
 end;
 
 procedure TMainForm.RefreshActivityLogView;
@@ -4261,13 +4350,13 @@ begin
   ApacheStartButton.Enabled := False;
   ApacheStopButton.Enabled := False;
   ApacheRestartButton.Enabled := False;
-  TThread.CreateAnonymousThread(
+  StartBackgroundThread(
     procedure
     var
       ResultInfo: TRuntimeActionResult;
     begin
       ResultInfo := FRuntime.StartApache;
-      TThread.Queue(nil, TThreadProcedure(
+      QueueUiUpdate(
         procedure
         begin
           AppendStatus(ResultInfo.Message);
@@ -4279,8 +4368,8 @@ begin
           ApacheRestartButton.Enabled := True;
           if ResultInfo.Success and FConfig.OpenDashboardAfterStart then
             LaunchDashboardIfHealthy;
-        end));
-    end).Start;
+        end);
+    end);
 end;
 
 procedure TMainForm.ApacheStopClick(Sender: TObject);
@@ -4289,13 +4378,13 @@ begin
   ApacheStartButton.Enabled := False;
   ApacheStopButton.Enabled := False;
   ApacheRestartButton.Enabled := False;
-  TThread.CreateAnonymousThread(
+  StartBackgroundThread(
     procedure
     var
       ResultInfo: TRuntimeActionResult;
     begin
       ResultInfo := FRuntime.StopApache;
-      TThread.Queue(nil, TThreadProcedure(
+      QueueUiUpdate(
         procedure
         begin
           try
@@ -4308,8 +4397,8 @@ begin
             ApacheStopButton.Enabled := True;
             ApacheRestartButton.Enabled := True;
           end;
-        end));
-    end).Start;
+        end);
+    end);
 end;
 
 procedure TMainForm.ApacheRestartClick(Sender: TObject);
@@ -4319,13 +4408,13 @@ begin
   ApacheStartButton.Enabled := False;
   ApacheStopButton.Enabled := False;
   ApacheRestartButton.Enabled := False;
-  TThread.CreateAnonymousThread(
+  StartBackgroundThread(
     procedure
     var
       ResultInfo: TRuntimeActionResult;
     begin
       ResultInfo := FRuntime.RestartApache;
-      TThread.Queue(nil, TThreadProcedure(
+      QueueUiUpdate(
         procedure
         begin
           AppendStatus('Apache restart: ' + ResultInfo.Message);
@@ -4333,8 +4422,8 @@ begin
           ApacheStartButton.Enabled := True;
           ApacheStopButton.Enabled := True;
           ApacheRestartButton.Enabled := True;
-        end));
-    end).Start;
+        end);
+    end);
 end;
 
 procedure TMainForm.MariaDbStartClick(Sender: TObject);
@@ -4394,7 +4483,7 @@ begin
   if not FConfig.ApacheRunning then
   begin
     ShowBusyState('Starting Apache...');
-    TThread.CreateAnonymousThread(
+    StartBackgroundThread(
       procedure
       var
         ApacheResult: TRuntimeActionResult;
@@ -4408,7 +4497,7 @@ begin
             ErrMsg := E.Message;
         end;
         
-        TThread.Queue(nil, TThreadProcedure(
+        QueueUiUpdate(
           procedure
           begin
             HideBusyState();
@@ -4421,8 +4510,8 @@ begin
             RefreshStatus;
             if FConfig.OpenDashboardAfterStart then
               LaunchDashboardIfHealthy;
-          end));
-      end).Start;
+          end);
+      end);
   end
   else
   begin
@@ -4447,7 +4536,7 @@ begin
   end;
 
   ShowBusyState('Stopping all services...');
-  TThread.CreateAnonymousThread(
+  StartBackgroundThread(
     procedure
     var
       ApacheResult: TRuntimeActionResult;
@@ -4469,7 +4558,7 @@ begin
           ErrMsg := E.Message;
       end;
         
-      TThread.Queue(nil, TThreadProcedure(
+      QueueUiUpdate(
         procedure
         begin
           HideBusyState();
@@ -4486,8 +4575,8 @@ begin
           FConfig.Save(FPaths);
           RefreshStatus;
           SetStatusRefreshEnabled(True);
-        end));
-    end).Start;
+        end);
+    end);
 end;
 
 procedure TMainForm.LaunchSiteClick(Sender: TObject);
@@ -4936,7 +5025,7 @@ begin
 
   ShowBusyState('Adding Virtual Host, please wait...');
 
-  TThread.CreateAnonymousThread(
+  StartBackgroundThread(
     procedure
     var
       ResultInfo: TRuntimeActionResult;
@@ -4956,19 +5045,19 @@ begin
       if ResultInfo.Success and ApacheWasRunning then
         RestartInfo := FRuntime.RestartApache;
 
-      TThread.Queue(nil, TThreadProcedure(
+      QueueUiUpdate(
         procedure
         begin
           HideBusyState();
           AppendStatus(ResultInfo.Message);
           if ResultInfo.Success and ApacheWasRunning then
             AppendStatus('Apache reload after VHost add: ' + RestartInfo.Message);
-          
+
           FConfig.Save(FPaths);
           RefreshStatus;
           LoadStateIntoUi;
-        end));
-    end).Start;
+        end);
+    end);
 end;
 
 procedure TMainForm.SetMariaDbRootPasswordClick(Sender: TObject);
@@ -4983,14 +5072,14 @@ begin
 
   ShowBusyState('Setting MariaDB root password...');
 
-  TThread.CreateAnonymousThread(
+  StartBackgroundThread(
     procedure
     var
       ResultInfo: TRuntimeActionResult;
     begin
       ResultInfo := FRuntime.SetMariaDbRootPassword(DialogResult.Password);
-      
-      TThread.Queue(nil, TThreadProcedure(
+
+      QueueUiUpdate(
         procedure
         begin
           HideBusyState();
@@ -4998,8 +5087,8 @@ begin
           if ResultInfo.Success then
             FConfig.Save(FPaths);
           RefreshStatus;
-        end));
-    end).Start;
+        end);
+    end);
 end;
 
 procedure TMainForm.DeleteVHostClick(Sender: TObject);
@@ -5048,7 +5137,7 @@ begin
 
   ShowBusyState('Backing up project, please wait...');
 
-  TThread.CreateAnonymousThread(
+  StartBackgroundThread(
     procedure
     var
       BackupDirectory: string;
@@ -5058,13 +5147,13 @@ begin
       BackupService := TServiceLocator.Instance.GetService<IProjectBackupService>;
       ResultInfo := BackupService.BackupProject(ServerName, BackupDirectory);
 
-      TThread.Queue(nil, TThreadProcedure(
+      QueueUiUpdate(
         procedure
         begin
           HideBusyState();
           AppendStatus(ResultInfo.Message);
-        end));
-    end).Start;
+        end);
+    end);
 end;
 
 procedure TMainForm.RestoreProjectClick(Sender: TObject);
@@ -5111,7 +5200,7 @@ begin
 
   ShowBusyState('Restoring project, please wait...');
 
-  TThread.CreateAnonymousThread(
+  StartBackgroundThread(
     procedure
     var
       RestoredServerName: string;
@@ -5133,7 +5222,7 @@ begin
       if ResultInfo.Success and ApacheWasRunning then
         RestartInfo := FRuntime.RestartApache;
 
-      TThread.Queue(nil, TThreadProcedure(
+      QueueUiUpdate(
         procedure
         begin
           HideBusyState();
@@ -5144,8 +5233,8 @@ begin
             FConfig.Save(FPaths);
           RefreshStatus;
           LoadStateIntoUi;
-        end));
-    end).Start;
+        end);
+    end);
 end;
 
 procedure TMainForm.BackupDatabaseClick(Sender: TObject);
@@ -5155,7 +5244,7 @@ begin
 
   ShowBusyState('Backing up databases, please wait...');
 
-  TThread.CreateAnonymousThread(
+  StartBackgroundThread(
     procedure
     var
       BackupDirectory: string;
@@ -5165,13 +5254,13 @@ begin
       BackupService := TServiceLocator.Instance.GetService<IDatabaseBackupService>;
       ResultInfo := BackupService.BackupAllDatabases(BackupDirectory);
 
-      TThread.Queue(nil, TThreadProcedure(
+      QueueUiUpdate(
         procedure
         begin
           HideBusyState();
           AppendStatus(ResultInfo.Message);
-      end));
-    end).Start;
+        end);
+    end);
 end;
 
 procedure TMainForm.RestoreDatabaseClick(Sender: TObject);
@@ -5239,7 +5328,7 @@ begin
 
   ShowBusyState('Restoring databases, please wait...');
 
-  TThread.CreateAnonymousThread(
+  StartBackgroundThread(
     procedure
     var
       ResultInfo: TRuntimeActionResult;
@@ -5248,15 +5337,15 @@ begin
       BackupService := TServiceLocator.Instance.GetService<IDatabaseBackupService>;
       ResultInfo := BackupService.RestoreDatabase(FDatabaseBackupInfoDialog.FileName);
 
-      TThread.Queue(nil, TThreadProcedure(
+      QueueUiUpdate(
         procedure
         begin
           HideBusyState();
           AppendStatus(ResultInfo.Message);
           RefreshStatus;
           LoadStateIntoUi;
-        end));
-    end).Start;
+        end);
+    end);
 end;
 
 procedure TMainForm.CopyVHostUrlClick(Sender: TObject);
@@ -5366,10 +5455,12 @@ end;
 
 procedure TMainForm.FormCloseQuery(Sender: TObject; var CanClose: Boolean);
 begin
+  FIsShuttingDown := True;
   SetStatusRefreshEnabled(False);
   if not SaveUiIntoState then
   begin
     CanClose := False;
+    FIsShuttingDown := False;
     SetStatusRefreshEnabled(True);
     Exit;
   end;
@@ -5378,7 +5469,10 @@ begin
     RefreshStatus;
     FConfig.Save(FPaths);
     if not CanClose then
+    begin
+      FIsShuttingDown := False;
       ShowMessage('Unable to stop all services cleanly. The application will remain open.');
+    end;
   finally
     SetStatusRefreshEnabled(True);
   end;

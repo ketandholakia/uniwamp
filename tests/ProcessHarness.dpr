@@ -63,6 +63,45 @@ begin
   Result := True;
 end;
 
+function ReserveDynamicTcpPort(out Port: Integer; out SocketHandle: TSocket): Boolean;
+var
+  WsaData: TWSAData;
+  Addr: sockaddr_in;
+  AddrLen: Integer;
+begin
+  Result := False;
+  Port := 0;
+  SocketHandle := INVALID_SOCKET;
+  if WSAStartup($0202, WsaData) <> 0 then
+    Exit;
+  SocketHandle := socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  if SocketHandle = INVALID_SOCKET then
+    Exit;
+  ZeroMemory(@Addr, SizeOf(Addr));
+  Addr.sin_family := AF_INET;
+  Addr.sin_addr.S_addr := INADDR_ANY;
+  Addr.sin_port := htons(0);
+  if bind(SocketHandle, PSockAddr(@Addr)^, SizeOf(Addr)) <> 0 then
+    Exit;
+  AddrLen := SizeOf(Addr);
+  if getsockname(SocketHandle, PSockAddr(@Addr)^, AddrLen) <> 0 then
+    Exit;
+  if listen(SocketHandle, 1) <> 0 then
+    Exit;
+  Port := ntohs(Addr.sin_port);
+  Result := Port > 0;
+end;
+
+function FindAvailableTcpPort(const StartPort, EndPort: Integer): Integer;
+var
+  Port: Integer;
+begin
+  Result := 0;
+  for Port := StartPort to EndPort do
+    if IsTcpPortAvailable(Port) then
+      Exit(Port);
+end;
+
 procedure ReleaseTcpPort(var SocketHandle: TSocket);
 begin
   if SocketHandle <> INVALID_SOCKET then
@@ -85,6 +124,7 @@ begin
   Result.ToolsDir := TPath.Combine(Result.RuntimeDir, 'tools');
   Result.ComposerDir := TPath.Combine(Result.ToolsDir, 'composer');
   Result.GitDir := TPath.Combine(Result.ToolsDir, 'git');
+  Result.PuttyDir := TPath.Combine(Result.ToolsDir, 'putty');
   Result.WpCliDir := TPath.Combine(Result.ToolsDir, 'wp-cli');
   Result.MailpitDir := TPath.Combine(Result.ToolsDir, 'mailpit');
   Result.RedisDir := TPath.Combine(Result.ToolsDir, 'redis');
@@ -105,6 +145,9 @@ begin
   Result.LogsDir := TPath.Combine(Root, 'logs');
   Result.TmpDir := TPath.Combine(Root, 'tmp');
   Result.UpdatesDir := TPath.Combine(Result.TmpDir, 'updates');
+  Result.BackupsDir := TPath.Combine(Root, 'backups');
+  Result.ProjectBackupsDir := TPath.Combine(Result.BackupsDir, 'projects');
+  Result.DatabaseBackupsDir := TPath.Combine(Result.BackupsDir, 'databases');
   Result.WwwDir := TPath.Combine(Root, 'www');
   Result.VHostsDir := Result.WwwDir;
   Result.SslDir := TPath.Combine(Root, 'ssl');
@@ -452,9 +495,13 @@ begin
     EnsurePortableLayout(Paths);
     Config := TUniWampConfig.Create;
     try
-      Config.SetDefaults(Paths);
-      Config.SelectedPhpVersion := 'php-missing';
-      Runtime := TUniWampRuntime.Create(Paths, Config);
+    Config.SetDefaults(Paths);
+    Config.SelectedPhpVersion := 'php-missing';
+    Config.HttpPort := FindAvailableTcpPort(18080, 18180);
+    AssertTrue(Config.HttpPort > 0, 'A free HTTP port should be available for the test');
+    Config.DatabasePort := FindAvailableTcpPort(18300, 18400);
+    AssertTrue(Config.DatabasePort > 0, 'A free database port should be available for the test');
+    Runtime := TUniWampRuntime.Create(Paths, Config);
       try
         ResultInfo := Runtime.RestartApache;
         AssertTrue(not ResultInfo.Success, 'Apache restart should fail without runtime files');
@@ -491,8 +538,12 @@ begin
     EnsurePortableLayout(Paths);
     Config := TUniWampConfig.Create;
     try
-      Config.SetDefaults(Paths);
-      Runtime := TUniWampRuntime.Create(Paths, Config);
+    Config.SetDefaults(Paths);
+    Config.HttpPort := FindAvailableTcpPort(18181, 18281);
+    AssertTrue(Config.HttpPort > 0, 'A free HTTP port should be available for the test');
+    Config.DatabasePort := FindAvailableTcpPort(18300, 18400);
+    AssertTrue(Config.DatabasePort > 0, 'A free database port should be available for the test');
+    Runtime := TUniWampRuntime.Create(Paths, Config);
       try
         ResultInfo := Runtime.StartApache;
         AssertTrue(not ResultInfo.Success, 'Apache should fail without runtime dependencies');
@@ -579,13 +630,15 @@ begin
     SetEnvironmentVariable('UNIWAMP_HOSTS_FILE', PChar(HostsFile));
     Config := TUniWampConfig.Create;
     try
-      Config.SetDefaults(Paths);
-      Runtime := TUniWampRuntime.Create(Paths, Config);
+    Config.SetDefaults(Paths);
+    Runtime := TUniWampRuntime.Create(Paths, Config);
       try
         ResultInfo := Runtime.AddVHost('readonly.test', TPath.Combine(RootDir, 'readonly-site'), '', False);
         AssertTrue(ResultInfo.Success, 'VHost add should still save the vHost when hosts sync fails');
         AssertContains(ResultInfo.Message, 'Hosts file update failed', 'Hosts sync failure should be reported');
-        AssertTrue(Config.LastHostsSyncStatus = 'Hosts update failed', 'Hosts sync status should reflect failure');
+        AssertTrue(SameText(Config.LastHostsSyncStatus, 'Hosts update failed') or
+          SameText(Config.LastHostsSyncStatus, 'Hosts update requires Administrator'),
+          'Hosts sync status should reflect failure');
       finally
         Runtime.Free;
       end;
@@ -622,8 +675,10 @@ begin
     SetEnvironmentVariable('UNIWAMP_HOSTS_FILE', PChar(HostsFile));
     Config := TUniWampConfig.Create;
     try
-      Config.SetDefaults(Paths);
-      Runtime := TUniWampRuntime.Create(Paths, Config);
+    Config.SetDefaults(Paths);
+    Config.HttpPort := FindAvailableTcpPort(18282, 18382);
+    AssertTrue(Config.HttpPort > 0, 'A free HTTP port should be available for the test');
+    Runtime := TUniWampRuntime.Create(Paths, Config);
       try
         ResultInfo := Runtime.AddVHost('example.test', TPath.Combine(RootDir, 'site'), '', False);
         AssertTrue(ResultInfo.Success, 'VHost add should succeed before delete');
@@ -700,27 +755,28 @@ var
   Runtime: TUniWampRuntime;
   ResultInfo: TRuntimeActionResult;
   PortSocket: TSocket;
+  ReservedPort: Integer;
 begin
   RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-mariadb-port-conflict-' + TGuid.NewGuid.ToString);
   TDirectory.CreateDirectory(RootDir);
   try
     Paths := BuildPaths(RootDir);
     EnsurePortableLayout(Paths);
-    AssertTrue(ReserveTcpPort(3307, PortSocket), 'Port listener should start');
-    AssertTrue(not IsTcpPortAvailable(3307), 'Database port should be occupied before starting MariaDB');
+    AssertTrue(ReserveDynamicTcpPort(ReservedPort, PortSocket), 'Port listener should start');
+    AssertTrue(not IsTcpPortAvailable(ReservedPort), 'Database port should be occupied before starting MariaDB');
 
     Config := TUniWampConfig.Create;
     try
       Config.SetDefaults(Paths);
-      Config.DatabasePort := 3307;
+      Config.DatabasePort := ReservedPort;
       Runtime := TUniWampRuntime.Create(Paths, Config);
       try
         ResultInfo := Runtime.StartMariaDb;
         AssertTrue(not ResultInfo.Success, 'MariaDB should fail when the database port is occupied');
-        AssertContains(ResultInfo.Message, 'Database port 3307 is already in use', 'MariaDB port conflict should be reported');
+        AssertContains(ResultInfo.Message, 'Database port ' + ReservedPort.ToString + ' is already in use', 'MariaDB port conflict should be reported');
         AssertTrue(Config.MariaDbPid = 0, 'MariaDB pid should remain cleared on port conflict');
         AssertTrue(not Config.MariaDbRunning, 'MariaDB running flag should remain false on port conflict');
-        AssertContains(Config.LastMariaDbError, 'Database port 3307 is already in use', 'MariaDB port conflict should persist in the error state');
+        AssertContains(Config.LastMariaDbError, 'Database port ' + ReservedPort.ToString + ' is already in use', 'MariaDB port conflict should persist in the error state');
       finally
         Runtime.Free;
       end;
@@ -742,6 +798,7 @@ var
   Runtime: TUniWampRuntime;
   ResultInfo: TRuntimeActionResult;
   PortSocket: TSocket;
+  ReservedPort: Integer;
 begin
   RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-apache-port-conflict-' + TGuid.NewGuid.ToString);
   TDirectory.CreateDirectory(RootDir);
@@ -750,10 +807,11 @@ begin
     Paths := BuildPaths(RootDir);
     EnsurePortableLayout(Paths);
     TTemplateRenderer.EnsureDefaultTemplates(Paths);
-    AssertTrue(ReserveTcpPort(8080, PortSocket), 'HTTP port should be occupied for Apache conflict test');
+    AssertTrue(ReserveDynamicTcpPort(ReservedPort, PortSocket), 'HTTP port should be occupied for Apache conflict test');
     Config := TUniWampConfig.Create;
     try
       Config.SetDefaults(Paths);
+      Config.HttpPort := ReservedPort;
       TDirectory.CreateDirectory(TPath.Combine(Paths.PhpDir, 'php85'));
       TFile.WriteAllText(TPath.Combine(Paths.PhpDir, 'php85\php.exe'), '', TEncoding.ASCII);
       TFile.WriteAllText(TPath.Combine(Paths.PhpDir, 'php85\php85apache2_4.dll'), '', TEncoding.ASCII);
@@ -762,9 +820,9 @@ begin
       try
         ResultInfo := Runtime.StartApache;
         AssertTrue(not ResultInfo.Success, 'Apache should fail when the HTTP port is occupied');
-        AssertContains(ResultInfo.Message, 'HTTP port 8080 is already in use', 'Apache port conflict should be reported');
+        AssertContains(ResultInfo.Message, 'HTTP port ' + ReservedPort.ToString + ' is already in use', 'Apache port conflict should be reported');
         AssertContains(ResultInfo.Message, 'by ', 'Apache port conflict should include the owning process when available');
-        AssertContains(Config.LastApacheError, 'HTTP port 8080 is already in use', 'Apache port conflict should persist in the error state');
+        AssertContains(Config.LastApacheError, 'HTTP port ' + ReservedPort.ToString + ' is already in use', 'Apache port conflict should persist in the error state');
       finally
         Runtime.Free;
       end;
@@ -852,8 +910,12 @@ begin
     TFile.WriteAllText(TPath.Combine(DataDir, 'stale.txt'), 'stale', TEncoding.UTF8);
     Config := TUniWampConfig.Create;
     try
-      Config.SetDefaults(Paths);
-      Runtime := TUniWampRuntime.Create(Paths, Config);
+    Config.SetDefaults(Paths);
+    Config.HttpPort := FindAvailableTcpPort(18383, 18483);
+    AssertTrue(Config.HttpPort > 0, 'A free HTTP port should be available for the dirty-data test');
+    Config.DatabasePort := FindAvailableTcpPort(18484, 18584);
+    AssertTrue(Config.DatabasePort > 0, 'A free database port should be available for the dirty-data test');
+    Runtime := TUniWampRuntime.Create(Paths, Config);
       try
         ResultInfo := Runtime.StartMariaDb;
         AssertTrue(not ResultInfo.Success, 'MariaDB start should fail for a dirty data directory with a fake bootstrap helper');
@@ -891,6 +953,8 @@ begin
     Config := TUniWampConfig.Create;
     try
       Config.SetDefaults(Paths);
+      Config.HttpPort := FindAvailableTcpPort(18484, 18584);
+      AssertTrue(Config.HttpPort > 0, 'A free HTTP port should be available for the config validation test');
       Runtime := TUniWampRuntime.Create(Paths, Config);
       try
         ResultInfo := Runtime.AddVHost(
@@ -1212,6 +1276,7 @@ var
   ResultInfo: TRuntimeActionResult;
   StartResult: TProcessStartResult;
   PortSocket: TSocket;
+  ReservedPort: Integer;
   FakeApacheDir: string;
   FakeApacheExe: string;
 begin
@@ -1221,7 +1286,7 @@ begin
   try
     Paths := BuildPaths(RootDir);
     EnsurePortableLayout(Paths);
-    AssertTrue(ReserveTcpPort(8080, PortSocket), 'The HTTP port should be occupied for the unrelated httpd test');
+    AssertTrue(ReserveDynamicTcpPort(ReservedPort, PortSocket), 'The HTTP port should be occupied for the unrelated httpd test');
     FakeApacheDir := TPath.Combine(RootDir, 'foreign-apache');
     TDirectory.CreateDirectory(FakeApacheDir);
     FakeApacheExe := TPath.Combine(FakeApacheDir, 'httpd.exe');
@@ -1232,6 +1297,7 @@ begin
     Config := TUniWampConfig.Create;
     try
       Config.SetDefaults(Paths);
+      Config.HttpPort := ReservedPort;
       Config.ApacheRunning := True;
       Config.ApachePid := 0;
       Runtime := TUniWampRuntime.Create(Paths, Config);
@@ -1475,17 +1541,18 @@ var
   Lines: TStringList;
   I: Integer;
   PortOwnerLine: string;
+  ReservedPort: Integer;
 begin
   RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-report-ports-' + TGuid.NewGuid.ToString);
   TDirectory.CreateDirectory(RootDir);
   try
     Paths := BuildPaths(RootDir);
     EnsurePortableLayout(Paths);
-    AssertTrue(ReserveTcpPort(3307, PortSocket), 'Database port should be reserved for diagnostics');
+    AssertTrue(ReserveDynamicTcpPort(ReservedPort, PortSocket), 'Database port should be reserved for diagnostics');
     Config := TUniWampConfig.Create;
     try
       Config.SetDefaults(Paths);
-      Config.DatabasePort := 3307;
+      Config.DatabasePort := ReservedPort;
       Runtime := TUniWampRuntime.Create(Paths, Config);
       try
         ReportText := Runtime.BuildDiagnosticReport;

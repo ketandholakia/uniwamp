@@ -18,7 +18,7 @@ dashboardRenderLayout($state, 'php-extensions', 'PHP Extensions', static functio
       <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
         <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Enabled</div>
         <div class="mt-3 text-3xl font-semibold text-slate-950"><?php echo (int) count($state['enabledPhpExtensions']); ?></div>
-        <p class="mt-2 text-sm text-slate-600">Written to generated php.ini</p>
+        <p class="mt-2 text-sm text-slate-600">Rendered from the desktop app's generated configuration</p>
       </article>
       <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
         <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Missing</div>
@@ -46,15 +46,17 @@ dashboardRenderLayout($state, 'php-extensions', 'PHP Extensions', static functio
             />
           </div>
         </div>
-        <p class="mt-2 text-sm text-slate-600">Choose which extensions should be written to <code>config/generated/php.ini</code>.</p>
+        <p class="mt-2 text-sm text-slate-600">Read-only view of the generated PHP extension set. Use the UniWamp desktop app to change it.</p>
       </div>
 
-      <form method="post" class="mt-6">
-        <input type="hidden" name="dashboard_action" value="php_extensions_save">
+      <div class="mt-6">
+        <div class="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Read-only mode: extension changes are disabled in the web dashboard.
+        </div>
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3" id="php-extension-grid">
           <?php foreach ($state['availablePhpExtensions'] as $extension): ?>
             <label class="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm" data-extension-item data-label="<?php echo dashboardH(strtolower($extension)); ?>">
-              <input type="checkbox" name="php_extensions[]" value="<?php echo dashboardH($extension); ?>" <?php echo in_array($extension, $state['enabledPhpExtensions'], true) ? 'checked' : ''; ?> class="mt-1">
+              <input type="checkbox" disabled value="<?php echo dashboardH($extension); ?>" <?php echo in_array($extension, $state['enabledPhpExtensions'], true) ? 'checked' : ''; ?> class="mt-1">
               <span>
                 <span class="block font-medium text-slate-950"><?php echo dashboardH($extension); ?></span>
                 <span class="block text-xs text-slate-500"><?php echo dashboardH(str_replace('php_', '', pathinfo($extension, PATHINFO_FILENAME))); ?></span>
@@ -64,10 +66,9 @@ dashboardRenderLayout($state, 'php-extensions', 'PHP Extensions', static functio
         </div>
 
         <div class="mt-6 flex flex-wrap gap-3">
-          <button type="submit" class="rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-medium text-white">Save PHP extensions</button>
           <a href="<?php echo dashboardH($state['overviewUrl']); ?>" class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700">Back to overview</a>
         </div>
-      </form>
+      </div>
     </section>
 
     <?php if ($state['missingPhpExtensions'] !== []): ?>

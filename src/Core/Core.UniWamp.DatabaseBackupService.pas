@@ -17,8 +17,8 @@ type
     function BuildBackupSlug(const Value: string): string;
     function GetMysqlDumpExe: string;
     function GetMysqlClientExe: string;
-    function GetMysqlDumpArgs(const DumpPath: string): string;
-    function GetMysqlRestoreArgs(const SqlFileName: string): string;
+    function GetMysqlDumpArgs(const DumpPath, DefaultsFileName: string): string;
+    function GetMysqlRestoreArgs(const SqlFileName, DefaultsFileName: string): string;
     function ComputeFileSha256Hex(const FileName: string): string;
     function TryReadBackupManifest(const BackupInfoFileName: string; out BackupDirectory,
       SqlFileName, ExpectedSha256: string; out ErrorMessage: string): Boolean;
@@ -37,6 +37,7 @@ uses
   System.IOUtils,
   System.StrUtils,
   System.Types,
+  Core.UniWamp.MariaDbAuth,
   Core.UniWamp.ProcessManager,
   Core.UniWamp.Secrets;
 
@@ -92,27 +93,19 @@ begin
     Result := TPath.Combine(FPaths.MariaDbBinDir, 'mariadb.exe');
 end;
 
-function TDatabaseBackupService.GetMysqlDumpArgs(const DumpPath: string): string;
-var
-  Password: string;
+function TDatabaseBackupService.GetMysqlDumpArgs(const DumpPath, DefaultsFileName: string): string;
 begin
   Result := '--protocol=tcp --host=127.0.0.1 --port=' + FConfig.DatabasePort.ToString + ' -uroot';
-  Password := LoadMariaDbRootPassword(FPaths);
-  if Password <> '' then
-    Result := Result + ' --password="' + Password + '"';
   Result := Result + ' --all-databases --routines --events --single-transaction --quick';
   Result := Result + ' --result-file="' + DumpPath + '"';
+  Result := PrependDefaultsExtraFileArg(DefaultsFileName, Result);
 end;
 
-function TDatabaseBackupService.GetMysqlRestoreArgs(const SqlFileName: string): string;
-var
-  Password: string;
+function TDatabaseBackupService.GetMysqlRestoreArgs(const SqlFileName, DefaultsFileName: string): string;
 begin
   Result := '--protocol=tcp --host=127.0.0.1 --port=' + FConfig.DatabasePort.ToString + ' -uroot';
-  Password := LoadMariaDbRootPassword(FPaths);
-  if Password <> '' then
-    Result := Result + ' --password="' + Password + '"';
   Result := Result + ' --batch --raw --execute="source ' + StringReplace(SqlFileName, '"', '\"', [rfReplaceAll]) + '"';
+  Result := PrependDefaultsExtraFileArg(DefaultsFileName, Result);
 end;
 
 function TDatabaseBackupService.ComputeFileSha256Hex(const FileName: string): string;
@@ -208,6 +201,9 @@ var
   Output: string;
   StartResult: TProcessStartResult;
   SqlArgs: string;
+  Password: string;
+  DefaultsFileName: string;
+  AuthError: string;
 begin
   Result.Success := False;
   Result.Message := '';
@@ -231,24 +227,38 @@ begin
 
   BackupFileName := 'databases.sql';
   DumpPath := TPath.Combine(BackupDirectory, BackupFileName);
-  SqlArgs := GetMysqlDumpArgs(DumpPath);
-
-  StartResult := TProcessManager.StartDetached(DumpExe, SqlArgs, FPaths.MariaDbBinDir);
-  if not StartResult.Success then
+  DefaultsFileName := '';
+  Password := LoadMariaDbRootPassword(FPaths);
+  if Password <> '' then
   begin
-    Result.Message := 'Database backup could not start: ' + StartResult.ErrorMessage;
-    Exit;
+    if not CreateMariaDbDefaultsExtraFile(FPaths, Password, DefaultsFileName, AuthError) then
+    begin
+      Result.Message := 'Database backup auth setup failed: ' + AuthError;
+      Exit;
+    end;
   end;
+  try
+    SqlArgs := GetMysqlDumpArgs(DumpPath, DefaultsFileName);
 
-  if not TProcessManager.WaitForExit(StartResult.ProcessId, 600000) then
-  begin
-    Result.Message := 'Database backup timed out.';
-    Exit;
-  end;
-  if not FileExists(DumpPath) then
-  begin
-    Result.Message := 'Database backup did not produce a dump file.';
-    Exit;
+    StartResult := TProcessManager.StartDetached(DumpExe, SqlArgs, FPaths.MariaDbBinDir);
+    if not StartResult.Success then
+    begin
+      Result.Message := 'Database backup could not start: ' + StartResult.ErrorMessage;
+      Exit;
+    end;
+
+    if not TProcessManager.WaitForExit(StartResult.ProcessId, 600000) then
+    begin
+      Result.Message := 'Database backup timed out.';
+      Exit;
+    end;
+    if not FileExists(DumpPath) then
+    begin
+      Result.Message := 'Database backup did not produce a dump file.';
+      Exit;
+    end;
+  finally
+    DeleteMariaDbDefaultsExtraFile(DefaultsFileName);
   end;
 
   Output := ComputeFileSha256Hex(DumpPath);
@@ -272,6 +282,9 @@ var
   ActualSha256: string;
   SqlFile: string;
   ParseError: string;
+  Password: string;
+  DefaultsFileName: string;
+  AuthError: string;
 begin
   Result.Success := False;
   Result.Message := '';
@@ -318,14 +331,28 @@ begin
     Exit;
   end;
 
-  ClientArgs := GetMysqlRestoreArgs(SqlFile);
-  if not TProcessManager.RunAndCaptureOutput(ClientExe, ClientArgs, FPaths.MariaDbBinDir, Output, 1200000) then
+  DefaultsFileName := '';
+  Password := LoadMariaDbRootPassword(FPaths);
+  if Password <> '' then
   begin
-    if Trim(Output) <> '' then
-      Result.Message := Trim(Output)
-    else
-      Result.Message := 'Database restore failed to start.';
-    Exit;
+    if not CreateMariaDbDefaultsExtraFile(FPaths, Password, DefaultsFileName, AuthError) then
+    begin
+      Result.Message := 'Database restore auth setup failed: ' + AuthError;
+      Exit;
+    end;
+  end;
+  try
+    ClientArgs := GetMysqlRestoreArgs(SqlFile, DefaultsFileName);
+    if not TProcessManager.RunAndCaptureOutput(ClientExe, ClientArgs, FPaths.MariaDbBinDir, Output, 1200000) then
+    begin
+      if Trim(Output) <> '' then
+        Result.Message := Trim(Output)
+      else
+        Result.Message := 'Database restore failed to start.';
+      Exit;
+    end;
+  finally
+    DeleteMariaDbDefaultsExtraFile(DefaultsFileName);
   end;
 
   if Trim(Output) <> '' then

@@ -9,6 +9,7 @@ uses
   System.SysUtils,
   System.Win.Registry,
   Core.UniWamp.Config,
+  Core.UniWamp.MariaDbAuth,
   Core.UniWamp.Types,
   Core.UniWamp.Interfaces,
   Core.UniWamp.Paths,
@@ -1901,6 +1902,8 @@ var
   LowerOutput: string;
   CurrentPassword: string;
   SecretError: string;
+  DefaultsFileName: string;
+  AuthError: string;
 begin
   if Trim(NewPassword) = '' then
   begin
@@ -1926,18 +1929,31 @@ begin
 
   CurrentPassword := LoadMariaDbRootPassword(FPaths);
   Arguments := '--port=' + FConfig.DatabasePort.ToString + ' --user=root ';
-  if CurrentPassword <> '' then
-    Arguments := Arguments + '--password="' + CurrentPassword + '" ';
   Arguments := Arguments + 'password "' + NewPassword + '"';
-
-  if not TProcessManager.RunAndCaptureOutput(MysqlAdminExePath, Arguments, FPaths.MariaDbBinDir, Output) then
+  DefaultsFileName := '';
+  if CurrentPassword <> '' then
   begin
-    Result.Success := False;
-    if Trim(Output) <> '' then
-      Result.Message := Trim(Output)
-    else
-      Result.Message := 'Failed to start mysqladmin.';
-    Exit;
+    if not CreateMariaDbDefaultsExtraFile(FPaths, CurrentPassword, DefaultsFileName, AuthError) then
+    begin
+      Result.Success := False;
+      Result.Message := 'MariaDB auth setup failed: ' + AuthError;
+      Exit;
+    end;
+    Arguments := PrependDefaultsExtraFileArg(DefaultsFileName, Arguments);
+  end;
+
+  try
+    if not TProcessManager.RunAndCaptureOutput(MysqlAdminExePath, Arguments, FPaths.MariaDbBinDir, Output) then
+    begin
+      Result.Success := False;
+      if Trim(Output) <> '' then
+        Result.Message := Trim(Output)
+      else
+        Result.Message := 'Failed to start mysqladmin.';
+      Exit;
+    end;
+  finally
+    DeleteMariaDbDefaultsExtraFile(DefaultsFileName);
   end;
 
   LowerOutput := LowerCase(Output);

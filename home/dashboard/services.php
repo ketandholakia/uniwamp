@@ -35,17 +35,10 @@ dashboardRenderLayout($state, 'services', 'Services', static function (array $st
     <section class="grid gap-4 lg:grid-cols-2">
       <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 class="text-xl font-semibold text-slate-950">Stack controls</h2>
-        <p class="mt-2 text-sm text-slate-600">Start, stop, or restart the local Apache and MariaDB services.</p>
+        <p class="mt-2 text-sm text-slate-600">Service management is disabled in the web dashboard. Use the UniWamp desktop app for start, stop, and restart actions.</p>
 
-        <div class="mt-5 flex flex-wrap gap-3">
-          <form method="post">
-            <input type="hidden" name="dashboard_action" value="stack_start">
-            <button class="rounded-2xl border border-success-200 bg-success-50 px-4 py-3 text-sm font-medium text-success-700" type="submit">Start all services</button>
-          </form>
-          <form method="post">
-            <input type="hidden" name="dashboard_action" value="stack_stop">
-            <button class="rounded-2xl border border-error-200 bg-error-50 px-4 py-3 text-sm font-medium text-error-700" type="submit" onclick="return confirm('Stop Apache and MariaDB now?');">Stop all services</button>
-          </form>
+        <div class="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Read-only mode: configuration and process actions are only available in the desktop application.
         </div>
       </article>
 
@@ -54,38 +47,12 @@ dashboardRenderLayout($state, 'services', 'Services', static function (array $st
         <div class="mt-4 grid gap-4 sm:grid-cols-2">
           <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <div class="text-sm font-semibold text-slate-950">Apache</div>
-            <div class="mt-3 flex flex-wrap gap-2">
-              <form method="post">
-                <input type="hidden" name="dashboard_action" value="apache_start">
-                <button class="rounded-xl border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm font-medium text-brand-700" type="submit" <?php echo $state['apacheRunning'] ? 'disabled' : ''; ?>>Start</button>
-              </form>
-              <form method="post">
-                <input type="hidden" name="dashboard_action" value="apache_stop">
-                <button class="rounded-xl border border-error-200 bg-error-50 px-4 py-2.5 text-sm font-medium text-error-700" type="submit" <?php echo $state['apacheRunning'] ? '' : 'disabled'; ?> onclick="return confirm('Stop Apache?');">Stop</button>
-              </form>
-              <form method="post">
-                <input type="hidden" name="dashboard_action" value="apache_restart">
-                <button class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-700" type="submit" <?php echo $state['apacheRunning'] ? '' : 'disabled'; ?> onclick="return confirm('Restart Apache?');">Restart</button>
-              </form>
-            </div>
+            <div class="mt-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">Current status: <?php echo $state['apacheRunning'] ? 'Running' : 'Stopped'; ?></div>
           </div>
 
           <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <div class="text-sm font-semibold text-slate-950">MariaDB</div>
-            <div class="mt-3 flex flex-wrap gap-2">
-              <form method="post">
-                <input type="hidden" name="dashboard_action" value="mariadb_start">
-                <button class="rounded-xl border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm font-medium text-brand-700" type="submit" <?php echo $state['mariaDbRunning'] ? 'disabled' : ''; ?>>Start</button>
-              </form>
-              <form method="post">
-                <input type="hidden" name="dashboard_action" value="mariadb_stop">
-                <button class="rounded-xl border border-error-200 bg-error-50 px-4 py-2.5 text-sm font-medium text-error-700" type="submit" <?php echo $state['mariaDbRunning'] ? '' : 'disabled'; ?> onclick="return confirm('Stop MariaDB?');">Stop</button>
-              </form>
-              <form method="post">
-                <input type="hidden" name="dashboard_action" value="mariadb_restart">
-                <button class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-700" type="submit" <?php echo $state['mariaDbRunning'] ? '' : 'disabled'; ?> onclick="return confirm('Restart MariaDB?');">Restart</button>
-              </form>
-            </div>
+            <div class="mt-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">Current status: <?php echo $state['mariaDbRunning'] ? 'Running' : 'Stopped'; ?></div>
           </div>
         </div>
       </article>

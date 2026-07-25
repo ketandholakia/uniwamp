@@ -71,7 +71,6 @@ type
     procedure LoadProfileIntoEditor(const Profile: TSyncProfile);
     function DefaultProfile: TSyncProfile;
     function CurrentProfileIndex: Integer;
-    function CurrentSelectedSyncProfile(out Profile: TSyncProfile): Boolean;
     function ReadProfileFromEditor(out Profile: TSyncProfile; out ErrorMessage: string): Boolean;
     function ValidateProfiles(out ErrorMessage: string): Boolean;
     function ProfileDisplayName(const Profile: TSyncProfile): string;
@@ -83,6 +82,7 @@ type
     function ResolveExecutionPaths(const Profile: TSyncProfile; out LocalPath, WorkingDirectory,
       RemotePath, ErrorMessage: string): Boolean;
     function BuildCredentialsFromEditor(const Profile: TSyncProfile): TSyncCredentials;
+    procedure ApplySelectedConnectionProfile;
     function DescribePlan(const Plan: TSyncPlan): string;
     function SyncProfileToJson(const Profile: TSyncProfile): TJSONObject;
     function TryReadSyncProfilesFromJson(const FileName: string; out Profiles: TArray<TSyncProfile>;
@@ -91,6 +91,7 @@ type
     procedure PersistCurrentSecrets(const Profile: TSyncProfile; const PreviousName: string;
       out ErrorMessage: string);
     procedure ClearEditor;
+    procedure UpdateConnectionProfileState;
     procedure UpdateProtocolState;
     procedure UpdateValidationMessage;
     procedure SetStatus(const ColorValue: TColor; const TextValue: string);
@@ -585,19 +586,6 @@ begin
     Result := FProfilesList.ItemIndex;
 end;
 
-function TSyncProfilesForm.CurrentSelectedSyncProfile(out Profile: TSyncProfile): Boolean;
-var
-  Index: Integer;
-begin
-  Result := False;
-  Profile := Default(TSyncProfile);
-  Index := CurrentProfileIndex;
-  if (Index < 0) or (Index >= FProfiles.Count) then
-    Exit;
-  Profile := FProfiles[Index];
-  Result := True;
-end;
-
 function TSyncProfilesForm.ReadProfileFromEditor(out Profile: TSyncProfile;
   out ErrorMessage: string): Boolean;
 var
@@ -642,7 +630,7 @@ begin
     Profile.ConnectionProfileName := '';
 
   Profile.Host := Trim(FHostEdit.Text);
-  if Profile.Host = '' then
+  if (Profile.ConnectionProfileName = '') and (Profile.Host = '') then
   begin
     ErrorMessage := 'Sync profile host is required.';
     Exit;
@@ -879,8 +867,16 @@ begin
     Result.IgnoreCertErrors := Profile.IgnoreCertErrors;
   end;
 
-  Result.Password := Trim(FPasswordEdit.Text);
-  Result.KeyPassphrase := Trim(FKeyPassphraseEdit.Text);
+  if Found and (Trim(Profile.ConnectionProfileName) <> '') then
+  begin
+    Result.Password := LoadConnectionPassword(FPaths, Profile.ConnectionProfileName);
+    Result.KeyPassphrase := LoadConnectionKeyPassphrase(FPaths, Profile.ConnectionProfileName);
+  end
+  else
+  begin
+    Result.Password := Trim(FPasswordEdit.Text);
+    Result.KeyPassphrase := Trim(FKeyPassphraseEdit.Text);
+  end;
 end;
 
 function TSyncProfilesForm.DescribePlan(const Plan: TSyncPlan): string;
@@ -1046,6 +1042,7 @@ end;
 procedure TSyncProfilesForm.UpdateProtocolState;
 var
   Protocol: string;
+  UsesConnectionProfile: Boolean;
 begin
   if not Assigned(FProtocolCombo) then
     Exit;
@@ -1054,11 +1051,18 @@ begin
   else
     Protocol := 'sftp';
 
-  FPassiveCheck.Enabled := not SameText(Protocol, 'sftp');
-  FIgnoreCertCheck.Enabled := SameText(Protocol, 'ftps');
-  FPrivateKeyEdit.Enabled := SameText(Protocol, 'sftp');
-  FPrivateKeyBrowseButton.Enabled := SameText(Protocol, 'sftp');
-  FKeyPassphraseEdit.Enabled := SameText(Protocol, 'sftp');
+  UsesConnectionProfile := Assigned(FConnectionProfileCombo) and (FConnectionProfileCombo.ItemIndex > 0);
+
+  FHostEdit.Enabled := not UsesConnectionProfile;
+  FPortEdit.Enabled := not UsesConnectionProfile;
+  FUsernameEdit.Enabled := not UsesConnectionProfile;
+  FPasswordEdit.Enabled := not UsesConnectionProfile;
+  FProtocolCombo.Enabled := not UsesConnectionProfile;
+  FPassiveCheck.Enabled := (not UsesConnectionProfile) and not SameText(Protocol, 'sftp');
+  FIgnoreCertCheck.Enabled := (not UsesConnectionProfile) and SameText(Protocol, 'ftps');
+  FPrivateKeyEdit.Enabled := (not UsesConnectionProfile) and SameText(Protocol, 'sftp');
+  FPrivateKeyBrowseButton.Enabled := (not UsesConnectionProfile) and SameText(Protocol, 'sftp');
+  FKeyPassphraseEdit.Enabled := (not UsesConnectionProfile) and SameText(Protocol, 'sftp');
 end;
 
 procedure TSyncProfilesForm.UpdateValidationMessage;
@@ -1082,7 +1086,7 @@ begin
   Credentials := BuildCredentialsFromEditor(Profile);
   if SameText(Credentials.Protocol, 'sftp') and (Trim(Credentials.KeyPassphrase) <> '') then
   begin
-    SetStatus(clRed, 'SFTP key passphrases are not supported in this build. Load the key into ssh-agent first.');
+    SetStatus(clRed, 'Encrypted SFTP private keys are not supported in this build. Use ssh-agent or an unencrypted deployment key.');
     Exit;
   end;
   SetStatus(TColor($002E7D32), 'Profile is valid. Preview and tests use the selected test vHost when one is chosen.');
@@ -1146,8 +1150,16 @@ begin
     else
       FPortEdit.Clear;
     FUsernameEdit.Text := Effective.Username;
-    FPasswordEdit.Text := LoadSecret(FPaths, SyncPasswordKey(Effective.Name));
-    FKeyPassphraseEdit.Text := LoadSecret(FPaths, SyncKeyPassphraseKey(Effective.Name));
+    if Trim(Effective.ConnectionProfileName) <> '' then
+    begin
+      FPasswordEdit.Text := LoadConnectionPassword(FPaths, Effective.ConnectionProfileName);
+      FKeyPassphraseEdit.Text := LoadConnectionKeyPassphrase(FPaths, Effective.ConnectionProfileName);
+    end
+    else
+    begin
+      FPasswordEdit.Text := LoadSecret(FPaths, SyncPasswordKey(Effective.Name));
+      FKeyPassphraseEdit.Text := LoadSecret(FPaths, SyncKeyPassphraseKey(Effective.Name));
+    end;
     FPrivateKeyEdit.Text := Effective.PrivateKeyFile;
     FPassiveCheck.Checked := Effective.PassiveMode;
     FIgnoreCertCheck.Checked := Effective.IgnoreCertErrors;
@@ -1179,8 +1191,48 @@ begin
     FLoading := False;
   end;
   FLoadedProfileName := Effective.Name;
+  UpdateConnectionProfileState;
   UpdateProtocolState;
   UpdateValidationMessage;
+end;
+
+procedure TSyncProfilesForm.UpdateConnectionProfileState;
+begin
+  ApplySelectedConnectionProfile;
+  UpdateProtocolState;
+end;
+
+procedure TSyncProfilesForm.ApplySelectedConnectionProfile;
+var
+  ProfileName: string;
+  ConnectionProfile: TConnectionProfile;
+begin
+  if not Assigned(FConnectionProfileCombo) or (FConnectionProfileCombo.ItemIndex <= 0) or
+    not Assigned(FConfig) then
+    Exit;
+  ProfileName := Trim(FConnectionProfileCombo.Items[FConnectionProfileCombo.ItemIndex]);
+  for ConnectionProfile in FConfig.ConnectionProfiles do
+    if SameText(ConnectionProfile.Name, ProfileName) then
+    begin
+      FLoading := True;
+      try
+        FProtocolCombo.ItemIndex := FProtocolCombo.Items.IndexOf(ConnectionProfile.Protocol);
+        if ConnectionProfile.Port > 0 then
+          FPortEdit.Text := ConnectionProfile.Port.ToString
+        else
+          FPortEdit.Clear;
+        FHostEdit.Text := ConnectionProfile.Host;
+        FUsernameEdit.Text := ConnectionProfile.Username;
+        FPasswordEdit.Text := LoadConnectionPassword(FPaths, ConnectionProfile.Name);
+        FKeyPassphraseEdit.Text := LoadConnectionKeyPassphrase(FPaths, ConnectionProfile.Name);
+        FPrivateKeyEdit.Text := ConnectionProfile.PrivateKeyFile;
+        FPassiveCheck.Checked := ConnectionProfile.PassiveMode;
+        FIgnoreCertCheck.Checked := ConnectionProfile.IgnoreCertErrors;
+      finally
+        FLoading := False;
+      end;
+      Break;
+    end;
 end;
 
 function TSyncProfilesForm.SaveCurrentEditor: Boolean;
@@ -1212,6 +1264,13 @@ procedure TSyncProfilesForm.PersistCurrentSecrets(const Profile: TSyncProfile; c
   out ErrorMessage: string);
 begin
   ErrorMessage := '';
+  if Trim(Profile.ConnectionProfileName) <> '' then
+  begin
+    DeleteAllSyncSecrets(FPaths, Profile.Name);
+    if (Trim(PreviousName) <> '') and (not SameText(Trim(PreviousName), Trim(Profile.Name))) then
+      DeleteAllSyncSecrets(FPaths, PreviousName);
+    Exit;
+  end;
   if not SaveSecret(FPaths, SyncPasswordKey(Profile.Name), Trim(FPasswordEdit.Text), ErrorMessage) then
     Exit;
   if not SaveSecret(FPaths, SyncKeyPassphraseKey(Profile.Name), Trim(FKeyPassphraseEdit.Text), ErrorMessage) then
@@ -1243,6 +1302,8 @@ procedure TSyncProfilesForm.EditorChanged(Sender: TObject);
 begin
   if FLoading then
     Exit;
+  if Sender = FConnectionProfileCombo then
+    UpdateConnectionProfileState;
   UpdateValidationMessage;
 end;
 

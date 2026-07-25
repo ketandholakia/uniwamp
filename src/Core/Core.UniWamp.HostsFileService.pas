@@ -11,6 +11,7 @@ uses
   System.Generics.Collections,
 
   Core.UniWamp.Paths,
+  Core.UniWamp.AtomicFile,
   Core.UniWamp.Config,
   Core.UniWamp.Interfaces,
   Core.UniWamp.ProcessManager,
@@ -78,10 +79,7 @@ begin
 
   try
     if FileExists(HostsPath) then
-    begin
-      TFile.Copy(HostsPath, BackupPath, True);
       HostsText := TFile.ReadAllText(HostsPath, TEncoding.ASCII)
-    end
     else
       HostsText := '';
 
@@ -102,7 +100,7 @@ begin
     if HostsText <> '' then
       HostsText := HostsText + sLineBreak + sLineBreak;
     HostsText := HostsText + ManagedBlock;
-    TFile.WriteAllText(HostsPath, HostsText, TEncoding.ASCII);
+    AtomicWriteTextFile(HostsPath, HostsText, TEncoding.ASCII, BackupPath);
     FConfig.LastHostsSyncStatus := 'Hosts synced';
     Result := True;
   except

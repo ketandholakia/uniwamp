@@ -207,7 +207,7 @@ begin
   HeaderTitle.Height := 23;
 
   HeaderHint := AddLabel(HeaderPanel, 18, 42,
-    'Manage FTP, FTPS, and SFTP connection details. SFTP supports passwords, ssh-agent, and unencrypted private keys. Passwords and key passphrases stay in the Windows secret store.', 760);
+    'Manage FTP, FTPS, and SFTP connection details. SFTP supports passwords, ssh-agent, and unencrypted private keys. Passwords stay in the Windows secret store.', 760);
   HeaderHint.Font.Size := 9;
   HeaderHint.Font.Color := HeaderSubTextColor;
   HeaderHint.Font.Style := [];
@@ -611,8 +611,8 @@ begin
     else
       FPortEdit.Clear;
     FUsernameEdit.Text := Effective.Username;
-    FPasswordEdit.Text := LoadSecret(FPaths, SyncPasswordKey(Effective.Name));
-    FKeyPassphraseEdit.Text := LoadSecret(FPaths, SyncKeyPassphraseKey(Effective.Name));
+    FPasswordEdit.Text := LoadConnectionPassword(FPaths, Effective.Name);
+    FKeyPassphraseEdit.Text := LoadConnectionKeyPassphrase(FPaths, Effective.Name);
     FPrivateKeyEdit.Text := Effective.PrivateKeyFile;
     FPassiveCheck.Checked := Effective.PassiveMode;
     FIgnoreCertCheck.Checked := Effective.IgnoreCertErrors;
@@ -740,7 +740,7 @@ begin
     Exit;
   if MessageDlg('Delete selected connection profile?', mtConfirmation, [mbYes, mbNo], 0) <> mrYes then
     Exit;
-  DeleteAllSyncSecrets(FPaths, FProfiles[Index].Name);
+  DeleteAllConnectionSecrets(FPaths, FProfiles[Index].Name);
   FProfiles.Delete(Index);
   RefreshProfileList;
   if FProfiles.Count > 0 then
@@ -898,10 +898,10 @@ procedure TConnectionProfilesForm.PersistCurrentSecrets(const Profile: TConnecti
 begin
   ErrorMessage := '';
   if (PreviousName <> '') and not SameText(PreviousName, Profile.Name) then
-    DeleteAllSyncSecrets(FPaths, PreviousName);
-  if not SaveSecret(FPaths, SyncPasswordKey(Profile.Name), Trim(FPasswordEdit.Text), ErrorMessage) then
+    DeleteAllConnectionSecrets(FPaths, PreviousName);
+  if not SaveConnectionPassword(FPaths, Profile.Name, Trim(FPasswordEdit.Text), ErrorMessage) then
     Exit;
-  if not SaveSecret(FPaths, SyncKeyPassphraseKey(Profile.Name), Trim(FKeyPassphraseEdit.Text), ErrorMessage) then
+  if not SaveConnectionKeyPassphrase(FPaths, Profile.Name, Trim(FKeyPassphraseEdit.Text), ErrorMessage) then
     Exit;
 end;
 
