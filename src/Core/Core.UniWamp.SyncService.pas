@@ -126,8 +126,10 @@ function TSyncService.BuildCredentials(const Profile: TSyncProfile): TSyncCreden
 var
   ConnectionProfile: TConnectionProfile;
   SecretProfileName: string;
+  UsedConnectionProfileSecrets: Boolean;
 begin
   SecretProfileName := Profile.Name;
+  UsedConnectionProfileSecrets := False;
   if (Trim(Profile.ConnectionProfileName) <> '') and
     TryGetConnectionProfile(Profile.ConnectionProfileName, ConnectionProfile) then
   begin
@@ -139,6 +141,7 @@ begin
     Result.PassiveMode := ConnectionProfile.PassiveMode;
     Result.IgnoreCertErrors := ConnectionProfile.IgnoreCertErrors;
     SecretProfileName := ConnectionProfile.Name;
+    UsedConnectionProfileSecrets := True;
   end
   else if TryGetConnectionProfile(Profile.Name, ConnectionProfile) then
   begin
@@ -150,6 +153,7 @@ begin
     Result.PassiveMode := ConnectionProfile.PassiveMode;
     Result.IgnoreCertErrors := ConnectionProfile.IgnoreCertErrors;
     SecretProfileName := ConnectionProfile.Name;
+    UsedConnectionProfileSecrets := True;
   end
   else
   begin
@@ -161,15 +165,15 @@ begin
     Result.PassiveMode := Profile.PassiveMode;
     Result.IgnoreCertErrors := Profile.IgnoreCertErrors;
   end;
-  if SameText(SecretProfileName, Profile.Name) and (Trim(Profile.ConnectionProfileName) = '') then
-  begin
-    Result.Password := LoadSecret(FPaths, SyncPasswordKey(SecretProfileName));
-    Result.KeyPassphrase := LoadSecret(FPaths, SyncKeyPassphraseKey(SecretProfileName));
-  end
-  else
+  if UsedConnectionProfileSecrets then
   begin
     Result.Password := LoadConnectionPassword(FPaths, SecretProfileName);
     Result.KeyPassphrase := LoadConnectionKeyPassphrase(FPaths, SecretProfileName);
+  end
+  else
+  begin
+    Result.Password := LoadSecret(FPaths, SyncPasswordKey(SecretProfileName));
+    Result.KeyPassphrase := LoadSecret(FPaths, SyncKeyPassphraseKey(SecretProfileName));
   end;
 end;
 

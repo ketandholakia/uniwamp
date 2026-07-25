@@ -63,6 +63,7 @@ uses
   Winapi.Windows,
   System.IOUtils,
   System.StrUtils,
+  System.DateUtils,
   System.Generics.Collections,
   Core.UniWamp.ProcessManager,
   Core.UniWamp.Paths;
@@ -388,6 +389,56 @@ begin
 end;
 
 function TSftpTransport.ParseListOutput(const Output: string): TRemoteEntries;
+  function MonthIndexFromToken(const Token: string): Integer;
+  const
+    MonthTokens: array[1..12] of string = (
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec');
+  var
+    I: Integer;
+  begin
+    Result := 0;
+    for I := Low(MonthTokens) to High(MonthTokens) do
+      if SameText(Token, MonthTokens[I]) then
+        Exit(I);
+  end;
+
+  function TryParseModifiedUtc(const Tokens: TArray<string>; out ModifiedUtc: TDateTime): Boolean;
+  var
+    MonthIndex: Integer;
+    DayValue: Integer;
+    YearValue: Integer;
+    HourValue: Integer;
+    MinuteValue: Integer;
+    CurrentYear: Integer;
+  begin
+    Result := False;
+    ModifiedUtc := 0;
+    if Length(Tokens) < 8 then
+      Exit;
+    MonthIndex := MonthIndexFromToken(Tokens[5]);
+    if MonthIndex = 0 then
+      Exit;
+    DayValue := StrToIntDef(Tokens[6], 0);
+    if DayValue = 0 then
+      Exit;
+    if Pos(':', Tokens[7]) > 0 then
+    begin
+      CurrentYear := YearOf(Now);
+      if not TryStrToInt(Copy(Tokens[7], 1, Pos(':', Tokens[7]) - 1), HourValue) then
+        Exit;
+      if not TryStrToInt(Copy(Tokens[7], Pos(':', Tokens[7]) + 1, MaxInt), MinuteValue) then
+        Exit;
+      ModifiedUtc := EncodeDateTime(CurrentYear, MonthIndex, DayValue, HourValue, MinuteValue, 0, 0);
+      Result := True;
+      Exit;
+    end;
+    if not TryStrToInt(Tokens[7], YearValue) then
+      Exit;
+    ModifiedUtc := EncodeDateTime(YearValue, MonthIndex, DayValue, 0, 0, 0, 0);
+    Result := True;
+  end;
+
 var
   Lines: TStringList;
   Entries: TList<TRemoteEntry>;
@@ -398,6 +449,7 @@ var
   NameText: string;
   NameStart: Integer;
   YearOrTimeToken: string;
+  I: Integer;
 begin
   Lines := TStringList.Create;
   Entries := TList<TRemoteEntry>.Create;
@@ -422,12 +474,22 @@ begin
       Entry := Default(TRemoteEntry);
       Entry.IsDirectory := Line[1] = 'd';
       Entry.Size := StrToInt64Def(Tokens[4], 0);
-      Entry.ModifiedUtc := 0;
+      if not TryParseModifiedUtc(Tokens, Entry.ModifiedUtc) then
+        Entry.ModifiedUtc := 0;
 
       YearOrTimeToken := Tokens[7];
-      NameStart := Pos(YearOrTimeToken, Line);
+      NameStart := 1;
+      for I := 0 to 7 do
+      begin
+        NameStart := PosEx(Tokens[I], Line, NameStart);
+        if NameStart = 0 then
+          Break;
+        Inc(NameStart, Length(Tokens[I]));
+        while (NameStart <= Length(Line)) and (Line[NameStart] = ' ') do
+          Inc(NameStart);
+      end;
       if NameStart > 0 then
-        NameText := Trim(Copy(Line, NameStart + Length(YearOrTimeToken), MaxInt))
+        NameText := Trim(Copy(Line, NameStart, MaxInt))
       else
         NameText := Tokens[High(Tokens)];
       if Pos(' -> ', NameText) > 0 then

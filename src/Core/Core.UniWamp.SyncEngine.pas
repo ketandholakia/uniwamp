@@ -60,25 +60,6 @@ implementation
 uses
   Core.UniWamp.AtomicFile;
 
-type
-  TProgressContext = record
-    OnProgress: TSyncEngineProgressEvent;
-    RelativePath: string;
-  end;
-
-var
-  GProgressContext: TProgressContext;
-
-function ForwardProgress(const FileName: string; const BytesTransferred, TotalBytes: Int64;
-  const IsUpload: Boolean): Boolean;
-begin
-  if Assigned(GProgressContext.OnProgress) then
-    Result := GProgressContext.OnProgress(GProgressContext.RelativePath, BytesTransferred,
-      TotalBytes, IsUpload)
-  else
-    Result := True;
-end;
-
 { TSyncEngine }
 
 class function TSyncEngine.NormalizeRelativePath(const RelativePath: string): string;
@@ -350,25 +331,34 @@ begin
           begin
             Log('upload ' + Item.RelativePath + Format(' (%d bytes)', [Item.Size]));
             if not DryRun then
-            begin
-              GProgressContext.OnProgress := OnProgress;
-              GProgressContext.RelativePath := Item.RelativePath;
-              Transport.UploadFile(Item.LocalPath, Item.RemotePath, ForwardProgress);
+              Transport.UploadFile(Item.LocalPath, Item.RemotePath,
+                function(const FileName: string; const BytesTransferred, TotalBytes: Int64;
+                  const IsUpload: Boolean): Boolean
+                begin
+                  if Assigned(OnProgress) then
+                    Result := OnProgress(Item.RelativePath, BytesTransferred, TotalBytes, IsUpload)
+                  else
+                    Result := True;
+                end);
               Inc(Result.FilesTransferred);
               Inc(Result.BytesTransferred, Item.Size);
-            end;
           end;
         spiDownload:
           begin
             Log('download ' + Item.RelativePath + Format(' (%d bytes)', [Item.Size]));
             if not DryRun then
-            begin
               TempLocalPath := Item.LocalPath + '.' + GUIDToString(TGUID.NewGuid) + '.part';
               TDirectory.CreateDirectory(ExtractFilePath(Item.LocalPath));
               try
-                GProgressContext.OnProgress := OnProgress;
-                GProgressContext.RelativePath := Item.RelativePath;
-                Transport.DownloadFile(Item.RemotePath, TempLocalPath, ForwardProgress);
+                Transport.DownloadFile(Item.RemotePath, TempLocalPath,
+                  function(const FileName: string; const BytesTransferred, TotalBytes: Int64;
+                    const IsUpload: Boolean): Boolean
+                  begin
+                    if Assigned(OnProgress) then
+                      Result := OnProgress(Item.RelativePath, BytesTransferred, TotalBytes, IsUpload)
+                    else
+                      Result := True;
+                  end);
                 AtomicReplaceFile(TempLocalPath, Item.LocalPath);
                 Inc(Result.FilesTransferred);
                 Inc(Result.BytesTransferred, Item.Size);
@@ -376,7 +366,6 @@ begin
                 if FileExists(TempLocalPath) then
                   TFile.Delete(TempLocalPath);
               end;
-            end;
           end;
         spiDeleteRemote:
           begin
