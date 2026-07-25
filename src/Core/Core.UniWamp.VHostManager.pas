@@ -117,6 +117,7 @@ var
   NormalizedDocumentRoot: string;
   NormalizedAliases: string;
   ErrorMessage: string;
+  ManagedSslDir: string;
 begin
   if not ValidateServerName(ServerName, NormalizedServerName, ErrorMessage) then
   begin
@@ -149,8 +150,9 @@ begin
   Entry.SslKeyFile := '';
   if EnableSsl then
   begin
-    Entry.SslCertFile := TPath.Combine(BuildManagedSslDir(NormalizedServerName), 'server.crt');
-    Entry.SslKeyFile := TPath.Combine(BuildManagedSslDir(NormalizedServerName), 'server.key');
+    ManagedSslDir := BuildManagedSslDir(NormalizedServerName);
+    Entry.SslCertFile := TPath.Combine(ManagedSslDir, 'server.crt');
+    Entry.SslKeyFile := TPath.Combine(ManagedSslDir, 'server.key');
     Result := GenerateSslCertificateFor(NormalizedServerName, Entry.SslCertFile, Entry.SslKeyFile);
     if not Result.Success then
       Exit;
@@ -165,13 +167,32 @@ begin
   HostsFileService := THostsFileService.Create(FPaths, FConfig);
   try
     if HostsFileService.SyncHostsFile(HostsError) then
-      Result.Message := 'VHost saved: ' + NormalizedServerName
-    else
-      Result.Message := 'VHost saved: ' + NormalizedServerName + ' (' + HostsError + ')';
+    begin
+      Result.Success := True;
+      Result.Message := 'VHost saved: ' + NormalizedServerName;
+      Exit;
+    end;
   finally
     HostsFileService.Free;
   end;
-  Result.Success := True;
+
+  FConfig.DeleteVHost(NormalizedServerName);
+  ConfigGenerator := TConfigurationGenerator.Create(FPaths, FConfig);
+  try
+    ConfigGenerator.GenerateVHostConfig;
+  finally
+    ConfigGenerator.Free;
+  end;
+  if EnableSsl then
+  begin
+    ManagedSslDir := BuildManagedSslDir(NormalizedServerName);
+    DeleteManagedSslFileIfOwned(Entry.SslCertFile, ManagedSslDir);
+    DeleteManagedSslFileIfOwned(Entry.SslKeyFile, ManagedSslDir);
+    if TDirectory.Exists(ManagedSslDir) and TDirectory.IsEmpty(ManagedSslDir) then
+      TDirectory.Delete(ManagedSslDir);
+  end;
+  Result.Success := False;
+  Result.Message := 'VHost save failed: ' + HostsError;
 end;
 
 function TVHostManager.DeleteVHost(const ServerName: string): TRuntimeActionResult;

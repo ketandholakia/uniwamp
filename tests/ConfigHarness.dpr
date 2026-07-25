@@ -3,12 +3,17 @@ program ConfigHarness;
 {$APPTYPE CONSOLE}
 
 uses
+  Winapi.Windows,
   System.Classes,
   System.Generics.Collections,
   System.IOUtils,
   System.SysUtils,
   System.JSON,
   Core.UniWamp.Config,
+  Core.UniWamp.Interfaces,
+  Core.UniWamp.Types,
+  Core.UniWamp.TemplateRenderer,
+  Core.UniWamp.VHostManager,
   Core.UniWamp.Paths,
   Core.UniWamp.Secrets,
   Core.UniWamp.SyncEngine,
@@ -703,6 +708,45 @@ begin
   end;
 end;
 
+procedure TestProjectRestoreRollsBackWhenHostsSyncFails;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Manager: IVHostManager;
+  ResultInfo: TRuntimeActionResult;
+  OldHostsFile: string;
+  InvalidHostsPath: string;
+begin
+  RootDir := CreateTempRoot('vhost-rollback');
+  try
+    Paths := BuildPaths(RootDir);
+    EnsureTestLayout(Paths);
+    TTemplateRenderer.EnsureDefaultTemplates(Paths);
+    InvalidHostsPath := TPath.Combine(RootDir, 'hosts-blocked');
+    TDirectory.CreateDirectory(InvalidHostsPath);
+    OldHostsFile := GetEnvironmentVariable('UNIWAMP_HOSTS_FILE');
+    SetEnvironmentVariable('UNIWAMP_HOSTS_FILE', PChar(InvalidHostsPath));
+    Config := TUniWampConfig.Create;
+    try
+      AssertTrue(Config.LoadOrCreate(Paths), 'Test config should load');
+      Manager := TVHostManager.Create(Paths, Config);
+      ResultInfo := Manager.AddVHost('restore-rollback.local', TPath.Combine(Paths.WwwDir, 'restore-rollback'),
+        '', False);
+      AssertTrue(not ResultInfo.Success, 'VHost save should fail when hosts sync fails');
+      AssertContains(ResultInfo.Message, 'VHost save failed', 'Failure should be reported as a rollback');
+      AssertIntEquals(0, Length(Config.VHosts), 'Config should roll back the failed vHost');
+      AssertTrue(Pos('restore-rollback.local', TFile.ReadAllText(Paths.ApacheVHostsConfFile, TEncoding.UTF8)) = 0,
+        'Generated vHost config should not keep the rolled-back vHost');
+    finally
+      Config.Free;
+      SetEnvironmentVariable('UNIWAMP_HOSTS_FILE', PChar(OldHostsFile));
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 begin
   try
     TestMalformedConfigRecovery;
@@ -714,6 +758,7 @@ begin
     TestLegacyMariaDbPasswordMigratesToProtectedStorage;
     TestConnectionSecretsMigrateFromLegacySyncKeys;
     TestSyncEngineRejectsUnsafeRemoteEntries;
+    TestProjectRestoreRollsBackWhenHostsSyncFails;
     TestAtomicSaveCreatesDirectoryAndFile;
     Writeln('Config harness passed.');
   except

@@ -631,11 +631,12 @@ begin
     Config := TUniWampConfig.Create;
     try
     Config.SetDefaults(Paths);
-    Runtime := TUniWampRuntime.Create(Paths, Config);
+      Runtime := TUniWampRuntime.Create(Paths, Config);
       try
         ResultInfo := Runtime.AddVHost('readonly.test', TPath.Combine(RootDir, 'readonly-site'), '', False);
-        AssertTrue(ResultInfo.Success, 'VHost add should still save the vHost when hosts sync fails');
-        AssertContains(ResultInfo.Message, 'Hosts file update failed', 'Hosts sync failure should be reported');
+        AssertTrue(not ResultInfo.Success, 'VHost add should fail when hosts sync fails');
+        AssertContains(ResultInfo.Message, 'VHost save failed', 'Hosts sync failure should be reported as a rollback');
+        AssertTrue(Length(Config.VHosts) = 0, 'VHost add should roll back the failed config change');
         AssertTrue(SameText(Config.LastHostsSyncStatus, 'Hosts update failed') or
           SameText(Config.LastHostsSyncStatus, 'Hosts update requires Administrator'),
           'Hosts sync status should reflect failure');
