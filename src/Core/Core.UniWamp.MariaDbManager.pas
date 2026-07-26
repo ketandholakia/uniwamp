@@ -458,11 +458,13 @@ begin
     Exit;
   end;
 
-  MysqlClientExePath := MariaDbExe;
+  MysqlClientExePath := TPath.Combine(FPaths.MariaDbBinDir, 'mysql.exe');
+  if not FileExists(MysqlClientExePath) then
+    MysqlClientExePath := TPath.Combine(FPaths.MariaDbBinDir, 'mariadb.exe');
   if not FileExists(MysqlClientExePath) then
   begin
     Result.Success := False;
-    Result.Message := 'mysql client executable not found: ' + MysqlClientExePath;
+    Result.Message := 'MariaDB client executable not found: ' + MysqlClientExePath;
     Exit;
   end;
 
@@ -487,12 +489,10 @@ begin
   end;
 
   try
-    Arguments := '--port=' + FConfig.DatabasePort.ToString + ' --user=root ';
-    if DefaultsFileName <> '' then
-      Arguments := PrependDefaultsExtraFileArg(DefaultsFileName, Arguments);
-    Arguments := '/c ""' + MysqlClientExePath + '" ' + Arguments +
-      '--batch --raw < "' + PasswordSqlFileName + '""';
-    if not TProcessManager.RunAndCaptureOutput('cmd.exe', Arguments, FPaths.MariaDbBinDir, Output) then
+    Arguments := '--protocol=tcp --host=127.0.0.1 --port=' + FConfig.DatabasePort.ToString +
+      ' --user=root';
+    Arguments := BuildMariaDbSourceFileArgs(PasswordSqlFileName, DefaultsFileName) + ' ' + Arguments;
+    if not TProcessManager.RunAndCaptureOutput(MysqlClientExePath, Arguments, FPaths.MariaDbBinDir, Output) then
     begin
       Result.Success := False;
       if Trim(Output) <> '' then
