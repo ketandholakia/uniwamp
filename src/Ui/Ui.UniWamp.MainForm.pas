@@ -2950,6 +2950,7 @@ begin
   VHostGrid.BeginUpdate;
   try
     VHostGrid.FixedRows := 1;
+    VHostGrid.RowCount := 1;
     TargetRowCount := Length(VHosts) + 1;
     if TargetRowCount < 2 then
       TargetRowCount := 2;
