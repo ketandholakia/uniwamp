@@ -10,11 +10,14 @@ uses
   System.SysUtils,
   System.JSON,
   Core.UniWamp.Config,
+  Core.UniWamp.BackupTypes,
   Core.UniWamp.Interfaces,
   Core.UniWamp.Types,
   Core.UniWamp.TemplateRenderer,
+  Core.UniWamp.ProjectBackupService,
   Core.UniWamp.VHostManager,
   Core.UniWamp.Paths,
+  Core.UniWamp.Security,
   Core.UniWamp.Secrets,
   Core.UniWamp.SyncEngine,
   Core.UniWamp.SyncService,
@@ -940,6 +943,70 @@ begin
   end;
 end;
 
+procedure TestProjectRestoreRejectsUnsafeArchiveFileName;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  BackupDir: string;
+  OutsideArchiveFile: string;
+  ManifestFile: string;
+  ManifestJson: string;
+  BackupService: TProjectBackupService;
+  Manifest: TProjectBackupManifest;
+  NormalizedName: string;
+  ValidationError: string;
+begin
+  RootDir := CreateTempRoot('project-restore-manifest-safety');
+  try
+    Paths := BuildPaths(RootDir);
+    EnsureTestLayout(Paths);
+    TTemplateRenderer.EnsureDefaultTemplates(Paths);
+    BackupDir := TPath.Combine(RootDir, 'backups');
+    TDirectory.CreateDirectory(BackupDir);
+    OutsideArchiveFile := TPath.Combine(RootDir, 'outside.zip');
+    TFile.WriteAllText(OutsideArchiveFile, 'zip', TEncoding.ASCII);
+    ManifestFile := TPath.Combine(BackupDir, 'backup.json');
+    ManifestJson :=
+      '{' +
+      '"backupKind":"project",' +
+      '"createdAtUtc":"2026-07-26T00:00:00Z",' +
+      '"uniwampVersion":"1",' +
+      '"serverName":"localhost",' +
+      '"serverAliases":"",' +
+      '"documentRoot":"www\\restore-safe",' +
+      '"enableSsl":false,' +
+      '"sslCertFile":"server.crt",' +
+      '"sslKeyFile":"server.key",' +
+      '"projectArchiveFile":"..\\outside.zip",' +
+      '"projectArchiveSha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",' +
+      '"metadataFileName":"metadata.json"' +
+      '}';
+    TFile.WriteAllText(ManifestFile, ManifestJson, TEncoding.UTF8);
+    AssertTrue(ValidateServerName('localhost', NormalizedName, ValidationError),
+      'Sanity check should accept localhost');
+    Config := TUniWampConfig.Create;
+    try
+      AssertTrue(Config.LoadOrCreate(Paths), 'Test config should load');
+      BackupService := TProjectBackupService.Create(Paths, Config);
+      try
+        AssertTrue(not BackupService.ValidateRestoreManifest(ManifestFile, Manifest, ValidationError),
+          'Manifest validation should reject unsafe archive file names');
+        AssertContains(ValidationError, 'projectArchiveFile must be a plain file name',
+          'Manifest validation should report the archive filename error');
+      finally
+        BackupService.Free;
+      end;
+    finally
+      Config.Free;
+    end;
+  finally
+    if FileExists(OutsideArchiveFile) then
+      TFile.Delete(OutsideArchiveFile);
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
 begin
   try
     TestMalformedConfigRecovery;
@@ -955,6 +1022,7 @@ begin
     TestSyncEngineRejectsExcessiveRemoteItemCount;
     TestProjectRestoreRollsBackWhenHostsSyncFails;
     TestDeleteVHostLeavesExternalSslFilesUntouched;
+    TestProjectRestoreRejectsUnsafeArchiveFileName;
     TestAtomicSaveCreatesDirectoryAndFile;
     Writeln('Config harness passed.');
   except

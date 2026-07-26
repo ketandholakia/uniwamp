@@ -29,6 +29,8 @@ type
       const ArchiveFileName, ArchiveSha256, MetadataFileName: string): Boolean;
   public
     constructor Create(const Paths: TAppPaths; Config: TUniWampConfig);
+    function ValidateRestoreManifest(const ManifestFileName: string; out Manifest: TProjectBackupManifest;
+      out ErrorMessage: string): Boolean;
     function BackupProject(const ServerName: string; out BackupDirectory: string): TRuntimeActionResult;
     function RestoreProject(const ManifestFileName, TargetServerName, TargetDocumentRoot,
       TargetServerAliases: string; TargetEnableSsl: Boolean; out RestoredServerName: string): TRuntimeActionResult;
@@ -266,6 +268,8 @@ var
   JsonValue: TJSONValue;
   JsonObject: TJSONObject;
   DocumentRoot: string;
+  NormalizedServerName: string;
+  NormalizedServerAliases: string;
   RequiredHash: string;
 begin
   Result := False;
@@ -320,10 +324,12 @@ begin
       ErrorMessage := 'Project backup manifest is missing serverName.';
       Exit;
     end;
-    if not ValidateServerName(Manifest.ServerName, Manifest.ServerName, ErrorMessage) then
+    if not ValidateServerName(Manifest.ServerName, NormalizedServerName, ErrorMessage) then
       Exit;
-    if not ValidateServerAliases(Manifest.ServerAliases, Manifest.ServerAliases, ErrorMessage) then
+    Manifest.ServerName := NormalizedServerName;
+    if not ValidateServerAliases(Manifest.ServerAliases, NormalizedServerAliases, ErrorMessage) then
       Exit;
+    Manifest.ServerAliases := NormalizedServerAliases;
     DocumentRoot := '';
     if not ResolveRestoreDocumentRoot(Manifest.DocumentRoot, DocumentRoot, ErrorMessage) then
       Exit;
@@ -376,6 +382,12 @@ begin
   finally
     JsonValue.Free;
   end;
+end;
+
+function TProjectBackupService.ValidateRestoreManifest(const ManifestFileName: string;
+  out Manifest: TProjectBackupManifest; out ErrorMessage: string): Boolean;
+begin
+  Result := ReadProjectBackupManifest(ManifestFileName, Manifest, ErrorMessage);
 end;
 
 function TProjectBackupService.RestoreSslFilesIfPresent(const BackupDir: string; const ServerName,
