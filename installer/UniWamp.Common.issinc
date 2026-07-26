@@ -48,6 +48,7 @@ Name: "{app}\bin\cmder\config\profile.d"
 Name: "{app}\runtime\tools"
 Name: "{app}\runtime\tools\composer"
 Name: "{app}\runtime\tools\git"
+Name: "{app}\runtime\tools\putty"
 Name: "{app}\runtime\tools\wp-cli"
 Name: "{app}\runtime\tools\mailpit"
 Name: "{app}\runtime\tools\redis"
@@ -66,6 +67,7 @@ Source: "..\templates\*"; DestDir: "{app}\templates"; Flags: recursesubdirs crea
 Source: "..\home\*"; DestDir: "{app}\home"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\bin\cmder\*"; DestDir: "{app}\bin\cmder"; Excludes: "config\*"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\runtime\tools\lite-xl\*"; DestDir: "{app}\runtime\tools\lite-xl"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\runtime\tools\putty\*"; DestDir: "{app}\runtime\tools\putty"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\runtime\tools\winscp\*"; DestDir: "{app}\runtime\tools\winscp"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\scripts\*"; DestDir: "{app}\scripts"; Flags: recursesubdirs createallsubdirs ignoreversion
 

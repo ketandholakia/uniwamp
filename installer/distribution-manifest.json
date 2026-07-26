@@ -1,6 +1,6 @@
 ﻿{
     "schemaVersion":  1,
-    "generatedAtUtc":  "2026-07-26T15:12:40Z",
+    "generatedAtUtc":  "2026-07-26T17:35:05Z",
     "repository":  "https://github.com/ketandholakia/uniwamp",
     "releaseVersion":  "v0.1.0-alpha",
     "app":  {
@@ -111,6 +111,16 @@
                            "targetPath":  "{app}\\runtime\\tools\\git",
                            "primaryArtifact":  "runtime\\tools\\git\\cmd\\git.exe",
                            "sha256":  "22fead8244ef3a7225fb800099a4e43eca8bcec0466774917669599c2f19a05a"
+                       },
+                       {
+                           "name":  "PuTTY",
+                           "version":  "0.84",
+                           "sourceUrl":  "https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html",
+                           "license":  "MIT",
+                           "sourcePath":  "runtime\\tools\\putty",
+                           "targetPath":  "{app}\\runtime\\tools\\putty",
+                           "primaryArtifact":  "runtime\\tools\\putty\\psftp.exe",
+                           "sha256":  "7b04cb14d2b5461598fe1fbd057a72092075b550a668492d031d13379f173031"
                        },
                        {
                            "name":  "Lite XL",

@@ -244,6 +244,7 @@ Profile scope:
 - Php84: Apache, MariaDB, PHP 84, plus bundled Composer, WP-CLI, and the Node.js runtime
 - Php85: Apache, MariaDB, PHP 85, plus bundled Composer, WP-CLI, and the Node.js runtime
 - Full: Apache, MariaDB, PHP 82/83/84/85, bundled Composer, WP-CLI, the Node.js runtime, and the bundled developer tools
+- All installer profiles also include bundled PuTTY PSFTP for password-auth SFTP syncs.
 
 Each profile-specific script includes the same shared payload rules from `installer/UniWamp.Common.issinc`.
 
