@@ -705,6 +705,38 @@ begin
   end;
 end;
 
+procedure TestErpsaasRecipeWritesMysqlEnvFile;
+var
+  CatalogFile: string;
+  Catalog: TScriptCatalog;
+  Item: TScriptCatalogItem;
+  Step: TScriptStep;
+  FoundEnvStep: Boolean;
+begin
+  CatalogFile := TPath.GetFullPath(TPath.Combine(ExtractFileDir(ParamStr(0)), '..\scripts\catalog.json'));
+  Catalog := TScriptCatalog.LoadFromFile(CatalogFile);
+  try
+    AssertTrue(Catalog.FindById('erpsaas', Item), 'ERPSAAS recipe should exist in the script catalog');
+    FoundEnvStep := False;
+    for Step in Item.Steps do
+      if SameText(Step.StepType, 'write_file') and (Pos('/.env', Step.Destination) > 0) then
+      begin
+        FoundEnvStep := True;
+        AssertContains(Step.Content, 'DB_CONNECTION=mysql',
+          'ERPSAAS .env should force the MySQL/MariaDB connection');
+        AssertContains(Step.Content, 'DB_DATABASE=${dbName}',
+          'ERPSAAS .env should use the generated database name');
+        AssertContains(Step.Content, 'DB_USERNAME=${dbUser}',
+          'ERPSAAS .env should use the generated database user');
+        AssertContains(Step.Content, 'DB_PASSWORD=${dbPassword}',
+          'ERPSAAS .env should use the generated database password');
+      end;
+    AssertTrue(FoundEnvStep, 'ERPSAAS recipe should generate a .env file before running migrations');
+  finally
+    Catalog.Free;
+  end;
+end;
+
 procedure TestSyncServiceUsesLinkedConnectionProfileSecrets;
 var
   RootDir: string;
@@ -1051,6 +1083,7 @@ begin
     TestLegacyMariaDbPasswordMigratesToProtectedStorage;
     TestConnectionSecretsMigrateFromLegacySyncKeys;
     TestAkauntingRecipeWritesMysqlEnvFile;
+    TestErpsaasRecipeWritesMysqlEnvFile;
     TestSyncServiceUsesLinkedConnectionProfileSecrets;
     TestSyncEngineRejectsUnsafeRemoteEntries;
     TestSyncEngineRejectsExcessiveRemoteItemCount;
