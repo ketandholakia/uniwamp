@@ -38,6 +38,7 @@ nav:
       - Connection and Sync Profiles: SYNC_PROFILES.md
       - Security and Operations: SECURITY_AND_OPERATIONS.md
       - Test Plan: TEST_PLAN.md
+      - Release Process: RELEASE_PROCESS.md
   - Release Tracking:
       - Overview: testing/index.md
       - Alpha Release Checklist: testing/ALPHA_RELEASE_CHECKLIST.md

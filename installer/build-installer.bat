@@ -28,6 +28,8 @@ if errorlevel 1 exit /b 1
 popd
 
 pushd "%~dp0"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0GenerateDistributionManifest.ps1"
+if errorlevel 1 goto build_failed
 "%ISCC%" UniWamp.Php82.iss
 if errorlevel 1 goto build_failed
 "%ISCC%" UniWamp.Php83.iss

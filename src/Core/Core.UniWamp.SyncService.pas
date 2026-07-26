@@ -264,6 +264,7 @@ function TSyncService.RunSync(const Profile: TSyncProfile; const Entry: TVHostEn
   out Summary: string): TRuntimeActionResult;
 var
   LocalPath, WorkingDirectory, ErrorMessage, RemotePath: string;
+  Credentials: TSyncCredentials;
   Transport: ISyncTransport;
   Plan: TSyncPlan;
   ExecResult: TSyncExecutionResult;
@@ -272,12 +273,14 @@ begin
   Result.Message := '';
   Summary := '';
 
-  if not ((Profile.Protocol = 'ftp') or (Profile.Protocol = 'ftps') or (Profile.Protocol = 'sftp')) then
+  Credentials := BuildCredentials(Profile);
+
+  if not ((Credentials.Protocol = 'ftp') or (Credentials.Protocol = 'ftps') or (Credentials.Protocol = 'sftp')) then
   begin
-    Result.Message := 'Unsupported sync protocol: ' + Profile.Protocol;
+    Result.Message := 'Unsupported sync protocol: ' + Credentials.Protocol;
     Exit;
   end;
-  if Trim(Profile.Host) = '' then
+  if Trim(Credentials.Host) = '' then
   begin
     Result.Message := 'Sync profile host is required.';
     Exit;
@@ -299,7 +302,10 @@ begin
     RemotePath := ApplyVHostTokens(RemotePath, Entry);
 
   try
-    Transport := CreateSyncTransport(BuildCredentials(Profile));
+    if Assigned(SyncTransportFactory) then
+      Transport := SyncTransportFactory(Credentials)
+    else
+      Transport := CreateSyncTransport(Credentials);
     Transport.Connect;
     try
       Plan := TSyncEngine.BuildPlan(Transport, LocalPath, RemotePath, Profile.Direction,

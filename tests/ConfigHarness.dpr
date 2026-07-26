@@ -17,6 +17,7 @@ uses
   Core.UniWamp.Paths,
   Core.UniWamp.Secrets,
   Core.UniWamp.SyncEngine,
+  Core.UniWamp.SyncService,
   Core.UniWamp.SyncTransport;
 
 procedure Fail(const MessageText: string);
@@ -189,6 +190,7 @@ type
     procedure EnsureRemoteDirectory(const RemotePath: string);
     procedure DeleteRemoteFile(const RemotePath: string);
     procedure DeleteRemoteDirectory(const RemotePath: string; const Recursive: Boolean);
+    procedure RenameRemoteFile(const SourceRemotePath, TargetRemotePath: string);
     procedure DownloadFile(const RemotePath, LocalPath: string; const OnProgress: TSyncTransferProgressEvent);
     procedure UploadFile(const LocalPath, RemotePath: string; const OnProgress: TSyncTransferProgressEvent);
     procedure SetLogHandler(const Handler: TSyncLogEvent);
@@ -244,6 +246,10 @@ begin
 end;
 
 procedure TMockSyncTransport.DeleteRemoteDirectory(const RemotePath: string; const Recursive: Boolean);
+begin
+end;
+
+procedure TMockSyncTransport.RenameRemoteFile(const SourceRemotePath, TargetRemotePath: string);
 begin
 end;
 
@@ -341,7 +347,7 @@ begin
       AssertTrue(SameText(VHosts[0].SslKeyFile, TPath.Combine(Paths.AppRoot, 'ssl\key.pem')),
         'SSL key path should resolve against app root');
       AssertTrue(Config.LastMigrationMessage <> '', 'Migration should produce a message');
-      AssertConfigVersion(Paths.AppConfigFile, 1, 'Migrated config should persist configVersion');
+      AssertConfigVersion(Paths.AppConfigFile, 2, 'Migrated config should persist configVersion');
     finally
       Config.Free;
     end;
@@ -371,7 +377,7 @@ begin
       AssertIntEquals(3307, Config.DatabasePort, 'Database port should be corrected');
       AssertEquals('localhost', Config.HostName, 'Empty hostname should default to localhost');
       AssertEquals(Paths.WwwDir, Config.DocumentRoot, 'Empty document root should default to www');
-      AssertConfigVersion(Paths.AppConfigFile, 1, 'Saved config should persist configVersion');
+      AssertConfigVersion(Paths.AppConfigFile, 2, 'Saved config should persist configVersion');
     finally
       Config.Free;
     end;
@@ -414,51 +420,40 @@ var
   RootDir: string;
   Paths: TAppPaths;
   Config: TUniWampConfig;
-  JsonText: string;
-  SavedText: string;
 begin
   RootDir := CreateTempRoot('current');
   try
     Paths := BuildPaths(RootDir);
     EnsureTestLayout(Paths);
-    JsonText :=
-      '{' +
-      '"configVersion":1,' +
-      '"httpPort":8080,' +
-      '"httpsPort":8443,' +
-      '"databasePort":3307,' +
-      '"hostName":"localhost",' +
-      '"documentRoot":"' + StringReplace(Paths.WwwDir, '\', '\\', [rfReplaceAll]) + '",' +
-      '"selectedPhpVersion":"php85",' +
-      '"selectedNodeVersion":"node-v22",' +
-      '"terminalExePath":"bin\\cmder\\cmder.exe",' +
-      '"phpProfile":"development",' +
-      '"themeStyleName":"Windows",' +
-      '"enableSsl":false,' +
-      '"apachePid":0,' +
-      '"mariaDbPid":0,' +
-      '"apacheRunning":false,' +
-      '"mariaDbRunning":false,' +
-      '"lastApacheError":"",' +
-      '"lastMariaDbError":"",' +
-      '"lastHostsSyncStatus":"",' +
-      '"apacheEnabledModules":[],' +
-      '"phpVersions":["php85"],' +
-      '"phpEnabledExtensions":[],' +
-      '"phpSettings":{},' +
-      '"nodeVersions":["node-v22"],' +
-      '"vhosts":[]' +
-      '}';
-    WriteTextFile(Paths.AppConfigFile, JsonText);
-
     Config := TUniWampConfig.Create;
     try
+      Config.SetDefaults(Paths);
+      Config.HttpPort := 8080;
+      Config.HttpsPort := 8443;
+      Config.DatabasePort := 3307;
+      Config.HostName := 'localhost';
+      Config.DocumentRoot := Paths.WwwDir;
+      Config.SelectedPhpVersion := 'php85';
+      Config.SelectedNodeVersion := 'node-v22';
+      Config.TerminalExePath := 'bin\cmder\cmder.exe';
+      Config.PhpProfile := 'development';
+      Config.ThemeStyleName := 'Windows';
+      Config.EnableSsl := False;
+      Config.StartAllOnLaunch := False;
+      Config.OpenDashboardAfterStart := False;
+      Config.ConfirmVHostDelete := True;
+      Config.ReplaceApacheModules([]);
+      Config.ReplacePhpVersions(['php85']);
+      Config.ReplacePhpExtensions([]);
+      Config.ReplaceNodeVersions(['node-v22']);
+      Config.ReplaceVHosts([]);
+      Config.Save(Paths);
+
       AssertTrue(not Config.LoadOrCreate(Paths), 'Current config should not report migration');
       AssertTrue(Config.LastMigrationMessage = '', 'Current config should not set a migration message');
-      SavedText := TFile.ReadAllText(Paths.AppConfigFile, TEncoding.UTF8);
-      AssertTrue(Pos('"configVersion":1', SavedText) > 0, 'Current config should remain versioned');
-      AssertTrue(Pos('"httpPort":8080', SavedText) > 0, 'Current config should preserve the HTTP port');
-      AssertTrue(Pos('"themeStyleName":"Windows"', SavedText) > 0, 'Current config should preserve the theme style');
+      AssertConfigVersion(Paths.AppConfigFile, 2, 'Current config should remain versioned');
+      AssertIntEquals(8080, Config.HttpPort, 'Current config should preserve the HTTP port');
+      AssertEquals('Windows', Config.ThemeStyleName, 'Current config should preserve the theme style');
     finally
       Config.Free;
     end;
@@ -481,7 +476,7 @@ begin
     EnsureTestLayout(Paths);
     JsonText :=
       '{' +
-      '"configVersion":1,' +
+      '"configVersion":2,' +
       '"httpPort":8080,' +
       '"httpsPort":8443,' +
       '"databasePort":3307,' +
@@ -674,6 +669,114 @@ begin
   end;
 end;
 
+procedure TestSyncServiceUsesLinkedConnectionProfileSecrets;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  ConnectionProfile: TConnectionProfile;
+  SyncProfile: TSyncProfile;
+  LocalSyncDir: string;
+  LocalFileName: string;
+  ErrorMessage: string;
+  CommandLine: string;
+  Service: ISyncService;
+  OriginalFactory: TSyncTransportFactory;
+  CapturedCredentials: TSyncCredentials;
+  CapturedFactoryCall: Boolean;
+  ResultInfo: TRuntimeActionResult;
+begin
+  RootDir := CreateTempRoot('sync-service-connection-secrets');
+  try
+    Paths := BuildPaths(RootDir);
+    EnsureTestLayout(Paths);
+    LocalSyncDir := TPath.Combine(RootDir, 'sync-src');
+    TDirectory.CreateDirectory(LocalSyncDir);
+    LocalFileName := TPath.Combine(LocalSyncDir, 'index.txt');
+    TFile.WriteAllText(LocalFileName, 'payload', TEncoding.UTF8);
+
+    Config := TUniWampConfig.Create;
+    try
+      Config.SetDefaults(Paths);
+
+      ConnectionProfile := Default(TConnectionProfile);
+      ConnectionProfile.Name := 'Production Server';
+      ConnectionProfile.Protocol := 'sftp';
+      ConnectionProfile.Host := 'server.example';
+      ConnectionProfile.Port := 2222;
+      ConnectionProfile.Username := 'deploy';
+      Config.ReplaceConnectionProfiles([ConnectionProfile]);
+
+      SyncProfile := Default(TSyncProfile);
+      SyncProfile.Name := 'Deploy Job';
+      SyncProfile.ConnectionProfileName := ConnectionProfile.Name;
+      SyncProfile.Protocol := 'sftp';
+      SyncProfile.Direction := 'upload';
+      SyncProfile.RemotePath := '/remote';
+      SyncProfile.LocalPath := LocalSyncDir;
+      SyncProfile.WorkingDirectory := LocalSyncDir;
+      SyncProfile.DeleteEnabled := False;
+      SyncProfile.DryRunByDefault := True;
+      Config.ReplaceSyncProfiles([SyncProfile]);
+
+      AssertTrue(SaveConnectionPassword(Paths, ConnectionProfile.Name, 'conn-pass', ErrorMessage),
+        'Connection password should save');
+      AssertTrue(SaveConnectionKeyPassphrase(Paths, ConnectionProfile.Name, 'conn-key-pass', ErrorMessage),
+        'Connection key passphrase should save');
+      AssertTrue(SaveSecret(Paths, SyncPasswordKey(SyncProfile.Name), 'sync-pass', ErrorMessage),
+        'Legacy sync password should save');
+      AssertTrue(SaveSecret(Paths, SyncKeyPassphraseKey(SyncProfile.Name), 'sync-key-pass', ErrorMessage),
+        'Legacy sync key passphrase should save');
+
+      OriginalFactory := SyncTransportFactory;
+      CapturedFactoryCall := False;
+      SyncTransportFactory :=
+        function(const Credentials: TSyncCredentials): ISyncTransport
+        begin
+          CapturedFactoryCall := True;
+          CapturedCredentials := Credentials;
+          Result := TMockSyncTransport.Create;
+        end;
+      try
+        Service := TSyncService.Create(Paths, Config);
+        ResultInfo := Service.BuildCommandPreview(SyncProfile.Name, True, CommandLine);
+        AssertTrue(ResultInfo.Success,
+          'Dry-run preview should succeed with the linked connection profile. Message="' + ResultInfo.Message + '"');
+        AssertTrue(CapturedFactoryCall, 'Sync transport factory should be invoked');
+        AssertEquals(ConnectionProfile.Host, CapturedCredentials.Host,
+          'Sync service should use the connection profile host');
+        AssertIntEquals(ConnectionProfile.Port, CapturedCredentials.Port,
+          'Sync service should use the connection profile port');
+        AssertEquals(ConnectionProfile.Username, CapturedCredentials.Username,
+          'Sync service should use the connection profile username');
+        AssertEquals('conn-pass', CapturedCredentials.Password,
+          'Sync service should load the connection profile password');
+        AssertEquals('conn-key-pass', CapturedCredentials.KeyPassphrase,
+          'Sync service should load the connection profile key passphrase');
+        AssertTrue(CapturedCredentials.Password <> 'sync-pass',
+          'Sync service should not load the sync-profile password by mistake');
+        AssertTrue(CapturedCredentials.KeyPassphrase <> 'sync-key-pass',
+          'Sync service should not load the sync-profile key passphrase by mistake');
+      finally
+        SyncTransportFactory := OriginalFactory;
+      end;
+    finally
+      Config.Free;
+      DeleteAllConnectionSecrets(Paths, ConnectionProfile.Name);
+      DeleteSecret(Paths, SyncPasswordKey(SyncProfile.Name), ErrorMessage);
+      DeleteSecret(Paths, SyncKeyPassphraseKey(SyncProfile.Name), ErrorMessage);
+      TDirectory.Delete(RootDir, True);
+    end;
+  except
+    on E: Exception do
+    begin
+      if DirectoryExists(RootDir) then
+        TDirectory.Delete(RootDir, True);
+      raise;
+    end;
+  end;
+end;
+
 procedure TestSyncEngineRejectsUnsafeRemoteEntries;
 var
   RootDir: string;
@@ -699,6 +802,44 @@ begin
       except
         on E: ESyncTransportError do
           AssertContains(E.Message, 'unsafe entry name', 'Sync engine should report the unsafe remote entry');
+      end;
+    finally
+      Transport := nil;
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TestSyncEngineRejectsExcessiveRemoteItemCount;
+var
+  RootDir: string;
+  LocalRoot: string;
+  Transport: ISyncTransport;
+  Entries: TRemoteEntries;
+  Index: Integer;
+begin
+  RootDir := CreateTempRoot('sync-engine-item-count');
+  try
+    LocalRoot := TPath.Combine(RootDir, 'www');
+    TDirectory.CreateDirectory(LocalRoot);
+    Transport := TMockSyncTransport.Create as ISyncTransport;
+    try
+      SetLength(Entries, 1025);
+      for Index := 0 to High(Entries) do
+      begin
+        Entries[Index].Name := 'file' + Index.ToString + '.txt';
+        Entries[Index].IsDirectory := False;
+        Entries[Index].Size := 1;
+        Entries[Index].ModifiedUtc := 0;
+      end;
+      TMockSyncTransport(Transport).AddEntries('/remote', Entries);
+      try
+        TSyncEngine.BuildPlan(Transport, LocalRoot, '/remote', 'download', [], False);
+        Fail('Sync engine should reject excessive remote item count.');
+      except
+        on E: ESyncTransportError do
+          AssertContains(E.Message, 'maximum item count', 'Sync engine should report the item limit');
       end;
     finally
       Transport := nil;
@@ -809,7 +950,9 @@ begin
     TestPartiallyValidConfigMigratesOnlyInvalidValues;
     TestLegacyMariaDbPasswordMigratesToProtectedStorage;
     TestConnectionSecretsMigrateFromLegacySyncKeys;
+    TestSyncServiceUsesLinkedConnectionProfileSecrets;
     TestSyncEngineRejectsUnsafeRemoteEntries;
+    TestSyncEngineRejectsExcessiveRemoteItemCount;
     TestProjectRestoreRollsBackWhenHostsSyncFails;
     TestDeleteVHostLeavesExternalSslFilesUntouched;
     TestAtomicSaveCreatesDirectoryAndFile;

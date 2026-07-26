@@ -22,6 +22,7 @@ UniWamp is a portable Windows development stack manager. The Delphi VCL applicat
 | Configuration generation | `Core.UniWamp.TemplateRenderer` and files in `templates/` |
 | Staged updater | Manifest validation, SHA-256 verification, workspace staging, promotion, rollback backup, and cleanup in `Core.UniWamp.Runtime` |
 | Web dashboard | PHP pages/assets in `home/dashboard/`, served by Apache |
+| Dashboard JSON | Read-only status snapshot in `home/dashboard/status.php` |
 | Adminer | `home/adminer/index.php` |
 | Installer | Inno Setup scripts in `installer/` |
 | Validation | `tests/smoke.ps1`; Delphi build script in `src/build.bat` |
@@ -50,7 +51,7 @@ UniWamp is a portable Windows development stack manager. The Delphi VCL applicat
 - `PortUtils` owns port availability and owner-aware port conflict inspection.
 - `TemplateRenderer` owns rendering UniWamp templates into generated files.
 
-The PHP dashboard is a local presentation layer. It should not become a second service-management implementation without a deliberate localhost API boundary.
+The PHP dashboard is a local presentation layer. It should not become a second service-management implementation without a deliberate localhost API boundary. The existing `status.php` endpoint is intentionally read-only and can be used as a status snapshot for external tooling.
 
 ## Portability rules
 

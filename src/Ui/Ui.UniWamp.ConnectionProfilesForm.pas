@@ -329,7 +329,9 @@ begin
   FPrivateKeyBrowseButton := AddButton(RightInner, 588, 316, 72, 28, 'Browse');
 
   FPassiveCheck := AddCheck(RightInner, 18, 358, 'Passive mode');
-  FIgnoreCertCheck := AddCheck(RightInner, 160, 358, 'Ignore cert errors');
+  FIgnoreCertCheck := AddCheck(RightInner, 160, 358, 'Ignore cert errors (insecure)');
+  FIgnoreCertCheck.Hint := 'Disables FTPS certificate validation and hostname checks for this profile.';
+  FIgnoreCertCheck.ShowHint := True;
 
   FValidationLabel := AddLabel(RightInner, 18, 398, '', 610);
   FValidationLabel.AutoSize := False;

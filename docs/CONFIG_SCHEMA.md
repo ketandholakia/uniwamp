@@ -17,6 +17,7 @@ The file is a single JSON object with these major groups:
 
 Common fields include:
 
+- `configVersion`
 - `httpPort`
 - `httpsPort`
 - `databasePort`
@@ -104,7 +105,8 @@ Sync profiles may point at a named connection profile or carry inline connection
 
 ## Migration behavior
 
-UniWamp normalizes and migrates older config layouts on load.
+UniWamp normalizes and migrates older config layouts on load. The current
+schema version is `2`.
 
 Examples:
 
@@ -112,6 +114,8 @@ Examples:
 - Older sync-profile connection fields are migrated into the dedicated connection-profile list.
 - Legacy password fields are moved into the protected secret store.
 - Invalid or missing ports are reset to safe defaults.
+- Older `configVersion` values are rewritten to the current schema version when
+  the file is saved.
 
 ## Related docs
 

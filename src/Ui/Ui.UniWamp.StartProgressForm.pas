@@ -31,8 +31,10 @@ type
     FPaths: TAppPaths;
     FExecuted: Boolean;
     FStarting: Boolean;
+    FShuttingDown: Boolean;
     FResultInfo: TRuntimeActionResult;
     FUiUpdateQueueThread: TThread;
+    FStartupThread: TThread;
     HeaderPanel: TPanel;
     StatusPanel: TPanel;
     DetailsMemo: TMemo;
@@ -122,6 +124,13 @@ end;
 
 destructor TStartProgressForm.Destroy;
 begin
+  FShuttingDown := True;
+  if Assigned(FStartupThread) then
+  begin
+    FStartupThread.WaitFor;
+    FStartupThread.Free;
+    FStartupThread := nil;
+  end;
   TThread.RemoveQueuedEvents(FUiUpdateQueueThread);
   FUiUpdateQueueThread.Free;
   inherited;
@@ -194,16 +203,22 @@ end;
 
 procedure TStartProgressForm.SyncCheckingMariaDbFiles;
 begin
+  if FShuttingDown then
+    Exit;
   AddMessage('Checking MariaDB runtime files...');
 end;
 
 procedure TStartProgressForm.SyncStartingMariaDb;
 begin
+  if FShuttingDown then
+    Exit;
   AddMessage('Starting MariaDB service...');
 end;
 
 procedure TStartProgressForm.SyncStartupFinished;
 begin
+  if FShuttingDown then
+    Exit;
   ProgressBar.Position := 85;
   AddMessage(FResultInfo.Message);
   AppendActivityLog('Startup: ' + FResultInfo.Message);
@@ -225,6 +240,8 @@ end;
 
 procedure TStartProgressForm.SyncStartupFailed;
 begin
+  if FShuttingDown then
+    Exit;
   AddMessage('MariaDB startup failed.');
   AddMessage(FResultInfo.Message);
   AppendMariaDbFailureDetails;
@@ -257,53 +274,66 @@ begin
 end;
 
 procedure TStartProgressForm.RunStartup;
-var
-  StartupThread: TThread;
 begin
   FStarting := True;
+  FShuttingDown := False;
   FResultInfo.Success := False;
   FResultInfo.Message := 'MariaDB startup failed.';
   ProgressBar.Position := 15;
   AddMessage('MariaDB startup sequence started.');
 
-  StartupThread := TThread.CreateAnonymousThread(
+  FStartupThread := TThread.CreateAnonymousThread(
     procedure
     var
       ResultInfo: TRuntimeActionResult;
     begin
+      if FShuttingDown then
+        Exit;
       try
         TThread.Queue(FUiUpdateQueueThread,
           procedure
           begin
+            if FShuttingDown then
+              Exit;
             SyncCheckingMariaDbFiles;
           end);
         TThread.Queue(FUiUpdateQueueThread,
           procedure
           begin
+            if FShuttingDown then
+              Exit;
             SyncStartingMariaDb;
           end);
         ResultInfo := FRuntime.StartMariaDb;
+        if FShuttingDown then
+          Exit;
         FResultInfo := ResultInfo;
         TThread.Queue(FUiUpdateQueueThread,
           procedure
           begin
+            if FShuttingDown then
+              Exit;
             SyncStartupFinished;
           end);
       except
         on E: Exception do
         begin
+          if FShuttingDown then
+            Exit;
           FResultInfo.Success := False;
           FResultInfo.Message := E.Message;
           TThread.Queue(FUiUpdateQueueThread,
             procedure
             begin
+              if FShuttingDown then
+                Exit;
               SyncStartupFailed;
             end);
         end;
       end;
     end);
-  StartupThread.FreeOnTerminate := True;
-  StartupThread.Start;
+  FStartupThread.FreeOnTerminate := False;
+  FStartupThread.Start;
 end;
 
 end.

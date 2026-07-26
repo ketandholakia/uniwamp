@@ -64,6 +64,7 @@ Known alpha limitations:
 
 - Windows
 - Delphi 12.4 to build the VCL app
+- PowerShell 7 (`pwsh`) or Windows PowerShell 5.1 for the repo verification script
 - Apache, MariaDB, and PHP binaries placed into the expected runtime folders
 - UI icon PNGs are embedded into the EXE at build time from `src/assets`
 
@@ -122,6 +123,9 @@ The main Tools menu and tool panel also expose:
 - `Copy Activity` to copy the current activity log to the clipboard
 - `Esc` to close the main window through the normal shutdown flow
 
+The dashboard also exposes a read-only JSON status snapshot at
+`home/dashboard/status.php` for local tooling and diagnostics.
+
 ## Configuration
 
 Primary app state is stored in:
@@ -144,10 +148,11 @@ Common settings include:
 
 Profile model:
 
-- Connection profiles store remote host, transport, and credential details.
-- Sync profiles store the source/destination paths, direction, filters, and hooks.
-- Sync profiles can reuse a named connection profile or keep inline connection fields.
-- See [`docs/SYNC_PROFILES.md`](docs/SYNC_PROFILES.md) for the full profile layout.
+- Connection profiles describe how to reach a remote system. They hold the host, port, protocol, username, and secret-backed credentials.
+- Sync profiles describe what to transfer. They hold the local path, remote path, direction, filters, hooks, and delete behavior.
+- A sync profile can point at a named connection profile or keep inline connection fields for compatibility with older layouts.
+- Connection secrets live in the Windows secret store, not in `config/uniwamp.json`.
+- See [`docs/SYNC_PROFILES.md`](docs/SYNC_PROFILES.md) for the full profile layout and [`docs/CONFIG_SCHEMA.md`](docs/CONFIG_SCHEMA.md) for the JSON fields.
 
 Sync note:
 
@@ -179,7 +184,16 @@ It switches Cmder to a green-on-black color scheme and shows the selected PHP ve
 
 ## Build
 
-Open `src/UniWamp.dpr` in Delphi 12.4 and build the Win32 or Win64 VCL target.
+Build the app from a Delphi command prompt:
+
+```bat
+cd src
+call "<Delphi>\bin\rsvars.bat"
+msbuild UniWamp.dproj /t:Build /p:Config=Release /p:Platform=Win32
+```
+
+`tests\run-all.ps1` uses `pwsh` when available, or `powershell.exe` for the
+installer and manifest checks if you call the helper scripts directly.
 
 ### Script catalog
 
@@ -233,6 +247,17 @@ Each profile-specific script includes the same shared payload rules from `instal
 
 The installer packages the portable app tree into a user-writable install folder and creates the runtime directories UniWamp needs on first launch.
 MariaDB system tables are generated on the first MariaDB start instead of being shipped in the installer payload.
+
+To build the installers:
+
+```bat
+cd installer
+build-installer.bat
+```
+
+That script rebuilds `src\tmpbuild\bin\UniWamp.exe`, refreshes
+`installer\distribution-manifest.json`, and then compiles the profile-specific
+Inno Setup installers.
 
 ## Update Model
 

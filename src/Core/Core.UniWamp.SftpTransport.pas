@@ -48,6 +48,7 @@ type
     procedure EnsureRemoteDirectory(const RemotePath: string);
     procedure DeleteRemoteFile(const RemotePath: string);
     procedure DeleteRemoteDirectory(const RemotePath: string; const Recursive: Boolean);
+    procedure RenameRemoteFile(const SourceRemotePath, TargetRemotePath: string);
 
     procedure DownloadFile(const RemotePath, LocalPath: string;
       const OnProgress: TSyncTransferProgressEvent);
@@ -586,6 +587,17 @@ begin
   if not RunCommands(['rmdir ' + QuoteBatchArgument(Path)], Output) then
     raise ESyncTransportError.CreateFmt('Could not remove remote directory "%s": %s',
       [Path, Trim(Output)]);
+end;
+
+procedure TSftpTransport.RenameRemoteFile(const SourceRemotePath, TargetRemotePath: string);
+var
+  Output: string;
+begin
+  RequireConnected;
+  if not RunCommands(['rename ' + QuoteBatchArgument(NormalizeRemotePath(SourceRemotePath)) + ' ' +
+      QuoteBatchArgument(NormalizeRemotePath(TargetRemotePath))], Output) then
+    raise ESyncTransportError.CreateFmt('Could not rename remote file "%s" to "%s": %s',
+      [SourceRemotePath, TargetRemotePath, Trim(Output)]);
 end;
 
 procedure TSftpTransport.DownloadFile(const RemotePath, LocalPath: string;

@@ -38,6 +38,9 @@ type
 
   TSyncEngine = class
   private
+    const
+      MaxRemoteTreeDepth = 128;
+      MaxRemoteTreeNodes = 1024;
     class function EnsureContainedLocalPath(const RootPath, RelativePath: string): string; static;
     class function NormalizeRelativePath(const RelativePath: string): string; static;
     class function ValidateRemoteEntryName(const Name, ParentPath: string): string; static;
@@ -156,7 +159,7 @@ end;
 class function TSyncEngine.RemoteFileTree(const Transport: ISyncTransport;
   const RootPath: string): TDictionary<string, TPair<Int64, TDateTime>>;
 
-  procedure Walk(const RemoteDir, RelativePrefix: string);
+  procedure Walk(const RemoteDir, RelativePrefix: string; const Depth: Integer);
   var
     Entries: TRemoteEntries;
     Entry: TRemoteEntry;
@@ -164,9 +167,17 @@ class function TSyncEngine.RemoteFileTree(const Transport: ISyncTransport;
     ChildRelative: string;
     EntryName: string;
   begin
+    if Depth >= MaxRemoteTreeDepth then
+      raise ESyncTransportError.CreateFmt(
+        'Remote listing exceeded the maximum recursion depth of %d levels under "%s".',
+        [MaxRemoteTreeDepth, RootPath]);
     Entries := Transport.ListDirectory(RemoteDir);
     for Entry in Entries do
     begin
+      if Result.Count >= MaxRemoteTreeNodes then
+        raise ESyncTransportError.CreateFmt(
+          'Remote listing exceeded the maximum item count of %d under "%s".',
+          [MaxRemoteTreeNodes, RootPath]);
       EntryName := ValidateRemoteEntryName(Entry.Name, RemoteDir);
       if RelativePrefix = '' then
         ChildRelative := EntryName
@@ -174,7 +185,7 @@ class function TSyncEngine.RemoteFileTree(const Transport: ISyncTransport;
         ChildRelative := RelativePrefix + '/' + EntryName;
       ChildRelative := NormalizeRelativePath(ChildRelative);
       if Entry.IsDirectory then
-        Walk(RemoteDir + '/' + EntryName, ChildRelative)
+        Walk(RemoteDir + '/' + EntryName, ChildRelative, Depth + 1)
       else
       begin
         Info.Key := Entry.Size;
@@ -187,7 +198,7 @@ class function TSyncEngine.RemoteFileTree(const Transport: ISyncTransport;
 begin
   Result := TDictionary<string, TPair<Int64, TDateTime>>.Create;
   if Transport.RemoteDirectoryExists(RootPath) then
-    Walk(RootPath, '');
+    Walk(RootPath, '', 0);
 end;
 
 class function TSyncEngine.BuildPlan(const Transport: ISyncTransport; const LocalPath, RemotePath,
@@ -304,6 +315,7 @@ class function TSyncEngine.ExecutePlan(const Transport: ISyncTransport; const Pl
 var
   Item: TSyncPlanItem;
   TempLocalPath: string;
+  TempRemotePath: string;
 
   procedure Log(const Text: string);
   begin
@@ -331,17 +343,30 @@ begin
           begin
             Log('upload ' + Item.RelativePath + Format(' (%d bytes)', [Item.Size]));
             if not DryRun then
-              Transport.UploadFile(Item.LocalPath, Item.RemotePath,
-                function(const FileName: string; const BytesTransferred, TotalBytes: Int64;
-                  const IsUpload: Boolean): Boolean
-                begin
-                  if Assigned(OnProgress) then
-                    Result := OnProgress(Item.RelativePath, BytesTransferred, TotalBytes, IsUpload)
-                  else
-                    Result := True;
-                end);
-              Inc(Result.FilesTransferred);
-              Inc(Result.BytesTransferred, Item.Size);
+            begin
+              TempRemotePath := Item.RemotePath + '.uniwamp-upload-' +
+                GUIDToString(TGUID.NewGuid).Replace('{', '').Replace('}', '') + '.part';
+              try
+                Transport.UploadFile(Item.LocalPath, TempRemotePath,
+                  function(const FileName: string; const BytesTransferred, TotalBytes: Int64;
+                    const IsUpload: Boolean): Boolean
+                  begin
+                    if Assigned(OnProgress) then
+                      Result := OnProgress(Item.RelativePath, BytesTransferred, TotalBytes, IsUpload)
+                    else
+                      Result := True;
+                  end);
+                Transport.RenameRemoteFile(TempRemotePath, Item.RemotePath);
+                Inc(Result.FilesTransferred);
+                Inc(Result.BytesTransferred, Item.Size);
+              finally
+                try
+                  Transport.DeleteRemoteFile(TempRemotePath);
+                except
+                  // best-effort cleanup after upload/rename failure
+                end;
+              end;
+            end;
           end;
         spiDownload:
           begin

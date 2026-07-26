@@ -399,7 +399,9 @@ begin
   FPrivateKeyBrowseButton := AddButton(RightInner, 628, 318, 80, 28, 'Browse');
 
   FPassiveCheck := AddCheck(RightInner, 18, 360, 'Passive mode');
-  FIgnoreCertCheck := AddCheck(RightInner, 160, 360, 'Ignore cert errors');
+  FIgnoreCertCheck := AddCheck(RightInner, 160, 360, 'Ignore cert errors (insecure)');
+  FIgnoreCertCheck.Hint := 'Disables FTPS certificate validation and hostname checks for this profile.';
+  FIgnoreCertCheck.ShowHint := True;
 
   AddLabel(RightInner, 18, 404, 'Context and paths', 0).Font.Style := [fsBold];
   AddLabel(RightInner, 18, 428, 'Test vHost', 0);
@@ -1240,6 +1242,7 @@ var
   Index: Integer;
   Profile: TSyncProfile;
   ErrorMessage: string;
+  PreviousName: string;
 begin
   Result := True;
   if FLoading then
@@ -1253,10 +1256,21 @@ begin
     MessageDlg(ErrorMessage, mtError, [mbOK], 0);
     Exit;
   end;
+  PreviousName := FLoadedProfileName;
+  if not SameText(Trim(PreviousName), Trim(Profile.Name)) then
+    PreviousName := FProfiles[Index].Name;
+  PersistCurrentSecrets(Profile, PreviousName, ErrorMessage);
+  if ErrorMessage <> '' then
+  begin
+    Result := False;
+    MessageDlg(ErrorMessage, mtError, [mbOK], 0);
+    Exit;
+  end;
   FProfiles[Index] := Profile;
   RefreshProfileList;
   FProfilesList.ItemIndex := Index;
   FCurrentProfileIndex := Index;
+  FLoadedProfileName := Profile.Name;
   UpdateValidationMessage;
 end;
 

@@ -40,6 +40,7 @@ type
     procedure EnsureRemoteDirectory(const RemotePath: string);
     procedure DeleteRemoteFile(const RemotePath: string);
     procedure DeleteRemoteDirectory(const RemotePath: string; const Recursive: Boolean);
+    procedure RenameRemoteFile(const SourceRemotePath, TargetRemotePath: string);
     procedure DownloadFile(const RemotePath, LocalPath: string;
       const OnProgress: TSyncTransferProgressEvent);
     procedure UploadFile(const LocalPath, RemotePath: string;
@@ -53,6 +54,11 @@ end;
 
 procedure TSyncTransportStub.DeleteRemoteDirectory(const RemotePath: string;
   const Recursive: Boolean);
+begin
+  raise ESyncTransportError.Create('Unexpected call');
+end;
+
+procedure TSyncTransportStub.RenameRemoteFile(const SourceRemotePath, TargetRemotePath: string);
 begin
   raise ESyncTransportError.Create('Unexpected call');
 end;

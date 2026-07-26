@@ -52,6 +52,7 @@ type
     procedure EnsureRemoteDirectory(const RemotePath: string);
     procedure DeleteRemoteFile(const RemotePath: string);
     procedure DeleteRemoteDirectory(const RemotePath: string; const Recursive: Boolean);
+    procedure RenameRemoteFile(const SourceRemotePath, TargetRemotePath: string);
 
     procedure DownloadFile(const RemotePath, LocalPath: string;
       const OnProgress: TSyncTransferProgressEvent);
@@ -61,7 +62,12 @@ type
     procedure SetLogHandler(const Handler: TSyncLogEvent);
   end;
 
+  TSyncTransportFactory = reference to function(const Credentials: TSyncCredentials): ISyncTransport;
+
 function CreateSyncTransport(const Credentials: TSyncCredentials): ISyncTransport;
+
+var
+  SyncTransportFactory: TSyncTransportFactory;
 
 implementation
 
@@ -78,5 +84,8 @@ begin
   else
     raise ESyncTransportError.CreateFmt('Unsupported sync protocol: %s', [Credentials.Protocol]);
 end;
+
+initialization
+  SyncTransportFactory := CreateSyncTransport;
 
 end.

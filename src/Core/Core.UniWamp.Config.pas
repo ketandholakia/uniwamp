@@ -448,7 +448,7 @@ end;
 
 function TUniWampConfig.LoadOrCreate(const Paths: TAppPaths): Boolean;
 const
-  CurrentConfigVersion = 1;
+  CurrentConfigVersion = 2;
 var
   JsonText: string;
   Root: TJSONObject;
@@ -929,7 +929,7 @@ begin
     Root.AddPair('httpsPort', TJSONNumber.Create(HttpsPort));
     Root.AddPair('databasePort', TJSONNumber.Create(DatabasePort));
     Root.AddPair('hostName', HostName);
-    Root.AddPair('configVersion', TJSONNumber.Create(1));
+    Root.AddPair('configVersion', TJSONNumber.Create(2));
     Root.AddPair('documentRoot', DocumentRoot);
     Root.AddPair('selectedPhpVersion', SelectedPhpVersion);
     Root.AddPair('selectedNodeVersion', SelectedNodeVersion);

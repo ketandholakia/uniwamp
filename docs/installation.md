@@ -41,11 +41,23 @@ From a Delphi command prompt:
 ```bat
 cd src
 call "<Delphi>\bin\rsvars.bat"
-dcc32 UniWamp.dpr
+msbuild UniWamp.dproj /t:Build /p:Config=Release /p:Platform=Win32
 ```
 
-The repo also includes build scripts and verification helpers under `src\` and
-`tests\`.
+The repo also includes build scripts and verification helpers under `src\`,
+`installer\`, and `tests\`.
+
+## Build the installers
+
+From the repository root:
+
+```bat
+cd installer
+build-installer.bat
+```
+
+That script rebuilds the application, refreshes the release manifest, and
+compiles the profile-specific Inno Setup packages.
 
 ## First launch
 
@@ -59,6 +71,9 @@ If you want to validate the full repo after a fresh checkout, run:
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tests\run-all.ps1
 ```
+
+If `pwsh` is not installed, use `powershell.exe` to run the individual helper
+scripts from `tests\` and `installer\`.
 
 ## Optional package-specific setup
 

@@ -820,36 +820,45 @@ begin
     begin
       InstallSucceeded := False;
       InstallAborted := False;
+      ExecutionResult.Success := False;
+      ExecutionResult.Message := '';
+      ExecutionResult.Output := '';
       FPendingCompletionMessage := '';
       FPendingCompletionOutput := '';
       FPendingCompletionSuccess := False;
-      ProjectPath := TPath.Combine(FPaths.WwwDir, ProjectName);
-      { Only start/require MariaDB if the checkbox is on AND the recipe actually has a
-        DB-creation step. Unchecking it skips that step (and everything downstream that
-        depends on it) inside Engine.Execute, so there's nothing here that needs MariaDB. }
-      NeedsDatabase := False;
-      if CreateDatabase then
-        for Step in Item.Steps do
-          if SameText(Step.StepType, 'create_database') or SameText(Step.StepType, 'create_database_user') then
-          begin
-            NeedsDatabase := True;
-            Break;
-          end;
-
       Runtime := nil;
       try
+        try
+        ProjectPath := TPath.Combine(FPaths.WwwDir, ProjectName);
+        { Only start/require MariaDB if the checkbox is on AND the recipe actually has a
+          DB-creation step. Unchecking it skips that step (and everything downstream that
+          depends on it) inside Engine.Execute, so there's nothing here that needs MariaDB. }
+        NeedsDatabase := False;
+        if CreateDatabase then
+          for Step in Item.Steps do
+            if SameText(Step.StepType, 'create_database') or SameText(Step.StepType, 'create_database_user') then
+            begin
+              NeedsDatabase := True;
+              Break;
+            end;
+
         Runtime := TUniWampRuntime.Create(FPaths, Config);
         ApacheWasRunning := Runtime.ApacheIsRunning;
-        try
-          if NeedsDatabase and not Config.MariaDbRunning then
+        if NeedsDatabase and not Config.MariaDbRunning then
+        begin
+          AppendOutput('Starting MariaDB for database creation...');
+          MariaResult := Runtime.StartMariaDb;
+          AppendOutput(MariaResult.Message);
+          if not MariaResult.Success then
           begin
-            AppendOutput('Starting MariaDB for database creation...');
-            MariaResult := Runtime.StartMariaDb;
-            AppendOutput(MariaResult.Message);
-            if not MariaResult.Success then
-              raise Exception.Create(MariaResult.Message);
+            FPendingCompletionMessage := 'MariaDB start failed: ' + MariaResult.Message;
+            FPendingCompletionOutput := MariaResult.Message;
+            InstallAborted := True;
           end;
+        end;
 
+        if not InstallAborted then
+        begin
           Engine := TScriptEngine.Create(FPaths);
           try
             AppendOutput('PHP runtime: ' + Engine.PhpRuntimeDescription);
@@ -863,81 +872,87 @@ begin
           finally
             Engine.Free;
           end;
+        end;
 
-          if ExecutionResult.Success then
-          begin
-            AppendOutput(ExecutionResult.Message);
-            ReloadConfig := TUniWampConfig.Create;
-            try
-              ReloadConfig.LoadOrCreate(FPaths);
-              VHostManager := TServiceLocator.Instance.GetService<IVHostManager>;
-              VHostDocumentRoot := ResolveProjectDocumentRoot(ProjectPath, RelativeDocumentRoot);
-              VHostResult := VHostManager.AddVHost(ProjectName, VHostDocumentRoot, '', False);
-              AppendOutput(VHostResult.Message);
-              if not VHostResult.Success then
+        if (not InstallAborted) and ExecutionResult.Success then
+        begin
+          AppendOutput(ExecutionResult.Message);
+          ReloadConfig := TUniWampConfig.Create;
+          try
+            ReloadConfig.LoadOrCreate(FPaths);
+            VHostManager := TServiceLocator.Instance.GetService<IVHostManager>;
+            VHostDocumentRoot := ResolveProjectDocumentRoot(ProjectPath, RelativeDocumentRoot);
+            VHostResult := VHostManager.AddVHost(ProjectName, VHostDocumentRoot, '', False);
+            AppendOutput(VHostResult.Message);
+            if not VHostResult.Success then
+            begin
+              FPendingCompletionMessage := 'VHost registration failed: ' + VHostResult.Message;
+              FPendingCompletionOutput := VHostResult.Message;
+              InstallAborted := True;
+            end
+            else
+            begin
+              VHostEntry.ServerName := ProjectName;
+              VHostEntry.ServerAliases := '';
+              VHostEntry.DocumentRoot := VHostDocumentRoot;
+              VHostEntry.EnableSsl := False;
+              VHostEntry.SslCertFile := '';
+              VHostEntry.SslKeyFile := '';
+              ReloadConfig.AddOrUpdateVHost(VHostEntry);
+              ReloadConfig.Save(FPaths);
+              if ApacheWasRunning then
               begin
-                FPendingCompletionMessage := 'VHost registration failed: ' + VHostResult.Message;
-                FPendingCompletionOutput := VHostResult.Message;
-                InstallAborted := True;
-              end
-              else
-              begin
-                VHostEntry.ServerName := ProjectName;
-                VHostEntry.ServerAliases := '';
-                VHostEntry.DocumentRoot := VHostDocumentRoot;
-                VHostEntry.EnableSsl := False;
-                VHostEntry.SslCertFile := '';
-                VHostEntry.SslKeyFile := '';
-                ReloadConfig.AddOrUpdateVHost(VHostEntry);
-                ReloadConfig.Save(FPaths);
-                if ApacheWasRunning then
+                AppendOutput('Restarting Apache to load the new virtual host...');
+                RestartInfo := Runtime.RestartApache;
+                AppendOutput(RestartInfo.Message);
+                if not RestartInfo.Success then
                 begin
-                  AppendOutput('Restarting Apache to load the new virtual host...');
-                  RestartInfo := Runtime.RestartApache;
-                  AppendOutput(RestartInfo.Message);
-                  if not RestartInfo.Success then
-                  begin
-                    FPendingCompletionMessage := 'Apache restart failed: ' + RestartInfo.Message;
-                    FPendingCompletionOutput := RestartInfo.Message;
-                    InstallAborted := True;
-                  end;
-                end;
-                if not InstallAborted then
-                begin
-                  AppendOutput('Open the site at: ' + Format('http://%s:%d/',
-                    [ProjectName, ReloadConfig.HttpPort]));
-                  if RelativeDocumentRoot <> '' then
-                    AppendOutput('Document root set to /' + RelativeDocumentRoot + ' for this framework.');
-                  if CreateDatabase and (Trim(Item.AdminPath) <> '') then
-                    AppendOutput('Admin login: ' + Format('http://%s:%d%s',
-                      [ProjectName, ReloadConfig.HttpPort, Item.AdminPath]));
-                  if CreateDatabase and (Trim(Item.PostInstallNotes) <> '') then
-                    AppendOutput(Item.PostInstallNotes);
-                  FPendingCompletionMessage := ExecutionResult.Message;
-                  FPendingCompletionSuccess := True;
-                  InstallSucceeded := True;
+                  FPendingCompletionMessage := 'Apache restart failed: ' + RestartInfo.Message;
+                  FPendingCompletionOutput := RestartInfo.Message;
+                  InstallAborted := True;
                 end;
               end;
-            finally
-              ReloadConfig.Free;
+              if not InstallAborted then
+              begin
+                AppendOutput('Open the site at: ' + Format('http://%s:%d/',
+                  [ProjectName, ReloadConfig.HttpPort]));
+                if RelativeDocumentRoot <> '' then
+                  AppendOutput('Document root set to /' + RelativeDocumentRoot + ' for this framework.');
+                if CreateDatabase and (Trim(Item.AdminPath) <> '') then
+                  AppendOutput('Admin login: ' + Format('http://%s:%d%s',
+                    [ProjectName, ReloadConfig.HttpPort, Item.AdminPath]));
+                if CreateDatabase and (Trim(Item.PostInstallNotes) <> '') then
+                  AppendOutput(Item.PostInstallNotes);
+                FPendingCompletionMessage := ExecutionResult.Message;
+                FPendingCompletionSuccess := True;
+                InstallSucceeded := True;
+              end;
             end;
-          end
-          else
-          begin
-            AppendOutput(ExecutionResult.Message);
-            if Trim(ExecutionResult.Output) <> '' then
-              AppendOutput(ExecutionResult.Output);
-            FPendingCompletionSuccess := False;
-            FPendingCompletionMessage := ExecutionResult.Message;
-            FPendingCompletionOutput := ExecutionResult.Output;
+          finally
+            ReloadConfig.Free;
           end;
-        finally
-          Runtime.Free;
+        end
+        else if not InstallAborted then
+        begin
+          AppendOutput(ExecutionResult.Message);
+          if Trim(ExecutionResult.Output) <> '' then
+            AppendOutput(ExecutionResult.Output);
+          FPendingCompletionSuccess := False;
+          FPendingCompletionMessage := ExecutionResult.Message;
+          FPendingCompletionOutput := ExecutionResult.Output;
         end;
-      finally
-        Config.Free;
+      except
+        on E: Exception do
+        begin
+          AppendOutput('Install failed: ' + E.Message);
+          FPendingCompletionSuccess := False;
+          FPendingCompletionMessage := 'Install failed: ' + E.Message;
+          FPendingCompletionOutput := E.Message;
+        end;
       end;
-
+    finally
+      Runtime.Free;
+      Config.Free;
       if InstallSucceeded then
         FPendingCompletionOutput := '';
       TThread.Queue(FUiUpdateQueueThread,
@@ -945,6 +960,7 @@ begin
         begin
           SyncInstallFinished;
         end);
+    end;
     end).Start;
 end;
 

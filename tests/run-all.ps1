@@ -36,6 +36,23 @@ try {
     Pop-Location
   }
 
+  Push-Location (Join-Path $Root 'installer')
+  try {
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File GenerateDistributionManifest.ps1
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+    $manifest = Get-Content .\distribution-manifest.json -Raw | ConvertFrom-Json
+    if ($manifest.schemaVersion -ne 1) {
+      throw 'Installer manifest schemaVersion must be 1.'
+    }
+    if ($manifest.components.Count -lt 1) {
+      throw 'Installer manifest must include bundled components.'
+    }
+  }
+  finally {
+    Pop-Location
+  }
+
   Write-Host "UniWamp verification passed."
 }
 finally {

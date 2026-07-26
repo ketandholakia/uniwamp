@@ -2759,11 +2759,15 @@ end;
 
 procedure TestMainFormKeyActionHelperHandlesSearchAndTrayMinimize;
 begin
-  AssertTrue(DescribeMainFormKeyAction(VK_OEM_2, [ssCtrl], False, '') = 'focus-search',
-    'Ctrl+/ should focus the vHost search field');
-  AssertTrue(DescribeMainFormKeyAction(VK_ESCAPE, [], True, 'api') = 'clear-filter',
+  AssertTrue(DescribeMainFormKeyAction(Ord('F'), [ssCtrl], False, '', False, '') = 'focus-search',
+    'Ctrl+F should focus the vHost search field');
+  AssertTrue(DescribeMainFormKeyAction(VK_OEM_2, [ssCtrl], False, '', False, '') = 'focus-tool-search',
+    'Ctrl+/ should focus the sidebar quick search');
+  AssertTrue(DescribeMainFormKeyAction(VK_ESCAPE, [], True, 'api', False, '') = 'clear-filter',
     'Escape should clear the active vHost filter before minimizing');
-  AssertTrue(DescribeMainFormKeyAction(VK_ESCAPE, [], False, '') = 'minimize-to-tray',
+  AssertTrue(DescribeMainFormKeyAction(VK_ESCAPE, [], False, '', True, 'tool') = 'clear-tool-search',
+    'Escape should clear the sidebar quick search before minimizing');
+  AssertTrue(DescribeMainFormKeyAction(VK_ESCAPE, [], False, '', False, '') = 'minimize-to-tray',
     'Escape should minimize the main window to the tray when no filter is active');
 end;
 

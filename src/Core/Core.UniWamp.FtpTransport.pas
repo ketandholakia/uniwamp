@@ -58,6 +58,7 @@ type
     procedure EnsureRemoteDirectory(const RemotePath: string);
     procedure DeleteRemoteFile(const RemotePath: string);
     procedure DeleteRemoteDirectory(const RemotePath: string; const Recursive: Boolean);
+    procedure RenameRemoteFile(const SourceRemotePath, TargetRemotePath: string);
 
     procedure DownloadFile(const RemotePath, LocalPath: string;
       const OnProgress: TSyncTransferProgressEvent);
@@ -421,6 +422,17 @@ begin
   except
     on E: Exception do
       raise ESyncTransportError.CreateFmt('Could not remove remote directory "%s": %s', [Path, E.Message]);
+  end;
+end;
+
+procedure TFtpTransport.RenameRemoteFile(const SourceRemotePath, TargetRemotePath: string);
+begin
+  try
+    FClient.Rename(NormalizeRemotePath(SourceRemotePath), NormalizeRemotePath(TargetRemotePath));
+  except
+    on E: Exception do
+      raise ESyncTransportError.CreateFmt('Could not rename remote file "%s" to "%s": %s',
+        [SourceRemotePath, TargetRemotePath, E.Message]);
   end;
 end;
 

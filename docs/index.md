@@ -12,6 +12,7 @@ security notes.
 - [Architecture](ARCHITECTURE.md)
 - [Connection and Sync Profiles](SYNC_PROFILES.md)
 - [Security and Operations](SECURITY_AND_OPERATIONS.md)
+- [Release Process](RELEASE_PROCESS.md)
 
 ## What this site covers
 

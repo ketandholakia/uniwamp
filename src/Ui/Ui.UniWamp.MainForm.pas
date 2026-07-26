@@ -259,6 +259,9 @@ type
     FVHostFilterLabel: TLabel;
     FVHostFilterEdit: TEdit;
     FVHostFilterClearLabel: TLabel;
+    FToolSearchLabel: TPanel;
+    FToolSearchEdit: TEdit;
+    FToolSearchClearLabel: TLabel;
     FUpdateManifestDialog: TOpenDialog;
     FProjectBackupManifestDialog: TOpenDialog;
     FDatabaseBackupInfoDialog: TOpenDialog;
@@ -326,6 +329,10 @@ type
     procedure RefreshActivityLogView;
     procedure VHostFilterChanged(Sender: TObject);
     procedure VHostFilterClearClick(Sender: TObject);
+    procedure ToolSearchChanged(Sender: TObject);
+    procedure ToolSearchClearClick(Sender: TObject);
+    procedure ToolSearchKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+    procedure UpdateToolSidebarSearch;
     procedure VHostGridEnter(Sender: TObject);
     procedure VHostGridExit(Sender: TObject);
     function TryGetVHostEntry(const ServerName: string; out Entry: TVHostEntry): Boolean;
@@ -436,8 +443,9 @@ function BuildHeaderTitleHint: string;
 function BuildHeaderOverviewHint: string;
 function DescribeVHostGridKeyboardAction(Key: Word; Shift: TShiftState): string;
 function DescribeVHostFilterKeyAction(Key: Word; FilterText: string): string;
+function DescribeToolSearchKeyAction(Key: Word; FilterText: string): string;
 function DescribeMainFormKeyAction(Key: Word; Shift: TShiftState; FilterFocused: Boolean;
-  FilterText: string): string;
+  FilterText: string; ToolSearchFocused: Boolean; ToolSearchText: string): string;
 procedure ApplyConfiguredTheme(const StyleName: string);
 
 var
@@ -898,14 +906,28 @@ begin
   end;
 end;
 
-function DescribeMainFormKeyAction(Key: Word; Shift: TShiftState;
-  FilterFocused: Boolean; FilterText: string): string;
+function DescribeToolSearchKeyAction(Key: Word; FilterText: string): string;
 begin
   Result := '';
-  if (ssCtrl in Shift) and ((Key = Ord('F')) or (Key = VK_OEM_2)) then
+  if Key = VK_ESCAPE then
+  begin
+    if Trim(FilterText) <> '' then
+      Result := 'clear';
+  end;
+end;
+
+function DescribeMainFormKeyAction(Key: Word; Shift: TShiftState;
+  FilterFocused: Boolean; FilterText: string; ToolSearchFocused: Boolean; ToolSearchText: string): string;
+begin
+  Result := '';
+  if (ssCtrl in Shift) and (Key = VK_OEM_2) then
+    Exit('focus-tool-search');
+  if (ssCtrl in Shift) and (Key = Ord('F')) then
     Exit('focus-search');
   if Key = VK_ESCAPE then
   begin
+    if ToolSearchFocused and (Trim(ToolSearchText) <> '') then
+      Exit('clear-tool-search');
     if FilterFocused and (Trim(FilterText) <> '') then
       Exit('clear-filter');
     Exit('minimize-to-tray');
@@ -1362,6 +1384,44 @@ begin
   pnltools.Width := 190;
   pnltools.Height := MainPanel.ClientHeight;
   pnltools.BringToFront;
+  FToolSearchLabel := TPanel.Create(Self);
+  FToolSearchLabel.Parent := pnltools;
+  FToolSearchLabel.BevelOuter := bvNone;
+  FToolSearchLabel.Caption := 'Quick search';
+  FToolSearchLabel.Color := RGB(232, 236, 243);
+  FToolSearchLabel.Font.Name := 'Segoe UI';
+  FToolSearchLabel.Font.Size := 8;
+  FToolSearchLabel.Font.Style := [fsBold];
+  FToolSearchLabel.Font.Color := RGB(55, 65, 81);
+  FToolSearchLabel.ParentBackground := False;
+  FToolSearchLabel.ParentFont := False;
+  FToolSearchLabel.Alignment := taLeftJustify;
+  FToolSearchLabel.Hint := BuildToolPanelHint('Quick search',
+    'Filter the sidebar buttons by name or hint. Press Ctrl+/ to focus it or Esc to clear it.');
+  FToolSearchLabel.ShowHint := True;
+
+  FToolSearchEdit := TEdit.Create(Self);
+  FToolSearchEdit.Parent := pnltools;
+  FToolSearchEdit.TextHint := 'Search sidebar';
+  FToolSearchEdit.Hint := BuildToolPanelHint('Search sidebar buttons',
+    'Type part of a tool name or hint to filter the sidebar. Press Ctrl+/ to focus or Esc to clear.');
+  FToolSearchEdit.ShowHint := True;
+  FToolSearchEdit.OnChange := ToolSearchChanged;
+  FToolSearchEdit.OnKeyDown := ToolSearchKeyDown;
+
+  FToolSearchClearLabel := TLabel.Create(Self);
+  FToolSearchClearLabel.Parent := pnltools;
+  FToolSearchClearLabel.Caption := 'Clear';
+  FToolSearchClearLabel.Cursor := crHandPoint;
+  FToolSearchClearLabel.Font.Name := 'Segoe UI';
+  FToolSearchClearLabel.Font.Size := 9;
+  FToolSearchClearLabel.Font.Color := clBlue;
+  FToolSearchClearLabel.Font.Style := [fsUnderline];
+  FToolSearchClearLabel.Transparent := True;
+  FToolSearchClearLabel.Hint := BuildToolPanelHint('Clear the sidebar quick search',
+    'Clear the sidebar filter and show all tool buttons again.');
+  FToolSearchClearLabel.ShowHint := True;
+  FToolSearchClearLabel.OnClick := ToolSearchClearClick;
   HeaderPanel.Height := 86;
   CreateHeaderStatusCards;
   FVHostEmptyLabel := TLabel.Create(Self);
@@ -1376,7 +1436,7 @@ begin
   FVHostEmptyLabel.Font.Color := clGrayText;
   FVHostEmptyLabel.Font.Style := [fsBold];
   FVHostEmptyLabel.Caption := 'No projects or vHosts found.' + sLineBreak + 'Use Add to create your first project.';
-  FVHostEmptyLabel.Hint := 'Click Add to create a new project or vHost. Press Ctrl+F or Ctrl+/ to search existing projects.';
+  FVHostEmptyLabel.Hint := 'Click Add to create a new project or vHost. Press Ctrl+F to search projects or Ctrl+/ to search the sidebar tools.';
   FVHostEmptyLabel.ShowHint := True;
   FVHostEmptyLabel.Cursor := crHandPoint;
   FVHostEmptyLabel.OnClick := VHostEmptyLabelClick;
@@ -2366,19 +2426,46 @@ const
   GroupGap = 8;
   ButtonHeight = 22;
   LabelHeight = 16;
+  SearchLabelHeight = 16;
+  SearchEditHeight = 23;
 var
   ButtonWidth: Integer;
   Y: Integer;
+  FilterText: string;
+  function MatchesToolFilter(const Button: TPanel): Boolean;
+  var
+    Haystack: string;
+  begin
+    if not Assigned(Button) then
+      Exit(False);
+    if FilterText = '' then
+      Exit(True);
+    Haystack := LowerCase(Button.Caption + ' ' + Button.Hint);
+    Result := Pos(FilterText, Haystack) > 0;
+  end;
+  function GroupHasVisibleButtons(const Buttons: array of TPanel): Boolean;
+  var
+    Button: TPanel;
+  begin
+    Result := False;
+    for Button in Buttons do
+      if MatchesToolFilter(Button) then
+        Exit(True);
+  end;
   procedure PlaceLabel(Panel: TPanel);
   begin
     if not Assigned(Panel) then
       Exit;
+    Panel.Visible := True;
     Panel.SetBounds(SideMargin, Y, ButtonWidth, LabelHeight);
     Inc(Y, LabelHeight + 2);
   end;
   procedure PlaceButton(Button: TPanel);
   begin
     if not Assigned(Button) then
+      Exit;
+    Button.Visible := MatchesToolFilter(Button);
+    if not Button.Visible then
       Exit;
     Button.SetBounds(SideMargin, Y, ButtonWidth, ButtonHeight);
     Inc(Y, ButtonHeight + RowGap);
@@ -2391,45 +2478,100 @@ begin
   if ButtonWidth < 122 then
     ButtonWidth := 122;
 
+  FilterText := '';
+  if Assigned(FToolSearchEdit) then
+    FilterText := Trim(LowerCase(FToolSearchEdit.Text));
+
+  if Assigned(ToolGroupWebLabel) then
+    ToolGroupWebLabel.Visible := False;
+  if Assigned(ToolGroupRuntimeLabel) then
+    ToolGroupRuntimeLabel.Visible := False;
+  if Assigned(ToolGroupLogsLabel) then
+    ToolGroupLogsLabel.Visible := False;
+  if Assigned(ToolGroupMaintenanceLabel) then
+    ToolGroupMaintenanceLabel.Visible := False;
+
   Y := 8;
-  PlaceLabel(ToolGroupWebLabel);
-  PlaceButton(GenerateSslButton);
-  PlaceButton(Panel8);
-  PlaceButton(Panel9);
-  PlaceButton(LaunchTerminalButton);
-  PlaceButton(OpenRepoTerminalButton);
-  Inc(Y, GroupGap);
-  PlaceLabel(ToolGroupRuntimeLabel);
-  PlaceButton(OpenPhpSettingsButton);
-  PlaceButton(OpenPhpExtensionsButton);
-  PlaceButton(OpenApacheModulesButton);
-  PlaceButton(ComposerButton);
-  PlaceButton(GitButton);
-  PlaceButton(NodeButton);
-  PlaceButton(WpCliButton);
-  PlaceButton(MailpitButton);
-  PlaceButton(RedisButton);
-  PlaceButton(MemcachedButton);
-  PlaceButton(NpmButton);
-  PlaceButton(YarnButton);
-  PlaceButton(PnpmButton);
-  PlaceButton(EditorButton);
-  Inc(Y, GroupGap);
-  PlaceLabel(ToolGroupLogsLabel);
-  PlaceButton(OpenApacheLogButton);
-  PlaceButton(OpenMariaLogButton);
-  PlaceButton(ClearApacheLogButton);
-  PlaceButton(ClearMariaLogButton);
-  PlaceButton(ClearActivityLogButton);
-  Inc(Y, GroupGap);
-  PlaceLabel(ToolGroupMaintenanceLabel);
-  PlaceButton(SaveConfigButton);
-  PlaceButton(CopyDiagnosticReportButton);
-  PlaceButton(CopyActivityLogButton);
-  PlaceButton(OpenHostsFileButton);
-  PlaceButton(BackupDatabaseButton);
-  PlaceButton(RestoreDatabaseButton);
-  PlaceButton(UpdateButton);
+  if Assigned(FToolSearchLabel) then
+  begin
+    FToolSearchLabel.Visible := True;
+    FToolSearchLabel.SetBounds(SideMargin, Y, ButtonWidth, SearchLabelHeight);
+    Inc(Y, SearchLabelHeight + 2);
+  end;
+  if Assigned(FToolSearchEdit) then
+  begin
+    FToolSearchEdit.Visible := True;
+    FToolSearchEdit.SetBounds(SideMargin, Y, ButtonWidth, SearchEditHeight);
+    if Assigned(FToolSearchClearLabel) then
+    begin
+      FToolSearchClearLabel.Visible := FilterText <> '';
+      FToolSearchClearLabel.Top := Y + ((SearchEditHeight - FToolSearchClearLabel.Height) div 2) - 1;
+      FToolSearchClearLabel.Left := SideMargin + ButtonWidth - FToolSearchClearLabel.Width;
+    end;
+    if Assigned(FToolSearchClearLabel) and FToolSearchClearLabel.Visible then
+      FToolSearchEdit.Width := ButtonWidth - FToolSearchClearLabel.Width - 10
+    else
+      FToolSearchEdit.Width := ButtonWidth;
+    Inc(Y, SearchEditHeight + 8);
+  end;
+
+  if GroupHasVisibleButtons([GenerateSslButton, Panel8, Panel9, LaunchTerminalButton, OpenRepoTerminalButton]) then
+  begin
+    PlaceLabel(ToolGroupWebLabel);
+    PlaceButton(GenerateSslButton);
+    PlaceButton(Panel8);
+    PlaceButton(Panel9);
+    PlaceButton(LaunchTerminalButton);
+    PlaceButton(OpenRepoTerminalButton);
+    Inc(Y, GroupGap);
+  end;
+
+  if GroupHasVisibleButtons([OpenPhpSettingsButton, OpenPhpExtensionsButton, OpenApacheModulesButton,
+    ComposerButton, GitButton, NodeButton, WpCliButton, MailpitButton, RedisButton,
+    MemcachedButton, NpmButton, YarnButton, PnpmButton, EditorButton]) then
+  begin
+    PlaceLabel(ToolGroupRuntimeLabel);
+    PlaceButton(OpenPhpSettingsButton);
+    PlaceButton(OpenPhpExtensionsButton);
+    PlaceButton(OpenApacheModulesButton);
+    PlaceButton(ComposerButton);
+    PlaceButton(GitButton);
+    PlaceButton(NodeButton);
+    PlaceButton(WpCliButton);
+    PlaceButton(MailpitButton);
+    PlaceButton(RedisButton);
+    PlaceButton(MemcachedButton);
+    PlaceButton(NpmButton);
+    PlaceButton(YarnButton);
+    PlaceButton(PnpmButton);
+    PlaceButton(EditorButton);
+    Inc(Y, GroupGap);
+  end;
+
+  if GroupHasVisibleButtons([OpenApacheLogButton, OpenMariaLogButton, ClearApacheLogButton,
+    ClearMariaLogButton, ClearActivityLogButton]) then
+  begin
+    PlaceLabel(ToolGroupLogsLabel);
+    PlaceButton(OpenApacheLogButton);
+    PlaceButton(OpenMariaLogButton);
+    PlaceButton(ClearApacheLogButton);
+    PlaceButton(ClearMariaLogButton);
+    PlaceButton(ClearActivityLogButton);
+    Inc(Y, GroupGap);
+  end;
+
+  if GroupHasVisibleButtons([SaveConfigButton, CopyDiagnosticReportButton, CopyActivityLogButton,
+    OpenHostsFileButton, BackupDatabaseButton, RestoreDatabaseButton, UpdateButton]) then
+  begin
+    PlaceLabel(ToolGroupMaintenanceLabel);
+    PlaceButton(SaveConfigButton);
+    PlaceButton(CopyDiagnosticReportButton);
+    PlaceButton(CopyActivityLogButton);
+    PlaceButton(OpenHostsFileButton);
+    PlaceButton(BackupDatabaseButton);
+    PlaceButton(RestoreDatabaseButton);
+    PlaceButton(UpdateButton);
+  end;
 end;
 
 procedure TMainForm.FormResize(Sender: TObject);
@@ -2838,6 +2980,9 @@ begin
   finally
     VHostGrid.EndUpdate;
   end;
+  VHostGrid.TopRow := 0;
+  VHostGrid.Row := 0;
+  VHostGrid.Invalidate;
   UpdateVHostEmptyState;
 end;
 
@@ -3452,6 +3597,7 @@ end;
 
 procedure TMainForm.VHostFilterChanged(Sender: TObject);
 begin
+  VHostGrid.TopRow := 0;
   VHostGrid.Row := 0;
   LoadStateIntoUi;
   UpdateVHostActionState;
@@ -3461,6 +3607,37 @@ procedure TMainForm.VHostFilterClearClick(Sender: TObject);
 begin
   if Assigned(FVHostFilterEdit) then
     FVHostFilterEdit.Text := '';
+  VHostFilterChanged(Sender);
+end;
+
+procedure TMainForm.ToolSearchChanged(Sender: TObject);
+begin
+  UpdateToolSidebarSearch;
+end;
+
+procedure TMainForm.ToolSearchClearClick(Sender: TObject);
+begin
+  if Assigned(FToolSearchEdit) then
+    FToolSearchEdit.Text := '';
+  UpdateToolSidebarSearch;
+  if Assigned(FToolSearchEdit) then
+    FToolSearchEdit.SetFocus;
+end;
+
+procedure TMainForm.ToolSearchKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+begin
+  if DescribeToolSearchKeyAction(Key, FToolSearchEdit.Text) = 'clear' then
+  begin
+    Key := 0;
+    if Assigned(FToolSearchEdit) then
+      FToolSearchEdit.Clear;
+    UpdateToolSidebarSearch;
+  end;
+end;
+
+procedure TMainForm.UpdateToolSidebarSearch;
+begin
+  LayoutToolSidebar;
 end;
 
 procedure TMainForm.UpdateMenuState;
@@ -5445,13 +5622,18 @@ end;
 procedure TMainForm.FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
 var
   FilterText: string;
+  ToolSearchText: string;
   KeyAction: string;
 begin
   FilterText := '';
   if Assigned(FVHostFilterEdit) then
     FilterText := FVHostFilterEdit.Text;
+  ToolSearchText := '';
+  if Assigned(FToolSearchEdit) then
+    ToolSearchText := FToolSearchEdit.Text;
   KeyAction := DescribeMainFormKeyAction(Key, Shift,
-    Assigned(FVHostFilterEdit) and FVHostFilterEdit.Focused, FilterText);
+    Assigned(FVHostFilterEdit) and FVHostFilterEdit.Focused, FilterText,
+    Assigned(FToolSearchEdit) and FToolSearchEdit.Focused, ToolSearchText);
   if KeyAction = 'focus-search' then
   begin
     Key := 0;
@@ -5459,11 +5641,25 @@ begin
       FVHostFilterEdit.SetFocus;
     Exit;
   end;
+  if KeyAction = 'focus-tool-search' then
+  begin
+    Key := 0;
+    if Assigned(FToolSearchEdit) then
+      FToolSearchEdit.SetFocus;
+    Exit;
+  end;
   if KeyAction = 'clear-filter' then
   begin
     Key := 0;
     if Assigned(FVHostFilterEdit) then
       FVHostFilterEdit.Clear;
+    Exit;
+  end;
+  if KeyAction = 'clear-tool-search' then
+  begin
+    Key := 0;
+    if Assigned(FToolSearchEdit) then
+      FToolSearchEdit.Clear;
     Exit;
   end;
   if KeyAction = 'minimize-to-tray' then
