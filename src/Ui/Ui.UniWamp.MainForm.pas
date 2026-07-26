@@ -2915,7 +2915,7 @@ begin
     end;
     if PendingWork = 0 then
       Break;
-    Application.ProcessMessages;
+    CheckSynchronize(10);
     Sleep(10);
   end;
   TThread.RemoveQueuedEvents(FUiUpdateQueueThread);
