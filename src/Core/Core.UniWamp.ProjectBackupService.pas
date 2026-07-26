@@ -46,6 +46,7 @@ uses
   System.JSON,
   System.Zip,
   Winapi.Windows,
+  Core.UniWamp.AtomicFile,
   Core.UniWamp.Security,
   Core.UniWamp.VHostManager;
 
@@ -228,7 +229,7 @@ begin
   try
     VHostJson := VHostEntryToJson(Entry);
     ManifestJson.AddPair('vhost', VHostJson);
-    TFile.WriteAllText(TPath.Combine(BackupDir, MetadataFileName), ManifestJson.Format, TEncoding.UTF8);
+    AtomicWriteTextFile(TPath.Combine(BackupDir, MetadataFileName), ManifestJson.Format, TEncoding.UTF8);
     Exit(True);
   finally
     ManifestJson.Free;

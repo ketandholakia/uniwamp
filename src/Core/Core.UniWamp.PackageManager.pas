@@ -41,6 +41,9 @@ type
 
 implementation
 
+uses
+  Core.UniWamp.AtomicFile;
+
 constructor TPackageManager.Create(const Paths: TAppPaths);
 begin
   inherited Create;
@@ -161,7 +164,7 @@ begin
       JsonObject.AddPair('expectedSha256', ExpectedSha256);
       JsonObject.AddPair('packageVersion', PackageVersion);
       JsonObject.AddPair('stagingDir', StagingDir);
-      TFile.WriteAllText(MetadataFileName, JsonObject.Format, TEncoding.UTF8);
+      AtomicWriteTextFile(MetadataFileName, JsonObject.Format, TEncoding.UTF8);
       Result := True;
     except
       on E: Exception do

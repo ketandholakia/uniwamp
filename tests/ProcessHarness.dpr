@@ -2161,6 +2161,8 @@ begin
         TDirectory.CreateDirectory(StagingDir);
         AssertTrue(Runtime.WriteUpdateStagingMetadata(StagingDir, 'runtime.zip', 'abc', '1.0.0', MetadataFileName, ErrorMessage), ErrorMessage);
         AssertTrue(TFile.Exists(MetadataFileName), 'Staging metadata should be written');
+        AssertTrue(Length(TDirectory.GetFiles(StagingDir, '*.tmp')) = 0,
+          'Atomic metadata write should not leave temporary files behind');
         JsonValue := TJSONObject.ParseJSONValue(TFile.ReadAllText(MetadataFileName, TEncoding.UTF8));
         try
           AssertTrue(JsonValue is TJSONObject, 'Staging metadata should be valid JSON');
