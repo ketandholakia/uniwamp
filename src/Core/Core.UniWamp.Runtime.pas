@@ -89,6 +89,7 @@ type
     function LaunchNpmInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function LaunchYarnInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function LaunchPnpmInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
+    function LaunchWinScp: TRuntimeActionResult;
     function LaunchMailpit: TRuntimeActionResult;
     function LaunchRedis: TRuntimeActionResult;
     function LaunchMemcached: TRuntimeActionResult;
@@ -201,6 +202,47 @@ end;
 function TUniWampRuntime.ShellExecuteCmdInWorkingDir(const WorkingDir, CommandLine: string): Boolean;
 begin
   Result := ShellExecuteInWorkingDir('cmd.exe', '/K ' + CommandLine, WorkingDir);
+end;
+
+function TUniWampRuntime.LaunchWinScp: TRuntimeActionResult;
+const
+  WinScpIniContents =
+    '[Configuration\Interface]' + sLineBreak +
+    'RandomSeedFile=.\winscp.rnd' + sLineBreak +
+    'DDTemporaryDirectory=.\temp\' + sLineBreak;
+var
+  WinScpExe: string;
+  WinScpIni: string;
+  WinScpTempDir: string;
+begin
+  WinScpExe := BundledToolExecutable(FPaths.WinScpDir, 'WinSCP.exe');
+  if WinScpExe = '' then
+  begin
+    Result.Success := False;
+    Result.Message := 'WinSCP was not found in runtime\tools\winscp.';
+    Exit;
+  end;
+
+  WinScpIni := TPath.Combine(FPaths.WinScpDir, 'WinSCP.ini');
+  WinScpTempDir := TPath.Combine(FPaths.WinScpDir, 'temp');
+  try
+    EnsureDirectory(WinScpTempDir);
+    if not FileExists(WinScpIni) then
+      TFile.WriteAllText(WinScpIni, WinScpIniContents, TEncoding.UTF8);
+  except
+    on E: Exception do
+    begin
+      Result.Success := False;
+      Result.Message := 'Unable to prepare WinSCP portable config: ' + E.Message;
+      Exit;
+    end;
+  end;
+
+  Result.Success := ShellExecuteInWorkingDir(WinScpExe, '/ini=' + QuoteForCmd(WinScpIni), FPaths.WinScpDir);
+  if Result.Success then
+    Result.Message := 'WinSCP launched'
+  else
+    Result.Message := 'Failed to launch WinSCP';
 end;
 
 constructor TUniWampRuntime.Create(const Paths: TAppPaths; Config: TUniWampConfig);

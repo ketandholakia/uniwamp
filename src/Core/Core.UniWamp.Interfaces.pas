@@ -64,6 +64,7 @@ type
     function StartMariaDb: TRuntimeActionResult;
     function StopMariaDb: TRuntimeActionResult;
     function RestartMariaDb: TRuntimeActionResult;
+    function LaunchWinScp: TRuntimeActionResult;
     function BuildDiagnosticReport: string;
   end;
 

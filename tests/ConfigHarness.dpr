@@ -95,6 +95,7 @@ begin
   Result.MailpitDir := TPath.Combine(Result.ToolsDir, 'mailpit');
   Result.RedisDir := TPath.Combine(Result.ToolsDir, 'redis');
   Result.MemcachedDir := TPath.Combine(Result.ToolsDir, 'memcached');
+  Result.WinScpDir := TPath.Combine(Result.ToolsDir, 'winscp');
   Result.MkcertDir := TPath.Combine(Result.ToolsDir, 'mkcert');
   Result.MkcertExe := TPath.Combine(Result.MkcertDir, 'mkcert.exe');
   Result.ApacheDir := TPath.Combine(Result.RuntimeDir, 'apache');
@@ -150,6 +151,7 @@ begin
   AssertTrue(Paths.MailpitDir <> '', 'MailpitDir must be initialized');
   AssertTrue(Paths.RedisDir <> '', 'RedisDir must be initialized');
   AssertTrue(Paths.MemcachedDir <> '', 'MemcachedDir must be initialized');
+  AssertTrue(Paths.WinScpDir <> '', 'WinScpDir must be initialized');
   AssertTrue(Paths.ApacheDir <> '', 'ApacheDir must be initialized');
   AssertTrue(Paths.ApacheBinDir <> '', 'ApacheBinDir must be initialized');
   AssertTrue(Paths.ApacheConfDir <> '', 'ApacheConfDir must be initialized');

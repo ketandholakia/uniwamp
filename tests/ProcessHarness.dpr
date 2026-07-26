@@ -130,6 +130,7 @@ begin
   Result.MailpitDir := TPath.Combine(Result.ToolsDir, 'mailpit');
   Result.RedisDir := TPath.Combine(Result.ToolsDir, 'redis');
   Result.MemcachedDir := TPath.Combine(Result.ToolsDir, 'memcached');
+  Result.WinScpDir := TPath.Combine(Result.ToolsDir, 'winscp');
   Result.MkcertDir := TPath.Combine(Result.ToolsDir, 'mkcert');
   Result.MkcertExe := TPath.Combine(Result.MkcertDir, 'mkcert.exe');
   Result.ApacheDir := TPath.Combine(Result.RuntimeDir, 'apache');

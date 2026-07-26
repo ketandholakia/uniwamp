@@ -118,7 +118,7 @@ The main Tools menu and tool panel also expose:
 - `Terminal` to launch the configured terminal executable
 - `Repo Terminal` to open a terminal at the UniWamp root for Git and maintenance work
 - `Composer` launches the bundled `runtime\tools\composer\composer.phar` through the selected PHP runtime or `php.exe` on PATH; `WP-CLI` launches the bundled `runtime\tools\wp-cli\wp-cli.phar` the same way; `npm`, `pnpm`, and `yarn` prefer the selected Node.js runtime's bundled commands or corepack shims before falling back to PATH; `Git`, `Node`, `Mailpit`, `Redis`, `Memcached`, and `Editor` launchers use the corresponding executables when available on PATH; the editor button prefers bundled Lite XL from `runtime\tools\lite-xl\lite-xl.exe`
-- `WinSCP` is bundled in `runtime\tools\winscp` for manual FTP/SFTP file transfers and scripted sync sessions
+- `WinSCP` is bundled in `runtime\tools\winscp` for manual FTP/SFTP file transfers and scripted sync sessions; UniWamp launches it with `runtime\tools\winscp\WinSCP.ini` so it stays portable
 - `Update` to stage a manifest-driven package into `tmp\updates`
 - The second tool row keeps the repository-oriented launchers and update action grouped together for faster maintenance work
 - `Copy Report` to copy a diagnostic snapshot with paths, versions, ports, service state, and recent errors
