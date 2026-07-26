@@ -18,7 +18,8 @@ implementation
 
 uses
   System.Classes,
-  System.IOUtils;
+  System.IOUtils,
+  Core.UniWamp.AtomicFile;
 
 function EscapeOptionValue(const Value: string): string;
 begin
@@ -50,7 +51,7 @@ begin
     try
       Contents.Add('[client]');
       Contents.Add('password="' + EscapeOptionValue(Password) + '"');
-      Contents.SaveToFile(FileName, TEncoding.ASCII);
+      AtomicWriteTextFile(FileName, Contents.Text, TEncoding.ASCII);
     finally
       Contents.Free;
     end;
@@ -81,7 +82,7 @@ begin
     FileName := TPath.Combine(Paths.TmpDir,
       'mariadb-password-' + GUIDToString(GuidValue).Replace('{', '').Replace('}', '') + '.sql');
     SqlText := 'SET PASSWORD = PASSWORD(''' + EscapeSqlLiteral(Password) + ''');' + sLineBreak;
-    TFile.WriteAllText(FileName, SqlText, TEncoding.ASCII);
+    AtomicWriteTextFile(FileName, SqlText, TEncoding.ASCII);
     Result := True;
   except
     on E: Exception do
