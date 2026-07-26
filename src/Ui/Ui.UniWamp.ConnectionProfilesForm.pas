@@ -901,8 +901,6 @@ var
   Credentials: TSyncCredentials;
   Transport: ISyncTransport;
   ErrorMessage: string;
-  Output: string;
-  ResultOk: Boolean;
 begin
   if not ReadProfileFromEditor(Profile, ErrorMessage) then
   begin
@@ -926,7 +924,12 @@ begin
     Transport := CreateSyncTransport(Credentials);
     try
       Transport.Connect;
-      ResultOk := Transport.RemoteDirectoryExists('/');
+      if Transport.RemoteDirectoryExists('/') then
+      begin
+        SetStatus(TColor($002E7D32), 'Connection test succeeded for ' + Profile.Host + '.');
+        MessageDlg('Connection test succeeded for ' + Profile.Host + '.', mtInformation, [mbOK], 0);
+        Exit;
+      end;
     finally
       Transport.Disconnect;
     end;
@@ -939,24 +942,15 @@ begin
     end;
     on E: Exception do
     begin
-      Output := 'Connection test failed: ' + E.Message;
-      SetStatus(clRed, Output);
-      MessageDlg(Output, mtError, [mbOK], 0);
+      ErrorMessage := 'Connection test failed: ' + E.Message;
+      SetStatus(clRed, ErrorMessage);
+      MessageDlg(ErrorMessage, mtError, [mbOK], 0);
       Exit;
     end;
   end;
-
-  if ResultOk then
-  begin
-    SetStatus(TColor($002E7D32), 'Connection test succeeded for ' + Profile.Host + '.');
-    MessageDlg('Connection test succeeded for ' + Profile.Host + '.', mtInformation, [mbOK], 0);
-  end;
-  if not ResultOk then
-  begin
-    Output := 'Connection test did not confirm access to the remote directory.';
-    SetStatus(clRed, Output);
-    MessageDlg(Output, mtError, [mbOK], 0);
-  end;
+  ErrorMessage := 'Connected, but could not verify the remote root directory.';
+  SetStatus(clRed, ErrorMessage);
+  MessageDlg(ErrorMessage, mtError, [mbOK], 0);
 end;
 
 procedure TConnectionProfilesForm.BrowsePrivateKeyClicked(Sender: TObject);

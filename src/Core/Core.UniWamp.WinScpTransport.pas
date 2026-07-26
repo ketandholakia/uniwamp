@@ -53,6 +53,7 @@ implementation
 uses
   System.IOUtils,
   System.DateUtils,
+  System.RegularExpressions,
   System.Variants,
   Xml.XMLDoc,
   Xml.XMLIntf,
@@ -83,6 +84,112 @@ begin
   Result := nil;
   if Assigned(Parent) then
     Result := Parent.ChildNodes.FindNode(ChildName);
+end;
+
+function TryParseWinScpTimestamp(const MonthText, DayText, TimeText, YearText: string;
+  out Value: TDateTime): Boolean;
+var
+  MonthIndex: Integer;
+  DayValue: Integer;
+  YearValue: Integer;
+  TimeParts: TArray<string>;
+  HourValue: Integer;
+  MinuteValue: Integer;
+  SecondValue: Integer;
+  I: Integer;
+begin
+  Result := False;
+  Value := 0;
+  MonthIndex := 0;
+  for I := 1 to 12 do
+    if SameText(FormatSettings.ShortMonthNames[I], MonthText) then
+    begin
+      MonthIndex := I;
+      Break;
+    end;
+  if MonthIndex = 0 then
+    Exit;
+  if not TryStrToInt(DayText, DayValue) then
+    Exit;
+  if not TryStrToInt(YearText, YearValue) then
+    Exit;
+
+  TimeParts := TimeText.Split([':']);
+  if Length(TimeParts) <> 3 then
+    Exit;
+  if not TryStrToInt(TimeParts[0], HourValue) then
+    Exit;
+  if not TryStrToInt(TimeParts[1], MinuteValue) then
+    Exit;
+  if not TryStrToInt(TimeParts[2], SecondValue) then
+    Exit;
+  if not TryEncodeDate(YearValue, MonthIndex, DayValue, Value) then
+    Exit;
+  if not TryEncodeTime(HourValue, MinuteValue, SecondValue, 0, Value) then
+    Exit;
+  Result := True;
+end;
+
+function TryParsePlainListing(const Text: string; out Entries: TRemoteEntries): Boolean;
+var
+  Lines: TStringList;
+  Line: string;
+  LineText: string;
+  Match: TMatch;
+  Count: Integer;
+  NameText: string;
+  ModifiedTime: TDateTime;
+  ParsedAnyEntry: Boolean;
+begin
+  Result := False;
+  ParsedAnyEntry := False;
+  SetLength(Entries, 0);
+  if Trim(Text) = '' then
+    Exit;
+  if (Pos('does not exist', LowerCase(Text)) > 0) or
+    (Pos('no such file', LowerCase(Text)) > 0) or
+    (Pos('cannot find', LowerCase(Text)) > 0) or
+    (Pos('not found', LowerCase(Text)) > 0) then
+    Exit;
+
+  Lines := TStringList.Create;
+  try
+    Lines.Text := Text;
+    Count := 0;
+    for Line in Lines do
+    begin
+      LineText := Trim(Line);
+      if LineText = '' then
+        Continue;
+      Match := TRegEx.Match(LineText,
+        '^(?<perm>[d-][rwx-]{9})\s+\d+\s+\S+\s+\S+\s+(?<size>\d+)\s+(?<month>[A-Za-z]{3})\s+(?<day>\d{1,2})\s+(?<time>\d{2}:\d{2}:\d{2})\s+(?<year>\d{4})\s+(?<name>.+)$',
+        [roIgnoreCase]);
+      if not Match.Success then
+        Continue;
+      NameText := Trim(Match.Groups['name'].Value);
+      if (NameText = '') or SameText(NameText, '.') or SameText(NameText, '..') then
+        Continue;
+      if Length(Entries) <= Count then
+        SetLength(Entries, Count + 8);
+      Entries[Count].Name := NameText;
+      Entries[Count].IsDirectory := LowerCase(Match.Groups['perm'].Value).StartsWith('d');
+      Entries[Count].Size := StrToInt64Def(Match.Groups['size'].Value, 0);
+      Entries[Count].ModifiedUtc := 0;
+      if TryParseWinScpTimestamp(Match.Groups['month'].Value, Match.Groups['day'].Value,
+        Match.Groups['time'].Value, Match.Groups['year'].Value, ModifiedTime) then
+        Entries[Count].ModifiedUtc := ModifiedTime;
+      Inc(Count);
+      ParsedAnyEntry := True;
+    end;
+    SetLength(Entries, Count);
+    Result := ParsedAnyEntry or
+      (Pos('session started', LowerCase(Text)) > 0) or
+      (Pos('active session:', LowerCase(Text)) > 0) or
+      (Pos('connecting to ', LowerCase(Text)) > 0) or
+      (Pos('connected', LowerCase(Text)) > 0);
+  finally
+    Lines.Free;
+  end;
 end;
 
 constructor TWinScpTransport.Create(const Credentials: TSyncCredentials);
@@ -330,59 +437,80 @@ begin
   if not Result then
     Exit;
 
-  XmlDoc := LoadXMLDocument(XmlLogFile);
   try
-    XmlDoc.Active := True;
-    SessionNode := XmlDoc.DocumentElement;
-    if not Assigned(SessionNode) then
-      Exit(False);
+    try
+      XmlDoc := LoadXMLDocument(XmlLogFile);
+      try
+        XmlDoc.Active := True;
+        SessionNode := XmlDoc.DocumentElement;
+        if not Assigned(SessionNode) then
+        begin
+          Result := TryParsePlainListing(OutputText, Entries);
+          Exit;
+        end;
 
-    LsNode := nil;
-    for var I := 0 to SessionNode.ChildNodes.Count - 1 do
-    begin
-      Child := SessionNode.ChildNodes[I];
-      if SameText(Child.NodeName, 'ls') then
-      begin
-        LsNode := Child;
-        Break;
+        LsNode := nil;
+        for var I := 0 to SessionNode.ChildNodes.Count - 1 do
+        begin
+          Child := SessionNode.ChildNodes[I];
+          if SameText(Child.NodeName, 'ls') then
+          begin
+            LsNode := Child;
+            Break;
+          end;
+        end;
+        if not Assigned(LsNode) then
+        begin
+          Result := TryParsePlainListing(OutputText, Entries);
+          Exit;
+        end;
+
+        if Assigned(ChildNodeByName(LsNode, 'result')) and
+          SameText(XmlNodeAttr(ChildNodeByName(LsNode, 'result'), 'success'), 'false') then
+        begin
+          Result := False;
+          Exit;
+        end;
+
+        FilesNode := ChildNodeByName(LsNode, 'files');
+        if not Assigned(FilesNode) then
+        begin
+          Result := TryParsePlainListing(OutputText, Entries);
+          Exit;
+        end;
+
+        Count := 0;
+        for var J := 0 to FilesNode.ChildNodes.Count - 1 do
+        begin
+          FileNode := FilesNode.ChildNodes[J];
+          if not SameText(FileNode.NodeName, 'file') then
+            Continue;
+          NameText := XmlNodeText(FileNode, 'filename');
+          if (NameText = '') or SameText(NameText, '.') or SameText(NameText, '..') then
+            Continue;
+          if Length(Entries) <= Count then
+            SetLength(Entries, Count + 8);
+          TypeText := LowerCase(Trim(XmlNodeText(FileNode, 'type')));
+          SizeText := Trim(XmlNodeText(FileNode, 'size'));
+          TimeText := Trim(XmlNodeText(FileNode, 'modification'));
+          Entries[Count].Name := NameText;
+          Entries[Count].IsDirectory := TypeText = 'd';
+          Entries[Count].Size := StrToInt64Def(SizeText, 0);
+          Entries[Count].ModifiedUtc := 0;
+          if (TimeText <> '') and TryISO8601ToDate(TimeText, ModifiedTime, True) then
+            Entries[Count].ModifiedUtc := ModifiedTime;
+          Inc(Count);
+        end;
+        SetLength(Entries, Count);
+        Result := True;
+      finally
+        XmlDoc := nil;
       end;
+    except
+      on E: Exception do
+        Result := TryParsePlainListing(OutputText, Entries);
     end;
-    if not Assigned(LsNode) then
-      Exit(False);
-
-    if Assigned(ChildNodeByName(LsNode, 'result')) and
-      SameText(XmlNodeAttr(ChildNodeByName(LsNode, 'result'), 'success'), 'false') then
-      Exit(False);
-
-    FilesNode := ChildNodeByName(LsNode, 'files');
-    if not Assigned(FilesNode) then
-      Exit(True);
-
-    Count := 0;
-    for var J := 0 to FilesNode.ChildNodes.Count - 1 do
-    begin
-      FileNode := FilesNode.ChildNodes[J];
-      if not SameText(FileNode.NodeName, 'file') then
-        Continue;
-      NameText := XmlNodeText(FileNode, 'filename');
-      if (NameText = '') or SameText(NameText, '.') or SameText(NameText, '..') then
-        Continue;
-      if Length(Entries) <= Count then
-        SetLength(Entries, Count + 8);
-      TypeText := LowerCase(Trim(XmlNodeText(FileNode, 'type')));
-      SizeText := Trim(XmlNodeText(FileNode, 'size'));
-      TimeText := Trim(XmlNodeText(FileNode, 'modification'));
-      Entries[Count].Name := NameText;
-      Entries[Count].IsDirectory := TypeText = 'd';
-      Entries[Count].Size := StrToInt64Def(SizeText, 0);
-      Entries[Count].ModifiedUtc := 0;
-      if (TimeText <> '') and TryISO8601ToDate(TimeText, ModifiedTime, True) then
-        Entries[Count].ModifiedUtc := ModifiedTime;
-      Inc(Count);
-    end;
-    SetLength(Entries, Count);
   finally
-    XmlDoc := nil;
     if FileExists(XmlLogFile) then
       TFile.Delete(XmlLogFile);
   end;

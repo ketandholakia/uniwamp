@@ -33,6 +33,7 @@ type
     FProfilesList: TListBox;
     LeftFooter: TPanel;
     FAddButton: TButton;
+    FCloneButton: TButton;
     FDeleteButton: TButton;
     FImportButton: TButton;
     FExportButton: TButton;
@@ -97,6 +98,7 @@ type
     procedure EditorChanged(Sender: TObject);
     procedure ProtocolChanged(Sender: TObject);
     procedure AddProfileClicked(Sender: TObject);
+    procedure CloneProfileClicked(Sender: TObject);
     procedure DeleteProfileClicked(Sender: TObject);
     procedure ImportProfilesClicked(Sender: TObject);
     procedure ExportProfilesClicked(Sender: TObject);
@@ -970,7 +972,7 @@ begin
   Result := True;
   if FLoading then
     Exit;
-  Index := CurrentProfileIndex;
+  Index := FCurrentProfileIndex;
   if Index < 0 then
     Exit;
   if not ReadProfileFromEditor(Profile, ErrorMessage) then
@@ -1018,21 +1020,40 @@ end;
 
 procedure TSyncProfilesForm.ProfileSelectionChanged(Sender: TObject);
 var
-  Index: Integer;
+  TargetIndex: Integer;
 begin
   if FLoading then
     Exit;
+
+  TargetIndex := CurrentProfileIndex;
+  if TargetIndex = FCurrentProfileIndex then
+    Exit;
+
   if not SaveCurrentEditor then
   begin
-    if (FCurrentProfileIndex >= 0) and Assigned(FProfilesList) then
-      FProfilesList.ItemIndex := FCurrentProfileIndex;
+    FLoading := True;
+    try
+      if (FCurrentProfileIndex >= 0) and Assigned(FProfilesList) then
+        FProfilesList.ItemIndex := FCurrentProfileIndex;
+    finally
+      FLoading := False;
+    end;
     Exit;
   end;
-  Index := CurrentProfileIndex;
-  if (Index < 0) or (Index >= FProfiles.Count) then
+
+  if (TargetIndex < 0) or (TargetIndex >= FProfiles.Count) then
     Exit;
-  FCurrentProfileIndex := Index;
-  LoadProfileIntoEditor(FProfiles[Index]);
+
+  FCurrentProfileIndex := TargetIndex;
+  
+  FLoading := True;
+  try
+    FProfilesList.ItemIndex := TargetIndex;
+  finally
+    FLoading := False;
+  end;
+  
+  LoadProfileIntoEditor(FProfiles[TargetIndex]);
 end;
 
 procedure TSyncProfilesForm.EditorChanged(Sender: TObject);
@@ -1087,6 +1108,27 @@ begin
   LoadProfileIntoEditor(Profile);
   FNameEdit.SetFocus;
   FNameEdit.SelectAll;
+end;
+
+procedure TSyncProfilesForm.CloneProfileClicked(Sender: TObject);
+var
+  Profile, NewProfile: TSyncProfile;
+begin
+  if FCurrentProfileIndex < 0 then
+    Exit;
+
+  if not SaveCurrentEditor then
+    Exit;
+
+  Profile := FProfiles[FCurrentProfileIndex];
+  NewProfile := Profile;
+  NewProfile.Name := Profile.Name + ' (Copy)';
+  
+  FProfiles.Add(NewProfile);
+  RefreshProfileList;
+  FProfilesList.ItemIndex := FProfiles.Count - 1;
+  ProfileSelectionChanged(nil);
+  SetStatus(TColor($002E7D32), 'Profile cloned.');
 end;
 
 procedure TSyncProfilesForm.DeleteProfileClicked(Sender: TObject);
@@ -1441,6 +1483,7 @@ begin
   FConfig.Save(FPaths);
 
   SetStatus(TColor($002E7D32), 'Profiles saved successfully.');
+  MessageDlg('Profiles saved successfully.', mtInformation, [mbOK], 0);
 end;
 
 procedure TSyncProfilesForm.CloseClicked(Sender: TObject);

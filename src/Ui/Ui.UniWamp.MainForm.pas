@@ -2429,17 +2429,17 @@ begin
     end;
     if Assigned(FSyncDownloadButton) then
     begin
-      FSyncDownloadButton.SetBounds(FVHostFilterLabel.Left - 122, 4, 112, 26);
+      FSyncDownloadButton.SetBounds(FVHostFilterLabel.Left - FSyncDownloadButton.Width - 10, 4, FSyncDownloadButton.Width, 26);
       StylePanelButton(FSyncDownloadButton, FSyncDownloadButton.Enabled, ButtonNeutralColor, ButtonNeutralColor);
     end;
     if Assigned(FSyncUploadButton) then
     begin
-      FSyncUploadButton.SetBounds(FSyncDownloadButton.Left - 118, 4, 108, 26);
+      FSyncUploadButton.SetBounds(FSyncDownloadButton.Left - FSyncUploadButton.Width - 10, 4, FSyncUploadButton.Width, 26);
       StylePanelButton(FSyncUploadButton, FSyncUploadButton.Enabled, ButtonNeutralColor, ButtonNeutralColor);
     end;
     if Assigned(FRerunSyncButton) then
     begin
-      FRerunSyncButton.SetBounds(FSyncUploadButton.Left - 118, 4, 108, 26);
+      FRerunSyncButton.SetBounds(FSyncUploadButton.Left - FRerunSyncButton.Width - 10, 4, FRerunSyncButton.Width, 26);
       StylePanelButton(FRerunSyncButton, FRerunSyncButton.Enabled, ButtonNeutralColor, ButtonNeutralColor);
     end;
   end;
@@ -2993,6 +2993,8 @@ begin
     if TargetRowCount < 2 then
       TargetRowCount := 2;
     VHostGrid.FixedRows := 1;
+    if VHostGrid.TopRow > 1 then
+      VHostGrid.TopRow := 1;
     VHostGrid.RowCount := TargetRowCount;
     VHostGrid.Cells[0, 0] := 'Site Name';
     VHostGrid.Cells[1, 0] := 'Document Path';
@@ -3022,8 +3024,9 @@ begin
   finally
     VHostGrid.EndUpdate;
   end;
-  VHostGrid.TopRow := 0;
-  VHostGrid.Row := 0;
+  if VHostGrid.RowCount > 1 then
+    VHostGrid.TopRow := 1;
+  VHostGrid.Row := 1;
   VHostGrid.Invalidate;
   UpdateVHostEmptyState;
 end;
@@ -3591,6 +3594,7 @@ begin
     StylePanelButton(FRerunSyncButton, FRerunSyncButton.Enabled, ButtonAccentColor, ButtonNeutralColor);
   StylePanelButton(BackupDatabaseButton, BackupDatabaseButton.Enabled, ButtonSuccessStrongColor, ButtonPositiveColor, clWhite);
   StylePanelButton(RestoreDatabaseButton, RestoreDatabaseButton.Enabled, ButtonNeutralColor, ButtonNeutralColor);
+  UpdateSyncButtonCaptions;
   VHostGrid.Invalidate;
 end;
 
@@ -4343,6 +4347,8 @@ var
   UploadProfileText: string;
   DownloadProfileText: string;
   Entry: TVHostEntry;
+  TempProfileName: string;
+  TextWidth: Integer;
 begin
   UploadProfileText := '';
   DownloadProfileText := '';
@@ -4351,32 +4357,58 @@ begin
     UploadProfileText := Trim(Entry.PinnedSyncUploadProfile);
     DownloadProfileText := Trim(Entry.PinnedSyncDownloadProfile);
   end;
+  
   if UploadProfileText = '' then
-    UploadProfileText := Trim(FConfig.LastSyncUploadProfile);
+  begin
+    if TryResolveDefaultSyncProfileForDirection('upload', TempProfileName) then
+      UploadProfileText := TempProfileName;
+  end;
+  
   if DownloadProfileText = '' then
-    DownloadProfileText := Trim(FConfig.LastSyncDownloadProfile);
+  begin
+    if TryResolveDefaultSyncProfileForDirection('download', TempProfileName) then
+      DownloadProfileText := TempProfileName;
+  end;
+  
   if Assigned(FSyncUploadButton) then
   begin
     UploadCaption := 'Sync Upload';
     if UploadProfileText <> '' then
       UploadCaption := 'Upload: ' + UploadProfileText;
-    if UploadProfileText = '' then
-      UploadProfileText := '(none)';
     SetButtonCaption(FSyncUploadButton, UploadCaption);
-    FSyncUploadButton.Hint := BuildToolPanelHint('Sync upload',
-      'Open upload sync actions for the selected project. Last used profile: ' + UploadProfileText);
+    
+    Self.Canvas.Font.Assign(FSyncUploadButton.Font);
+    TextWidth := Self.Canvas.TextWidth(UploadCaption);
+    FSyncUploadButton.Width := Max(108, TextWidth + 30);
+    
+    if UploadProfileText <> '' then
+      FSyncUploadButton.Hint := BuildToolPanelHint('Sync upload',
+        'Open upload sync actions for the selected project. Profile: ' + UploadProfileText)
+    else
+      FSyncUploadButton.Hint := BuildToolPanelHint('Sync upload',
+        'Open upload sync actions for the selected project. Profile: (none)');
   end;
+  
   if Assigned(FSyncDownloadButton) then
   begin
     DownloadCaption := 'Sync Download';
     if DownloadProfileText <> '' then
       DownloadCaption := 'Download: ' + DownloadProfileText;
-    if DownloadProfileText = '' then
-      DownloadProfileText := '(none)';
     SetButtonCaption(FSyncDownloadButton, DownloadCaption);
-    FSyncDownloadButton.Hint := BuildToolPanelHint('Sync download',
-      'Open download sync actions for the selected project. Last used profile: ' + DownloadProfileText);
+    
+    Self.Canvas.Font.Assign(FSyncDownloadButton.Font);
+    TextWidth := Self.Canvas.TextWidth(DownloadCaption);
+    FSyncDownloadButton.Width := Max(112, TextWidth + 30);
+    
+    if DownloadProfileText <> '' then
+      FSyncDownloadButton.Hint := BuildToolPanelHint('Sync download',
+        'Open download sync actions for the selected project. Profile: ' + DownloadProfileText)
+    else
+      FSyncDownloadButton.Hint := BuildToolPanelHint('Sync download',
+        'Open download sync actions for the selected project. Profile: (none)');
   end;
+  
+  LayoutDashboard;
 end;
 
 procedure TMainForm.SyncUploadButtonClick(Sender: TObject);

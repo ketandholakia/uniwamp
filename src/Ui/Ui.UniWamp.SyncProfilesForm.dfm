@@ -156,9 +156,9 @@ object SyncProfilesForm: TSyncProfilesForm
           ExplicitLeft = 6
           ExplicitTop = 502
           object FAddButton: TButton
-            Left = 10
+            Left = 8
             Top = 12
-            Width = 89
+            Width = 70
             Height = 28
             Caption = 'Add'
             Font.Charset = DEFAULT_CHARSET
@@ -170,10 +170,25 @@ object SyncProfilesForm: TSyncProfilesForm
             TabOrder = 0
             OnClick = AddProfileClicked
           end
-          object FDeleteButton: TButton
-            Left = 130
+          object FCloneButton: TButton
+            Left = 83
             Top = 12
-            Width = 89
+            Width = 70
+            Height = 28
+            Caption = 'Clone'
+            Font.Charset = DEFAULT_CHARSET
+            Font.Color = clWindowText
+            Font.Height = -12
+            Font.Name = 'Segoe UI'
+            Font.Style = []
+            ParentFont = False
+            TabOrder = 1
+            OnClick = CloneProfileClicked
+          end
+          object FDeleteButton: TButton
+            Left = 158
+            Top = 12
+            Width = 70
             Height = 28
             Caption = 'Delete'
             Font.Charset = DEFAULT_CHARSET
@@ -182,7 +197,7 @@ object SyncProfilesForm: TSyncProfilesForm
             Font.Name = 'Segoe UI'
             Font.Style = []
             ParentFont = False
-            TabOrder = 1
+            TabOrder = 2
             OnClick = DeleteProfileClicked
           end
           object FImportButton: TButton
