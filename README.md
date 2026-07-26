@@ -1,6 +1,6 @@
 # UniWamp
 
-Current release target: `v0.1.0-alpha`
+Current release target: `v0.2.0-alpha`
 
 UniWamp is currently preparing for an alpha release. The alpha is intended for early validation on Windows development machines, not for production use or unattended deployment.
 
@@ -8,7 +8,7 @@ UniWamp is a portable Windows WAMP dashboard built in Delphi 12.4. It controls a
 
 ## Alpha Status
 
-Target version: `v0.1.0-alpha`
+Target version: `v0.2.0-alpha`
 
 Alpha scope:
 
@@ -231,11 +231,11 @@ To build the installer on a machine with Delphi and Inno Setup installed:
 
 The build script generates five installer files:
 
-- `UniWamp-Php82-Setup-v0.1.0-alpha.exe`
-- `UniWamp-Php83-Setup-v0.1.0-alpha.exe`
-- `UniWamp-Php84-Setup-v0.1.0-alpha.exe`
-- `UniWamp-Php85-Setup-v0.1.0-alpha.exe`
-- `UniWamp-Full-Setup-v0.1.0-alpha.exe`
+- `UniWamp-Php82-Setup-v0.2.0-alpha.exe`
+- `UniWamp-Php83-Setup-v0.2.0-alpha.exe`
+- `UniWamp-Php84-Setup-v0.2.0-alpha.exe`
+- `UniWamp-Php85-Setup-v0.2.0-alpha.exe`
+- `UniWamp-Full-Setup-v0.2.0-alpha.exe`
 
 Profile scope:
 

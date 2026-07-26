@@ -1,12 +1,12 @@
 ﻿{
     "schemaVersion":  1,
-    "generatedAtUtc":  "2026-07-26T17:35:05Z",
+    "generatedAtUtc":  "2026-07-26T17:44:17Z",
     "repository":  "https://github.com/ketandholakia/uniwamp",
-    "releaseVersion":  "v0.1.0-alpha",
+    "releaseVersion":  "v0.2.0-alpha",
     "app":  {
                 "name":  "UniWamp",
-                "version":  "0.1.0.0",
-                "displayVersion":  "v0.1.0-alpha",
+                "version":  "0.2.0.0",
+                "displayVersion":  "v0.2.0-alpha",
                 "sourcePath":  "src\\tmpbuild\\bin\\UniWamp.exe",
                 "targetPath":  "{app}\\UniWamp.exe",
                 "sha256":  "9a0e9d86522b9ea4bf1a598eb780d4b52583fcc001dfac789a800daff09fd107"
@@ -14,7 +14,7 @@
     "components":  [
                        {
                            "name":  "UniWamp",
-                           "version":  "v0.1.0-alpha",
+                           "version":  "v0.2.0-alpha",
                            "sourceUrl":  "https://github.com/ketandholakia/uniwamp",
                            "license":  "MIT",
                            "sourcePath":  "src\\tmpbuild\\bin\\UniWamp.exe",

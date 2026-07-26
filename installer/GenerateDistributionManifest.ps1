@@ -82,7 +82,7 @@ function New-ComponentEntry {
 }
 
 $components = @(
-  New-ComponentEntry -Name 'UniWamp' -Version 'v0.1.0-alpha' -SourceUrl 'https://github.com/ketandholakia/uniwamp' -License 'MIT' -SourcePath 'src\tmpbuild\bin\UniWamp.exe' -TargetPath '{app}\UniWamp.exe'
+  New-ComponentEntry -Name 'UniWamp' -Version 'v0.2.0-alpha' -SourceUrl 'https://github.com/ketandholakia/uniwamp' -License 'MIT' -SourcePath 'src\tmpbuild\bin\UniWamp.exe' -TargetPath '{app}\UniWamp.exe'
   New-ComponentEntry -Name 'Apache HTTP Server' -Version '2.4.68' -SourceUrl 'https://httpd.apache.org/download.cgi' -License 'Apache-2.0' -SourcePath 'runtime\apache' -TargetPath '{app}\runtime\apache' -PrimaryArtifact 'runtime\apache\bin\httpd.exe'
   New-ComponentEntry -Name 'MariaDB Server' -Version '11.8.8.0' -SourceUrl 'https://mariadb.org/download/' -License 'GPL-2.0-only' -SourcePath 'runtime\mariadb' -TargetPath '{app}\runtime\mariadb' -PrimaryArtifact 'runtime\mariadb\bin\mariadbd.exe'
   New-ComponentEntry -Name 'PHP 8.2' -Version '8.2.32' -SourceUrl 'https://www.php.net/downloads.php' -License 'PHP License' -SourcePath 'runtime\php\php82' -TargetPath '{app}\runtime\php\php82' -PrimaryArtifact 'runtime\php\php82\php.exe'
@@ -106,11 +106,11 @@ $manifest = [ordered]@{
   schemaVersion = 1
   generatedAtUtc = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
   repository = 'https://github.com/ketandholakia/uniwamp'
-  releaseVersion = 'v0.1.0-alpha'
+  releaseVersion = 'v0.2.0-alpha'
   app = [ordered]@{
     name = 'UniWamp'
-    version = '0.1.0.0'
-    displayVersion = 'v0.1.0-alpha'
+    version = '0.2.0.0'
+    displayVersion = 'v0.2.0-alpha'
     sourcePath = 'src\tmpbuild\bin\UniWamp.exe'
     targetPath = '{app}\UniWamp.exe'
     sha256 = (Get-Sha256Hash -Path (Join-Path $RepoRoot 'src\tmpbuild\bin\UniWamp.exe'))

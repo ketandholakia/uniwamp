@@ -1,6 +1,6 @@
 # UniWamp Alpha Release Checklist
 
-Target tag: `v0.1.0-alpha`
+Target tag: `v0.2.0-alpha`
 
 Current status: NOT READY
 
@@ -17,7 +17,7 @@ This checklist defines the minimum bar for an alpha release. It is intentionally
 - `[x]` Clean Delphi build produces `UniWamp.exe`.
 - `[x]` Build blocker from `UNIWAMP_RELEASE_READINESS.md` is resolved: `F2039 Could not create output file 'UniWamp.exe'`.
 - `[x]` Worktree is clean except for intentional release files.
-- `[x]` Version/tag name is chosen and documented as `v0.1.0-alpha`.
+- `[x]` Version/tag name is chosen and documented as `v0.2.0-alpha`.
 - `[x]` Release notes list alpha scope, known limitations, and required runtimes.
 
 ## Packaging
@@ -105,7 +105,7 @@ This checklist defines the minimum bar for an alpha release. It is intentionally
 
 ## Alpha-Ready Definition
 
-UniWamp can be tagged `v0.1.0-alpha` when:
+UniWamp can be tagged `v0.2.0-alpha` when:
 
 - The build is reproducible on the release machine.
 - The app launches from a packaged folder on a clean Windows machine.

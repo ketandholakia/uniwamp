@@ -12,7 +12,7 @@ the current release status.
 
 ## What each page is for
 
-- The alpha checklist records the minimum release gate for `v0.1.0-alpha`.
+- The alpha checklist records the minimum release gate for `v0.2.0-alpha`.
 - The readiness page summarizes why the repo is or is not release-ready.
 - The testing checklist tracks manual, automated, and security coverage.
 - The test report captures the most recent verification run and its outcome.

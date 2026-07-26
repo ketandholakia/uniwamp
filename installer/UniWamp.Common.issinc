@@ -1,7 +1,7 @@
 #define MyAppName "UniWamp"
 #define MyAppExeName "UniWamp.exe"
-#define MyAppVersion "0.1.0.0"
-#define MyAppDisplayVersion "v0.1.0-alpha"
+#define MyAppVersion "0.2.0.0"
+#define MyAppDisplayVersion "v0.2.0-alpha"
 #define BundledNodeVersion "node-v22.23.1-win-x64"
 
 [Setup]
