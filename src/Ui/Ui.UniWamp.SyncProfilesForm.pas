@@ -22,6 +22,90 @@ uses
 
 type
   TSyncProfilesForm = class(TForm)
+    HeaderPanel: TPanel;
+    HeaderTitle: TLabel;
+    HeaderHint: TLabel;
+    BodyPanel: TPanel;
+    LeftPanel: TPanel;
+    LeftCard: TPanel;
+    LeftTitle: TLabel;
+    LeftHint: TLabel;
+    FProfilesList: TListBox;
+    LeftFooter: TPanel;
+    FAddButton: TButton;
+    FDeleteButton: TButton;
+    FImportButton: TButton;
+    FExportButton: TButton;
+    RightPanel: TPanel;
+    RightScroll: TScrollBox;
+    RightInner: TPanel;
+    Label3: TLabel;
+    Label4: TLabel;
+    Label5: TLabel;
+    Label6: TLabel;
+    Label7: TLabel;
+    FNameEdit: TEdit;
+    FConnectionProfileCombo: TComboBox;
+    FProtocolCombo: TComboBox;
+    FDirectionCombo: TComboBox;
+    Label8: TLabel;
+    Label9: TLabel;
+    Label10: TLabel;
+    Label11: TLabel;
+    FHostEdit: TEdit;
+    FPortEdit: TEdit;
+    FUsernameEdit: TEdit;
+    Label12: TLabel;
+    Label13: TLabel;
+    FPasswordEdit: TEdit;
+    FKeyPassphraseEdit: TEdit;
+    Label14: TLabel;
+    FPrivateKeyEdit: TEdit;
+    FPrivateKeyBrowseButton: TButton;
+    Label15: TLabel;
+    Label16: TLabel;
+    FHostKeyEdit: TEdit;
+    FTlsCertEdit: TEdit;
+    FPassiveCheck: TCheckBox;
+    FIgnoreCertCheck: TCheckBox;
+    Label17: TLabel;
+    Label18: TLabel;
+    Label19: TLabel;
+    Label20: TLabel;
+    Label21: TLabel;
+    FVHostCombo: TComboBox;
+    FRemotePathEdit: TEdit;
+    FLocalPathEdit: TEdit;
+    FWorkingDirEdit: TEdit;
+    Label22: TLabel;
+    Label23: TLabel;
+    Label24: TLabel;
+    FPreCommandEdit: TEdit;
+    FPostCommandEdit: TEdit;
+    FDeleteCheck: TCheckBox;
+    FDryRunCheck: TCheckBox;
+    Label25: TLabel;
+    FExcludesMemo: TMemo;
+    FValidationLabel: TLabel;
+    FooterPanel: TPanel;
+    FSaveButton: TButton;
+    FCloseButton: TButton;
+    FTestButton: TButton;
+    FPreviewButton: TButton;
+    FTestPathButton: TButton;
+    procedure ProfileSelectionChanged(Sender: TObject);
+    procedure EditorChanged(Sender: TObject);
+    procedure ProtocolChanged(Sender: TObject);
+    procedure AddProfileClicked(Sender: TObject);
+    procedure DeleteProfileClicked(Sender: TObject);
+    procedure ImportProfilesClicked(Sender: TObject);
+    procedure ExportProfilesClicked(Sender: TObject);
+    procedure TestProfileClicked(Sender: TObject);
+    procedure TestTargetPathClicked(Sender: TObject);
+    procedure PreviewProfileClicked(Sender: TObject);
+    procedure BrowsePrivateKeyClicked(Sender: TObject);
+    procedure SaveClicked(Sender: TObject);
+    procedure CloseClicked(Sender: TObject);
   private
     FPaths: TAppPaths;
     FConfig: TUniWampConfig;
@@ -30,41 +114,6 @@ type
     FLoading: Boolean;
     FCurrentProfileIndex: Integer;
     FLoadedProfileName: string;
-    FProfilesList: TListBox;
-    FAddButton: TButton;
-    FDeleteButton: TButton;
-    FImportButton: TButton;
-    FExportButton: TButton;
-    FNameEdit: TEdit;
-    FConnectionProfileCombo: TComboBox;
-    FProtocolCombo: TComboBox;
-    FDirectionCombo: TComboBox;
-    FHostEdit: TEdit;
-    FPortEdit: TEdit;
-    FUsernameEdit: TEdit;
-    FPasswordEdit: TEdit;
-    FKeyPassphraseEdit: TEdit;
-    FPrivateKeyEdit: TEdit;
-    FPrivateKeyBrowseButton: TButton;
-    FHostKeyEdit: TEdit;
-    FTlsCertEdit: TEdit;
-    FPassiveCheck: TCheckBox;
-    FIgnoreCertCheck: TCheckBox;
-    FVHostCombo: TComboBox;
-    FRemotePathEdit: TEdit;
-    FLocalPathEdit: TEdit;
-    FWorkingDirEdit: TEdit;
-    FPreCommandEdit: TEdit;
-    FPostCommandEdit: TEdit;
-    FDeleteCheck: TCheckBox;
-    FDryRunCheck: TCheckBox;
-    FExcludesMemo: TMemo;
-    FValidationLabel: TLabel;
-    FTestButton: TButton;
-    FTestPathButton: TButton;
-    FPreviewButton: TButton;
-    FSaveButton: TButton;
-    FCancelButton: TButton;
     procedure LoadSettings;
     procedure LoadProfilesFromConfig;
     procedure PopulateConnectionProfileList;
@@ -97,19 +146,6 @@ type
     procedure UpdateProtocolState;
     procedure UpdateValidationMessage;
     procedure SetStatus(const ColorValue: TColor; const TextValue: string);
-    procedure ProfileSelectionChanged(Sender: TObject);
-    procedure EditorChanged(Sender: TObject);
-    procedure ProtocolChanged(Sender: TObject);
-    procedure AddProfileClicked(Sender: TObject);
-    procedure DeleteProfileClicked(Sender: TObject);
-    procedure ImportProfilesClicked(Sender: TObject);
-    procedure ExportProfilesClicked(Sender: TObject);
-    procedure TestProfileClicked(Sender: TObject);
-    procedure TestTargetPathClicked(Sender: TObject);
-    procedure PreviewProfileClicked(Sender: TObject);
-    procedure BrowsePrivateKeyClicked(Sender: TObject);
-    procedure SaveClicked(Sender: TObject);
-    procedure CancelClicked(Sender: TObject);
   public
     constructor Create(AOwner: TComponent); override;
     class function Execute(const AOwner: TComponent; const Paths: TAppPaths;
@@ -119,97 +155,14 @@ type
 
 implementation
 
+{$R *.dfm}
+
 uses
   System.IOUtils,
   System.UITypes,
   Vcl.Dialogs;
 
-const
-  HeaderColor = TColor($005F3A1E);
-  HeaderTextColor = clWhite;
-  HeaderSubTextColor = TColor($00EFE7D4);
-  SurfaceColor = clWhite;
-  FooterColor = TColor($00F2F2F2);
-
 constructor TSyncProfilesForm.Create(AOwner: TComponent);
-var
-  HeaderPanel: TPanel;
-  HeaderTitle: TLabel;
-  HeaderHint: TLabel;
-  BodyPanel: TPanel;
-  LeftPanel: TPanel;
-  LeftCard: TPanel;
-  LeftFooter: TPanel;
-  LeftTitle: TLabel;
-  LeftHint: TLabel;
-  RightPanel: TPanel;
-  RightScroll: TScrollBox;
-  RightInner: TPanel;
-  FooterPanel: TPanel;
-
-  function AddLabel(const Parent: TWinControl; const ALeft, ATop: Integer;
-    const ACaption: string; const AWidth: Integer = 0): TLabel;
-  begin
-    Result := TLabel.Create(Self);
-    Result.Parent := Parent;
-    Result.Left := ALeft;
-    Result.Top := ATop;
-    Result.Caption := ACaption;
-    Result.Font.Name := 'Segoe UI';
-    Result.Font.Size := 11;
-    Result.Font.Style := [fsBold];
-    Result.ParentFont := False;
-    if AWidth > 0 then
-      Result.Width := AWidth;
-  end;
-
-  function AddEdit(const Parent: TWinControl; const ALeft, ATop, AWidth: Integer): TEdit;
-  begin
-    Result := TEdit.Create(Self);
-    Result.Parent := Parent;
-    Result.Left := ALeft;
-    Result.Top := ATop;
-    Result.Width := AWidth;
-    Result.Height := 23;
-    Result.Font.Name := 'Segoe UI';
-  end;
-
-  function AddCombo(const Parent: TWinControl; const ALeft, ATop, AWidth: Integer): TComboBox;
-  begin
-    Result := TComboBox.Create(Self);
-    Result.Parent := Parent;
-    Result.Left := ALeft;
-    Result.Top := ATop;
-    Result.Width := AWidth;
-    Result.Height := 23;
-    Result.Style := csDropDownList;
-    Result.Font.Name := 'Segoe UI';
-  end;
-
-  function AddCheck(const Parent: TWinControl; const ALeft, ATop: Integer;
-    const ACaption: string): TCheckBox;
-  begin
-    Result := TCheckBox.Create(Self);
-    Result.Parent := Parent;
-    Result.Left := ALeft;
-    Result.Top := ATop;
-    Result.Caption := ACaption;
-    Result.Font.Name := 'Segoe UI';
-  end;
-
-  function AddButton(const Parent: TWinControl; const ALeft, ATop, AWidth, AHeight: Integer;
-    const ACaption: string): TButton;
-  begin
-    Result := TButton.Create(Self);
-    Result.Parent := Parent;
-    Result.Left := ALeft;
-    Result.Top := ATop;
-    Result.Width := AWidth;
-    Result.Height := AHeight;
-    Result.Caption := ACaption;
-    Result.Font.Name := 'Segoe UI';
-  end;
-
   procedure PopulateProtocolAndDirection;
   begin
     FProtocolCombo.Items.BeginUpdate;
@@ -235,7 +188,7 @@ var
   end;
 
 begin
-  inherited CreateNew(AOwner);
+  inherited Create(AOwner);
   FPaths := Default(TAppPaths);
   FConfig := nil;
   FRuntime := nil;
@@ -243,264 +196,7 @@ begin
   FCurrentProfileIndex := -1;
   FLoadedProfileName := '';
 
-  Caption := 'Sync Profiles';
-  ClientWidth := 1160;
-  ClientHeight := 760;
-  Color := clWhite;
-  Font.Name := 'Segoe UI';
-  KeyPreview := True;
-  Position := poScreenCenter;
-  BorderStyle := bsSizeable;
-  BorderIcons := [biSystemMenu, biMinimize];
-
-  HeaderPanel := TPanel.Create(Self);
-  HeaderPanel.Parent := Self;
-  HeaderPanel.Align := alTop;
-  HeaderPanel.Height := 68;
-  HeaderPanel.BevelOuter := bvNone;
-  HeaderPanel.Color := HeaderColor;
-  HeaderPanel.ParentBackground := False;
-
-  HeaderTitle := AddLabel(HeaderPanel, 18, 13, 'Sync Profiles', 0);
-  HeaderTitle.Font.Size := 17;
-  HeaderTitle.Font.Color := HeaderTextColor;
-  HeaderTitle.Font.Style := [fsBold];
-  HeaderTitle.ParentFont := False;
-
-  HeaderHint := AddLabel(HeaderPanel, 18, 42,
-    'Manage FTP, FTPS, and SFTP profiles for the native sync engine. SFTP supports passwords, ssh-agent, and unencrypted private keys. Connection profiles are managed separately.', 0);
-  HeaderHint.Font.Size := 10;
-  HeaderHint.Font.Color := HeaderSubTextColor;
-  HeaderHint.Font.Style := [];
-  HeaderHint.ParentFont := False;
-
-  BodyPanel := TPanel.Create(Self);
-  BodyPanel.Parent := Self;
-  BodyPanel.Align := alClient;
-  BodyPanel.BevelOuter := bvNone;
-  BodyPanel.Color := clWhite;
-  BodyPanel.ParentBackground := False;
-
-  LeftPanel := TPanel.Create(Self);
-  LeftPanel.Parent := BodyPanel;
-  LeftPanel.Align := alLeft;
-  LeftPanel.Width := 300;
-  LeftPanel.BevelOuter := bvNone;
-  LeftPanel.Color := clWhite;
-  LeftPanel.ParentBackground := False;
-
-  LeftCard := TPanel.Create(Self);
-  LeftCard.Parent := LeftPanel;
-  LeftCard.Align := alClient;
-  LeftCard.BevelKind := bkTile;
-  LeftCard.BevelOuter := bvNone;
-  LeftCard.Color := SurfaceColor;
-  LeftCard.ParentBackground := False;
-  LeftCard.Padding.Left := 5;
-  LeftCard.Padding.Top := 5;
-  LeftCard.Padding.Right := 5;
-  LeftCard.Padding.Bottom := 5;
-
-  LeftTitle := AddLabel(LeftCard, 5, 5, 'Profiles', 0);
-  LeftTitle.Align := alTop;
-  LeftTitle.Font.Style := [fsBold];
-  LeftTitle.ParentFont := False;
-
-  LeftHint := TLabel.Create(Self);
-  LeftHint.Parent := LeftCard;
-  LeftHint.Align := alTop;
-  LeftHint.Caption := 'Pick a profile, then edit connection details and paths.';
-  LeftHint.WordWrap := True;
-  LeftHint.AutoSize := False;
-  LeftHint.Height := 44;
-  LeftHint.Font.Name := 'Segoe UI';
-  LeftHint.Font.Size := 12;
-  LeftHint.Font.Color := clGrayText;
-  LeftHint.ParentFont := False;
-
-  LeftFooter := TPanel.Create(Self);
-  LeftFooter.Parent := LeftCard;
-  LeftFooter.Align := alBottom;
-  LeftFooter.Height := 104;
-  LeftFooter.BevelOuter := bvNone;
-  LeftFooter.Color := SurfaceColor;
-  LeftFooter.ParentBackground := False;
-
-  FAddButton := AddButton(LeftFooter, 12, 12, 112, 28, 'Add');
-  FDeleteButton := AddButton(LeftFooter, 132, 12, 112, 28, 'Delete');
-  FImportButton := AddButton(LeftFooter, 12, 52, 112, 28, 'Import');
-  FExportButton := AddButton(LeftFooter, 132, 52, 112, 28, 'Export');
-
-  FProfilesList := TListBox.Create(Self);
-  FProfilesList.Parent := LeftCard;
-  FProfilesList.Align := alClient;
-  FProfilesList.BorderStyle := bsSingle;
-  FProfilesList.ItemHeight := 16;
-  FProfilesList.Color := clWhite;
-  FProfilesList.Font.Name := 'Segoe UI';
-
-  RightPanel := TPanel.Create(Self);
-  RightPanel.Parent := BodyPanel;
-  RightPanel.Align := alClient;
-  RightPanel.BevelOuter := bvNone;
-  RightPanel.Color := clWhite;
-  RightPanel.ParentBackground := False;
-
-  RightScroll := TScrollBox.Create(Self);
-  RightScroll.Parent := RightPanel;
-  RightScroll.Align := alClient;
-  RightScroll.BorderStyle := bsNone;
-  RightScroll.Color := clWhite;
-  RightScroll.VertScrollBar.Visible := True;
-
-  RightInner := TPanel.Create(Self);
-  RightInner.Parent := RightScroll;
-  RightInner.Align := alTop;
-  RightInner.AutoSize := False;
-  RightInner.BevelOuter := bvNone;
-  RightInner.Color := clWhite;
-  RightInner.ParentBackground := False;
-  RightInner.Width := 820;
-  RightInner.Height := 860;
-
-  AddLabel(RightInner, 18, 12, 'Profile editor', 0).Font.Style := [fsBold];
-  AddLabel(RightInner, 18, 32,
-    'Sync profiles reference connection profiles managed in the dedicated Connection Profiles window.', 520)
-    .Font.Color := clGrayText;
-
-  AddLabel(RightInner, 18, 74, 'Identity', 0).Font.Style := [fsBold];
-  AddLabel(RightInner, 18, 98, 'Name', 0);
-  AddLabel(RightInner, 270, 98, 'Connection profile', 0);
-  AddLabel(RightInner, 540, 98, 'Protocol', 0);
-  AddLabel(RightInner, 700, 98, 'Direction', 0);
-
-  FNameEdit := AddEdit(RightInner, 18, 118, 232);
-  FConnectionProfileCombo := AddCombo(RightInner, 270, 118, 252);
-  FProtocolCombo := AddCombo(RightInner, 540, 118, 140);
-  FDirectionCombo := AddCombo(RightInner, 700, 118, 102);
-
-  AddLabel(RightInner, 18, 156, 'Connection', 0).Font.Style := [fsBold];
-  AddLabel(RightInner, 18, 180, 'Host', 0);
-  AddLabel(RightInner, 430, 180, 'Port', 0);
-  AddLabel(RightInner, 532, 180, 'Username', 0);
-
-  FHostEdit := AddEdit(RightInner, 18, 200, 390);
-  FPortEdit := AddEdit(RightInner, 430, 200, 84);
-  FUsernameEdit := AddEdit(RightInner, 532, 200, 252);
-
-  AddLabel(RightInner, 18, 240, 'Password', 0);
-  AddLabel(RightInner, 430, 240, 'Key passphrase', 0);
-
-  FPasswordEdit := AddEdit(RightInner, 18, 260, 390);
-  FPasswordEdit.PasswordChar := '*';
-  FKeyPassphraseEdit := AddEdit(RightInner, 430, 260, 354);
-  FKeyPassphraseEdit.PasswordChar := '*';
-
-  AddLabel(RightInner, 18, 300, 'Private key file', 0);
-  FPrivateKeyEdit := AddEdit(RightInner, 18, 320, 600);
-  FPrivateKeyBrowseButton := AddButton(RightInner, 628, 318, 80, 28, 'Browse');
-
-  AddLabel(RightInner, 18, 360, 'SSH host key fingerprint', 0);
-  AddLabel(RightInner, 430, 360, 'TLS certificate fingerprint', 0);
-  FHostKeyEdit := AddEdit(RightInner, 18, 380, 390);
-  FTlsCertEdit := AddEdit(RightInner, 430, 380, 278);
-
-  FPassiveCheck := AddCheck(RightInner, 18, 420, 'Passive mode');
-  FIgnoreCertCheck := AddCheck(RightInner, 160, 420, 'Ignore cert errors (insecure)');
-  FIgnoreCertCheck.Hint := 'Disables FTPS certificate validation and hostname checks for this profile.';
-  FIgnoreCertCheck.ShowHint := True;
-
-  AddLabel(RightInner, 18, 462, 'Context and paths', 0).Font.Style := [fsBold];
-  AddLabel(RightInner, 18, 486, 'Test vHost', 0);
-  AddLabel(RightInner, 318, 486, 'Remote path', 0);
-  AddLabel(RightInner, 18, 546, 'Local path', 0);
-  AddLabel(RightInner, 430, 546, 'Working directory', 0);
-
-  FVHostCombo := AddCombo(RightInner, 18, 506, 280);
-  FRemotePathEdit := AddEdit(RightInner, 318, 506, 390);
-  FLocalPathEdit := AddEdit(RightInner, 18, 566, 390);
-  FWorkingDirEdit := AddEdit(RightInner, 430, 566, 278);
-
-  AddLabel(RightInner, 18, 606, 'Hooks and safety', 0).Font.Style := [fsBold];
-  AddLabel(RightInner, 18, 630, 'Pre-sync command', 0);
-  AddLabel(RightInner, 430, 630, 'Post-sync command', 0);
-
-  FPreCommandEdit := AddEdit(RightInner, 18, 650, 390);
-  FPostCommandEdit := AddEdit(RightInner, 430, 650, 278);
-
-  FDeleteCheck := AddCheck(RightInner, 18, 694, 'Delete extra files on target');
-  FDryRunCheck := AddCheck(RightInner, 272, 694, 'Dry run by default');
-
-  AddLabel(RightInner, 18, 732, 'Exclude patterns', 0);
-  FExcludesMemo := TMemo.Create(Self);
-  FExcludesMemo.Parent := RightInner;
-  FExcludesMemo.Left := 18;
-  FExcludesMemo.Top := 752;
-  FExcludesMemo.Width := 690;
-  FExcludesMemo.Height := 92;
-  FExcludesMemo.ScrollBars := ssVertical;
-  FExcludesMemo.WordWrap := False;
-  FExcludesMemo.Font.Name := 'Segoe UI';
-
-  FValidationLabel := AddLabel(RightInner, 18, 854, '', 690);
-  FValidationLabel.AutoSize := False;
-  FValidationLabel.Height := 24;
-  FValidationLabel.Font.Color := clGrayText;
-  FValidationLabel.Font.Style := [];
-
-  FTestButton := AddButton(RightInner, 18, 888, 128, 28, 'Test connection');
-  FTestPathButton := AddButton(RightInner, 156, 888, 128, 28, 'Test path');
-  FPreviewButton := AddButton(RightInner, 294, 888, 128, 28, 'Preview');
-
-  FooterPanel := TPanel.Create(Self);
-  FooterPanel.Parent := Self;
-  FooterPanel.Align := alBottom;
-  FooterPanel.Height := 56;
-  FooterPanel.BevelOuter := bvNone;
-  FooterPanel.Color := FooterColor;
-  FooterPanel.ParentBackground := False;
-
-  FSaveButton := AddButton(FooterPanel, 948, 14, 84, 28, 'Save');
-  FSaveButton.Default := True;
-  FCancelButton := AddButton(FooterPanel, 1042, 14, 84, 28, 'Cancel');
-  FCancelButton.Cancel := True;
-
   PopulateProtocolAndDirection;
-
-  FProfilesList.OnClick := ProfileSelectionChanged;
-  FNameEdit.OnChange := EditorChanged;
-  FConnectionProfileCombo.OnChange := EditorChanged;
-  FProtocolCombo.OnChange := ProtocolChanged;
-  FDirectionCombo.OnChange := EditorChanged;
-  FHostEdit.OnChange := EditorChanged;
-  FPortEdit.OnChange := EditorChanged;
-  FUsernameEdit.OnChange := EditorChanged;
-  FPasswordEdit.OnChange := EditorChanged;
-  FKeyPassphraseEdit.OnChange := EditorChanged;
-  FPrivateKeyEdit.OnChange := EditorChanged;
-  FPrivateKeyBrowseButton.OnClick := BrowsePrivateKeyClicked;
-  FHostKeyEdit.OnChange := EditorChanged;
-  FTlsCertEdit.OnChange := EditorChanged;
-  FPassiveCheck.OnClick := EditorChanged;
-  FIgnoreCertCheck.OnClick := EditorChanged;
-  FVHostCombo.OnChange := EditorChanged;
-  FRemotePathEdit.OnChange := EditorChanged;
-  FLocalPathEdit.OnChange := EditorChanged;
-  FWorkingDirEdit.OnChange := EditorChanged;
-  FPreCommandEdit.OnChange := EditorChanged;
-  FPostCommandEdit.OnChange := EditorChanged;
-  FDeleteCheck.OnClick := EditorChanged;
-  FDryRunCheck.OnClick := EditorChanged;
-  FExcludesMemo.OnChange := EditorChanged;
-  FAddButton.OnClick := AddProfileClicked;
-  FDeleteButton.OnClick := DeleteProfileClicked;
-  FImportButton.OnClick := ImportProfilesClicked;
-  FExportButton.OnClick := ExportProfilesClicked;
-  FTestButton.OnClick := TestProfileClicked;
-  FTestPathButton.OnClick := TestTargetPathClicked;
-  FPreviewButton.OnClick := PreviewProfileClicked;
-  FSaveButton.OnClick := SaveClicked;
-  FCancelButton.OnClick := CancelClicked;
 
   UpdateProtocolState;
   ClearEditor;
@@ -1744,10 +1440,10 @@ begin
   FConfig.ReplaceSyncProfiles(FProfiles.ToArray);
   FConfig.Save(FPaths);
 
-  ModalResult := mrOk;
+  SetStatus(TColor($002E7D32), 'Profiles saved successfully.');
 end;
 
-procedure TSyncProfilesForm.CancelClicked(Sender: TObject);
+procedure TSyncProfilesForm.CloseClicked(Sender: TObject);
 begin
   ModalResult := mrCancel;
 end;
