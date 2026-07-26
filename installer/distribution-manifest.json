@@ -1,6 +1,6 @@
 ﻿{
     "schemaVersion":  1,
-    "generatedAtUtc":  "2026-07-26T08:48:15Z",
+    "generatedAtUtc":  "2026-07-26T08:54:52Z",
     "repository":  "https://github.com/ketandholakia/uniwamp",
     "releaseVersion":  "v0.1.0-alpha",
     "app":  {
@@ -151,6 +151,16 @@
                            "targetPath":  "{app}\\runtime\\tools\\wp-cli",
                            "primaryArtifact":  "runtime\\tools\\wp-cli\\wp-cli.phar",
                            "sha256":  "ce34ddd838f7351d6759068d09793f26755463b4a4610a5a5c0a97b68220d85c"
+                       },
+                       {
+                           "name":  "WinSCP",
+                           "version":  "6.5.6",
+                           "sourceUrl":  "https://winscp.net/",
+                           "license":  "GPL-3.0-or-later",
+                           "sourcePath":  "runtime\\tools\\winscp",
+                           "targetPath":  "{app}\\runtime\\tools\\winscp",
+                           "primaryArtifact":  "runtime\\tools\\winscp\\WinSCP.exe",
+                           "sha256":  "cf948eaf8429c582636953e8b6b82097c8bb0a55111ec57e5f890e27dbab70d9"
                        },
                        {
                            "name":  "Adminer",

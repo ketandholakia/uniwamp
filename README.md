@@ -32,6 +32,7 @@ Known alpha limitations:
 - Generates Apache, PHP, and MariaDB config files from UniWamp templates
 - Manages local virtual hosts
 - Manages native FTP, FTPS, and SFTP sync connection profiles and sync profiles
+- Bundles WinSCP portable in `runtime\tools\winscp` for manual FTP/SFTP transfers and scripted sync sessions
 - The virtual-host grid provides browser, folder, code editor, terminal, delete, and SSL actions per row
 - Launches the local site, Adminer, logs, terminals, and local developer tools
 - Optionally generates a self-signed SSL certificate
@@ -117,6 +118,7 @@ The main Tools menu and tool panel also expose:
 - `Terminal` to launch the configured terminal executable
 - `Repo Terminal` to open a terminal at the UniWamp root for Git and maintenance work
 - `Composer` launches the bundled `runtime\tools\composer\composer.phar` through the selected PHP runtime or `php.exe` on PATH; `WP-CLI` launches the bundled `runtime\tools\wp-cli\wp-cli.phar` the same way; `npm`, `pnpm`, and `yarn` prefer the selected Node.js runtime's bundled commands or corepack shims before falling back to PATH; `Git`, `Node`, `Mailpit`, `Redis`, `Memcached`, and `Editor` launchers use the corresponding executables when available on PATH; the editor button prefers bundled Lite XL from `runtime\tools\lite-xl\lite-xl.exe`
+- `WinSCP` is bundled in `runtime\tools\winscp` for manual FTP/SFTP file transfers and scripted sync sessions
 - `Update` to stage a manifest-driven package into `tmp\updates`
 - The second tool row keeps the repository-oriented launchers and update action grouped together for faster maintenance work
 - `Copy Report` to copy a diagnostic snapshot with paths, versions, ports, service state, and recent errors

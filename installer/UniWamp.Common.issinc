@@ -52,6 +52,7 @@ Name: "{app}\runtime\tools\wp-cli"
 Name: "{app}\runtime\tools\mailpit"
 Name: "{app}\runtime\tools\redis"
 Name: "{app}\runtime\tools\memcached"
+Name: "{app}\runtime\tools\winscp"
 Name: "{app}\runtime\nodejs"
 Name: "{app}\runtime\tools\lite-xl"
 Name: "{app}\scripts"
@@ -65,6 +66,7 @@ Source: "..\templates\*"; DestDir: "{app}\templates"; Flags: recursesubdirs crea
 Source: "..\home\*"; DestDir: "{app}\home"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\bin\cmder\*"; DestDir: "{app}\bin\cmder"; Excludes: "config\*"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\runtime\tools\lite-xl\*"; DestDir: "{app}\runtime\tools\lite-xl"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\runtime\tools\winscp\*"; DestDir: "{app}\runtime\tools\winscp"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\scripts\*"; DestDir: "{app}\scripts"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 #ifdef InstallerProfileStandard
@@ -139,6 +141,7 @@ Source: "..\runtime\tools\wp-cli\*"; DestDir: "{app}\runtime\tools\wp-cli"; Flag
 Source: "..\runtime\tools\mailpit\*"; DestDir: "{app}\runtime\tools\mailpit"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\runtime\tools\redis\*"; DestDir: "{app}\runtime\tools\redis"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\runtime\tools\memcached\*"; DestDir: "{app}\runtime\tools\memcached"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\runtime\tools\winscp\*"; DestDir: "{app}\runtime\tools\winscp"; Flags: recursesubdirs createallsubdirs ignoreversion
 #endif
 
 #ifdef InstallerProfileBundledWebTools
