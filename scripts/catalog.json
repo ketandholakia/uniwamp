@@ -23,6 +23,11 @@
           "destination": "${projectName}_db"
         },
         {
+          "type": "write_file",
+          "destination": "${www}/${projectName}/.env",
+          "content": "APP_NAME=Akaunting\nAPP_ENV=local\nAPP_KEY=\nAPP_DEBUG=true\nAPP_URL=http://${projectName}/\nLOG_CHANNEL=stack\nDB_CONNECTION=mysql\nDB_HOST=${dbHost}\nDB_PORT=${dbPort}\nDB_DATABASE=${dbName}\nDB_USERNAME=${dbUser}\nDB_PASSWORD=${dbPassword}\nBROADCAST_DRIVER=log\nCACHE_STORE=file\nFILESYSTEM_DISK=local\nQUEUE_CONNECTION=sync\nSESSION_DRIVER=file\nSESSION_LIFETIME=120\n"
+        },
+        {
           "type": "run",
           "executable": "${php}",
           "arguments": "${tools}/composer/composer.phar install --no-interaction",
