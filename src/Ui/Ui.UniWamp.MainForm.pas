@@ -343,6 +343,7 @@ type
     procedure DeleteVHostByName(const ServerName: string);
     procedure PopulateVHostSyncMenu(const ServerName: string);
     procedure UpdateSyncButtonCaptions;
+    function HasSyncProfilesForDirection(const DirectionName: string): Boolean;
     procedure AppendSyncHistory(const ServerName, DirectionName, ProfileName: string;
       const UseDryRun, Success: Boolean; const MessageText: string);
     function TryReadLastSyncHistoryEntry(const ServerName: string; out DirectionName,
@@ -355,6 +356,7 @@ type
     procedure SyncUploadButtonClick(Sender: TObject);
     procedure SyncDownloadButtonClick(Sender: TObject);
     procedure RerunLastSyncButtonClick(Sender: TObject);
+    function TryResolveDefaultSyncProfileForDirection(const DirectionName: string; out ProfileName: string): Boolean;
     procedure OpenVHostFolder(const ServerName: string);
     procedure OpenVHostEditor(const ServerName: string);
     procedure OpenVHostUrl(const ServerName: string);
@@ -414,6 +416,7 @@ type
     procedure OpenVHostClick(Sender: TObject);
     procedure OpenVHostFolderClick(Sender: TObject);
     procedure OpenVHostTerminalClick(Sender: TObject);
+    procedure OpenVHostWinScpClick(Sender: TObject);
     procedure BackupProjectClick(Sender: TObject);
     procedure RestoreProjectClick(Sender: TObject);
     procedure BackupDatabaseClick(Sender: TObject);
@@ -852,6 +855,21 @@ end;
 function BuildHeaderOverviewHint: string;
 begin
   Result := 'Header overview' + sLineBreak + 'Shows Apache, PHP, and MariaDB status at a glance.';
+end;
+
+function IsDisplayHeaderLikeVHost(const Entry: TVHostEntry): Boolean;
+begin
+  Result :=
+    SameText(Trim(Entry.ServerName), 'Site Name') or
+    SameText(Trim(Entry.ServerName), 'Document Path') or
+    SameText(Trim(Entry.ServerName), 'Type') or
+    SameText(Trim(Entry.ServerName), 'URL') or
+    SameText(Trim(Entry.ServerName), 'Actions') or
+    SameText(Trim(Entry.DocumentRoot), 'Site Name') or
+    SameText(Trim(Entry.DocumentRoot), 'Document Path') or
+    SameText(Trim(Entry.DocumentRoot), 'Type') or
+    SameText(Trim(Entry.DocumentRoot), 'URL') or
+    SameText(Trim(Entry.DocumentRoot), 'Actions');
 end;
 
 procedure ApplyConfiguredTheme(const StyleName: string);
@@ -1582,12 +1600,14 @@ begin
   ToolGroupMaintenanceLabel.ParentFont := False;
   ToolGroupMaintenanceLabel.Alignment := taLeftJustify;
   ToolGroupMaintenanceLabel.Font.Size := 8;
-  OpenApacheLogButton.Parent := pnltools;
-  OpenMariaLogButton.Parent := pnltools;
-  ClearApacheLogButton.Parent := pnltools;
-  ClearMariaLogButton.Parent := pnltools;
-  ClearActivityLogButton.Parent := pnltools;
-  Panel4.Visible := False;
+  Panel4.Align := alRight;
+  Panel4.Width := 260;
+  Panel4.Visible := True;
+  OpenApacheLogButton.Parent := Panel4;
+  OpenMariaLogButton.Parent := Panel4;
+  ClearApacheLogButton.Parent := Panel4;
+  ClearMariaLogButton.Parent := Panel4;
+  ClearActivityLogButton.Parent := Panel4;
   ActivityLogSplitter.Align := alBottom;
   ActivityLogSplitter.Height := 6;
   ActivityLogSplitter.MinSize := 80;
@@ -2573,18 +2593,6 @@ begin
     Inc(Y, GroupGap);
   end;
 
-  if GroupHasVisibleButtons([OpenApacheLogButton, OpenMariaLogButton, ClearApacheLogButton,
-    ClearMariaLogButton, ClearActivityLogButton]) then
-  begin
-    PlaceLabel(ToolGroupLogsLabel);
-    PlaceButton(OpenApacheLogButton);
-    PlaceButton(OpenMariaLogButton);
-    PlaceButton(ClearApacheLogButton);
-    PlaceButton(ClearMariaLogButton);
-    PlaceButton(ClearActivityLogButton);
-    Inc(Y, GroupGap);
-  end;
-
   if GroupHasVisibleButtons([SaveConfigButton, CopyDiagnosticReportButton, CopyActivityLogButton,
     OpenHostsFileButton, BackupDatabaseButton, RestoreDatabaseButton, WinScpButton, UpdateButton]) then
   begin
@@ -2754,6 +2762,7 @@ begin
   Item.ShortCut := ShortCut(Ord('R'), [ssCtrl]);
   Item := AddItem(MenuItem, 'Open &Terminal', OpenVHostTerminalClick);
   Item.ShortCut := ShortCut(Ord('T'), [ssCtrl, ssShift]);
+  Item := AddItem(MenuItem, 'Open in &WinSCP', OpenVHostWinScpClick);
   Item := AddItem(MenuItem, '&Backup Project', BackupProjectClick);
   Item.ShortCut := ShortCut(Ord('B'), [ssCtrl, ssShift]);
   AddItem(MenuItem, '&Restore Project', RestoreProjectClick);
@@ -2870,6 +2879,8 @@ begin
   ApplyMenuIcon(FVHostSyncDownloadDryRunMenu, 'cloud_sync');
   FVHostSyncDownloadMenu := AddItem(FVHostPopupMenu.Items, 'Download');
   ApplyMenuIcon(FVHostSyncDownloadMenu, 'folder_open');
+  AddItem(FVHostPopupMenu.Items, '-');
+  AddItem(FVHostPopupMenu.Items, 'Open in WinSCP', OpenVHostWinScpClick);
   Menu := FMainMenu;
 
   FTrayIcon := TTrayIcon.Create(Self);
@@ -2967,9 +2978,10 @@ begin
   begin
     SetLength(VHosts, 0);
     for Entry in FConfig.VHosts do
-      if (Pos(FilterText, LowerCase(Entry.ServerName)) > 0) or
+      if not IsDisplayHeaderLikeVHost(Entry) and
+         ((Pos(FilterText, LowerCase(Entry.ServerName)) > 0) or
          (Pos(FilterText, LowerCase(Entry.DocumentRoot)) > 0) or
-         (Pos(FilterText, LowerCase(Entry.ServerAliases)) > 0) then
+         (Pos(FilterText, LowerCase(Entry.ServerAliases)) > 0)) then
       begin
         SetLength(VHosts, Length(VHosts) + 1);
         VHosts[High(VHosts)] := Entry;
@@ -2999,6 +3011,8 @@ begin
     for RowIndex := 0 to High(VHosts) do
     begin
       Entry := VHosts[RowIndex];
+      if IsDisplayHeaderLikeVHost(Entry) then
+        Continue;
       VHostGrid.Cells[0, RowIndex + 1] := Entry.ServerName;
       VHostGrid.Cells[1, RowIndex + 1] := Entry.DocumentRoot;
       ProjectTypeText := DetectProjectTypeLabel(Entry.DocumentRoot);
@@ -3534,6 +3548,8 @@ end;
 procedure TMainForm.UpdateVHostActionState;
 var
   HasSelection: Boolean;
+  HasUploadProfiles: Boolean;
+  HasDownloadProfiles: Boolean;
 begin
   if not Assigned(AddVHostButton) or not Assigned(OpenVHostButton) or not Assigned(OpenVHostFolderButton) or
      not Assigned(BackupProjectButton) or not Assigned(RestoreProjectButton) or not Assigned(CopyVHostUrlButton) or
@@ -3542,6 +3558,8 @@ begin
     Exit;
 
   HasSelection := SelectedVHostServerName <> '';
+  HasUploadProfiles := HasSyncProfilesForDirection('upload');
+  HasDownloadProfiles := HasSyncProfilesForDirection('download');
   AddVHostButton.Enabled := True;
   OpenVHostButton.Enabled := FConfig.ApacheRunning and HasSelection;
   OpenVHostFolderButton.Enabled := HasSelection;
@@ -3550,9 +3568,9 @@ begin
   CopyVHostUrlButton.Enabled := HasSelection;
   DeleteVHostButton.Enabled := HasSelection;
   if Assigned(FSyncUploadButton) then
-    FSyncUploadButton.Enabled := HasSelection;
+    FSyncUploadButton.Enabled := HasSelection and HasUploadProfiles;
   if Assigned(FSyncDownloadButton) then
-    FSyncDownloadButton.Enabled := HasSelection;
+    FSyncDownloadButton.Enabled := HasSelection and HasDownloadProfiles;
   if Assigned(FRerunSyncButton) then
     FRerunSyncButton.Enabled := HasSelection;
   BackupDatabaseButton.Enabled := FConfig.MariaDbRunning;
@@ -4193,6 +4211,48 @@ begin
   end;
 end;
 
+function TMainForm.TryResolveDefaultSyncProfileForDirection(const DirectionName: string; out ProfileName: string): Boolean;
+var
+  Profile: TSyncProfile;
+  MatchCount: Integer;
+begin
+  Result := False;
+  ProfileName := '';
+
+  if SameText(DirectionName, 'upload') then
+    ProfileName := Trim(FConfig.LastSyncUploadProfile)
+  else if SameText(DirectionName, 'download') then
+    ProfileName := Trim(FConfig.LastSyncDownloadProfile);
+
+  if ProfileName <> '' then
+    for Profile in FConfig.SyncProfiles do
+      if SameText(Profile.Direction, DirectionName) and SameText(Profile.Name, ProfileName) then
+        Exit(True);
+
+  MatchCount := 0;
+  for Profile in FConfig.SyncProfiles do
+  begin
+    if not SameText(Profile.Direction, DirectionName) then
+      Continue;
+    Inc(MatchCount);
+    ProfileName := Profile.Name;
+  end;
+
+  Result := MatchCount = 1;
+  if not Result then
+    ProfileName := '';
+end;
+
+function TMainForm.HasSyncProfilesForDirection(const DirectionName: string): Boolean;
+var
+  Profile: TSyncProfile;
+begin
+  Result := False;
+  for Profile in FConfig.SyncProfiles do
+    if SameText(Profile.Direction, DirectionName) then
+      Exit(True);
+end;
+
 procedure TMainForm.ShowSyncPopupForDirection(const ServerName, DirectionFilter: string;
   SourceButton: TPanel);
 var
@@ -4323,13 +4383,24 @@ procedure TMainForm.SyncUploadButtonClick(Sender: TObject);
 var
   ServerName: string;
   Entry: TVHostEntry;
+  ProfileName: string;
 begin
   ServerName := SelectedVHostServerName;
   if ServerName = '' then
     Exit;
+  if not HasSyncProfilesForDirection('upload') then
+  begin
+    AppendStatus('No upload sync profiles are configured.');
+    Exit;
+  end;
   if TryGetVHostEntry(ServerName, Entry) and (Trim(Entry.PinnedSyncUploadProfile) <> '') then
   begin
     ExecuteSyncProfile(ServerName, Entry.PinnedSyncUploadProfile, 'upload', False);
+    Exit;
+  end;
+  if TryResolveDefaultSyncProfileForDirection('upload', ProfileName) then
+  begin
+    ExecuteSyncProfile(ServerName, ProfileName, 'upload', False);
     Exit;
   end;
   ShowSyncPopupForDirection(ServerName, 'upload', FSyncUploadButton);
@@ -4339,13 +4410,24 @@ procedure TMainForm.SyncDownloadButtonClick(Sender: TObject);
 var
   ServerName: string;
   Entry: TVHostEntry;
+  ProfileName: string;
 begin
   ServerName := SelectedVHostServerName;
   if ServerName = '' then
     Exit;
+  if not HasSyncProfilesForDirection('download') then
+  begin
+    AppendStatus('No download sync profiles are configured.');
+    Exit;
+  end;
   if TryGetVHostEntry(ServerName, Entry) and (Trim(Entry.PinnedSyncDownloadProfile) <> '') then
   begin
     ExecuteSyncProfile(ServerName, Entry.PinnedSyncDownloadProfile, 'download', False);
+    Exit;
+  end;
+  if TryResolveDefaultSyncProfileForDirection('download', ProfileName) then
+  begin
+    ExecuteSyncProfile(ServerName, ProfileName, 'download', False);
     Exit;
   end;
   ShowSyncPopupForDirection(ServerName, 'download', FSyncDownloadButton);
@@ -5389,6 +5471,24 @@ begin
   end;
   ResultInfo := FRuntime.LaunchTerminalInWorkingDir(Entry.DocumentRoot);
   AppendStatus('VHost terminal: ' + ResultInfo.Message);
+end;
+
+procedure TMainForm.OpenVHostWinScpClick(Sender: TObject);
+var
+  ServerName: string;
+  Entry: TVHostEntry;
+  ResultInfo: TRuntimeActionResult;
+begin
+  ServerName := SelectedVHostServerName;
+  if ServerName = '' then
+    Exit;
+  if not TryGetVHostEntry(ServerName, Entry) then
+  begin
+    AppendStatus('Selected vHost not found.');
+    Exit;
+  end;
+  ResultInfo := FRuntime.LaunchWinScpInWorkingDir(Entry.DocumentRoot);
+  AppendStatus('VHost WinSCP: ' + ResultInfo.Message);
 end;
 
 procedure TMainForm.BackupProjectClick(Sender: TObject);

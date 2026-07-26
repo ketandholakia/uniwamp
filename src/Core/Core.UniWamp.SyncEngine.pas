@@ -315,7 +315,6 @@ class function TSyncEngine.ExecutePlan(const Transport: ISyncTransport; const Pl
 var
   Item: TSyncPlanItem;
   TempLocalPath: string;
-  TempRemotePath: string;
 
   procedure Log(const Text: string);
   begin
@@ -344,34 +343,25 @@ begin
             Log('upload ' + Item.RelativePath + Format(' (%d bytes)', [Item.Size]));
             if not DryRun then
             begin
-              TempRemotePath := Item.RemotePath + '.uniwamp-upload-' +
-                GUIDToString(TGUID.NewGuid).Replace('{', '').Replace('}', '') + '.part';
-              try
-                Transport.UploadFile(Item.LocalPath, TempRemotePath,
-                  function(const FileName: string; const BytesTransferred, TotalBytes: Int64;
-                    const IsUpload: Boolean): Boolean
-                  begin
-                    if Assigned(OnProgress) then
-                      Result := OnProgress(Item.RelativePath, BytesTransferred, TotalBytes, IsUpload)
-                    else
-                      Result := True;
-                  end);
-                Transport.RenameRemoteFile(TempRemotePath, Item.RemotePath);
-                Inc(Result.FilesTransferred);
-                Inc(Result.BytesTransferred, Item.Size);
-              finally
-                try
-                  Transport.DeleteRemoteFile(TempRemotePath);
-                except
-                  // best-effort cleanup after upload/rename failure
-                end;
-              end;
+              Transport.EnsureRemoteDirectory(ExtractFileDir(Item.RemotePath).Replace('\', '/'));
+              Transport.UploadFile(Item.LocalPath, Item.RemotePath,
+                function(const FileName: string; const BytesTransferred, TotalBytes: Int64;
+                  const IsUpload: Boolean): Boolean
+                begin
+                  if Assigned(OnProgress) then
+                    Result := OnProgress(Item.RelativePath, BytesTransferred, TotalBytes, IsUpload)
+                  else
+                    Result := True;
+                end);
+              Inc(Result.FilesTransferred);
+              Inc(Result.BytesTransferred, Item.Size);
             end;
           end;
         spiDownload:
           begin
             Log('download ' + Item.RelativePath + Format(' (%d bytes)', [Item.Size]));
             if not DryRun then
+            begin
               TempLocalPath := Item.LocalPath + '.' + GUIDToString(TGUID.NewGuid) + '.part';
               TDirectory.CreateDirectory(ExtractFilePath(Item.LocalPath));
               try
@@ -391,6 +381,7 @@ begin
                 if FileExists(TempLocalPath) then
                   TFile.Delete(TempLocalPath);
               end;
+            end;
           end;
         spiDeleteRemote:
           begin

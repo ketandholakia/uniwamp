@@ -16,8 +16,11 @@ type
     FCredentials: TSyncCredentials;
     FOnLog: TSyncLogEvent;
     FConnected: Boolean;
+    FRemoteBaseDir: string;
     function UsePsftpBackend: Boolean;
     function Destination: string;
+    function CanonicalizeRemotePath(const RemotePath: string): string;
+    function ApplyRemoteBasePath(const RemotePath: string): string;
     function NormalizeRemotePath(const RemotePath: string): string;
     function QuoteBatchArgument(const Value: string): string;
     function OpenSshClientPath: string;
@@ -25,6 +28,7 @@ type
     function PsftpClientPath: string;
     function SshKeyScanPath: string;
     function SshKeyGenPath: string;
+    function ExtractWorkingDirectory(const Output: string): string;
     function BuildOpenSshArguments(const BatchFileName: string): string;
     function BuildPsftpArguments(const BatchFileName, PasswordFileName,
       HostKeyFingerprint: string): string;
@@ -157,11 +161,92 @@ end;
 
 function TSftpTransport.NormalizeRemotePath(const RemotePath: string): string;
 begin
+  Result := ApplyRemoteBasePath(CanonicalizeRemotePath(RemotePath));
+end;
+
+function TSftpTransport.CanonicalizeRemotePath(const RemotePath: string): string;
+begin
   Result := Trim(StringReplace(RemotePath, '\', '/', [rfReplaceAll]));
   if Result = '' then
     Result := '/';
   if (Length(Result) > 1) and (Result[1] <> '/') then
     Result := '/' + Result;
+end;
+
+function TSftpTransport.ApplyRemoteBasePath(const RemotePath: string): string;
+var
+  BasePath: string;
+  WorkPath: string;
+  NextSlash: Integer;
+  Mapped: Boolean;
+  PublicHtmlPos: Integer;
+begin
+  Result := RemotePath;
+  Mapped := False;
+  PublicHtmlPos := Pos('/public_html/', Result);
+  if PublicHtmlPos > 0 then
+    Exit(Copy(Result, PublicHtmlPos + Length('/public_html/'), MaxInt));
+  BasePath := Trim(StringReplace(FRemoteBaseDir, '\', '/', [rfReplaceAll]));
+  if (BasePath <> '') and (BasePath <> '/') then
+  begin
+    if (Length(BasePath) > 1) and BasePath.EndsWith('/') then
+      Delete(BasePath, Length(BasePath), 1);
+    if SameText(Result, BasePath) then
+      Exit('/');
+    if StartsText(BasePath + '/', Result) then
+    begin
+      Result := '/' + Copy(Result, Length(BasePath) + 2, MaxInt);
+      Mapped := True;
+    end;
+  end;
+  if (not Mapped) and StartsText('/home/', Result) then
+  begin
+    WorkPath := Result;
+    NextSlash := PosEx('/', WorkPath, Length('/home/') + 1);
+    if NextSlash > 0 then
+      Result := Copy(WorkPath, NextSlash, MaxInt);
+  end;
+end;
+
+function TSftpTransport.ExtractWorkingDirectory(const Output: string): string;
+var
+  Lines: TStringList;
+  RawLine: string;
+  Line: string;
+  PathText: string;
+  ColonPos: Integer;
+begin
+  Result := '';
+  Lines := TStringList.Create;
+  try
+    Lines.Text := StringReplace(Output, #13, '', [rfReplaceAll]);
+    for RawLine in Lines do
+    begin
+      Line := Trim(RawLine);
+      if Line = '' then
+        Continue;
+      if StartsText('Remote working directory is ', Line) then
+        Exit(Trim(Copy(Line, Length('Remote working directory is ') + 1, MaxInt)));
+      if StartsText('Remote working directory:', Line) then
+      begin
+        ColonPos := Pos(':', Line);
+        if ColonPos > 0 then
+          Exit(Trim(Copy(Line, ColonPos + 1, MaxInt)));
+      end;
+      if StartsText('Remote directory is ', Line) then
+        Exit(Trim(Copy(Line, Length('Remote directory is ') + 1, MaxInt)));
+      if StartsText('pwd', Line) and (Pos(':', Line) > 0) then
+      begin
+        ColonPos := Pos(':', Line);
+        PathText := Trim(Copy(Line, ColonPos + 1, MaxInt));
+        if PathText <> '' then
+          Exit(PathText);
+      end;
+      Result := Line;
+    end;
+  finally
+    Lines.Free;
+  end;
 end;
 
 function TSftpTransport.QuoteBatchArgument(const Value: string): string;
@@ -369,6 +454,7 @@ begin
   if not RunCommands(['pwd'], Output) then
     raise ESyncTransportError.CreateFmt('SFTP connect to %s:%d failed: %s',
       [FCredentials.Host, FCredentials.Port, Trim(Output)]);
+  FRemoteBaseDir := CanonicalizeRemotePath(ExtractWorkingDirectory(Output));
 
   if UsePsftpBackend then
     BackendName := 'PuTTY PSFTP'
@@ -382,6 +468,7 @@ end;
 procedure TSftpTransport.Disconnect;
 begin
   FConnected := False;
+  FRemoteBaseDir := '';
 end;
 
 function TSftpTransport.IsConnected: Boolean;
@@ -646,12 +733,14 @@ var
   TotalBytes: Int64;
   Output: string;
   ParentPath: string;
+  RemoteFileName: string;
   Stream: TFileStream;
 begin
   RequireConnected;
   if not TFile.Exists(LocalPath) then
     raise ESyncTransportError.CreateFmt('Local upload file not found: %s', [LocalPath]);
   ParentPath := ExtractFileDir(NormalizeRemotePath(RemotePath)).Replace('\', '/');
+  RemoteFileName := ExtractFileName(NormalizeRemotePath(RemotePath));
   if ParentPath <> '' then
     EnsureRemoteDirectory(ParentPath);
   Stream := TFileStream.Create(LocalPath, fmOpenRead or fmShareDenyNone);
@@ -662,8 +751,16 @@ begin
   end;
   if Assigned(OnProgress) and not OnProgress(RemotePath, 0, TotalBytes, True) then
     raise ESyncTransportError.Create('Upload cancelled.');
-  if not RunCommands(['put ' + QuoteBatchArgument(LocalPath) + ' ' +
-      QuoteBatchArgument(NormalizeRemotePath(RemotePath))], Output) then
+  if ParentPath <> '' then
+  begin
+    if not RunCommands([
+      'cd ' + QuoteBatchArgument(ParentPath),
+      'put ' + QuoteBatchArgument(LocalPath) + ' ' + QuoteBatchArgument(RemoteFileName)
+    ], Output) then
+      raise ESyncTransportError.CreateFmt('Upload failed for "%s": %s', [RemotePath, Trim(Output)]);
+  end
+  else if not RunCommands(['put ' + QuoteBatchArgument(LocalPath) + ' ' +
+      QuoteBatchArgument(RemoteFileName)], Output) then
     raise ESyncTransportError.CreateFmt('Upload failed for "%s": %s', [RemotePath, Trim(Output)]);
   if Assigned(OnProgress) then
     OnProgress(RemotePath, TotalBytes, TotalBytes, True);

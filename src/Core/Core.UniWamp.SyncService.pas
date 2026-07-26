@@ -138,6 +138,8 @@ begin
     Result.Port := ConnectionProfile.Port;
     Result.Username := ConnectionProfile.Username;
     Result.PrivateKeyFile := ResolvePortablePath(ConnectionProfile.PrivateKeyFile);
+    Result.SshHostKeyFingerprint := ConnectionProfile.SshHostKeyFingerprint;
+    Result.TlsCertificateFingerprint := ConnectionProfile.TlsCertificateFingerprint;
     Result.PassiveMode := ConnectionProfile.PassiveMode;
     Result.IgnoreCertErrors := ConnectionProfile.IgnoreCertErrors;
     SecretProfileName := ConnectionProfile.Name;
@@ -150,6 +152,8 @@ begin
     Result.Port := ConnectionProfile.Port;
     Result.Username := ConnectionProfile.Username;
     Result.PrivateKeyFile := ResolvePortablePath(ConnectionProfile.PrivateKeyFile);
+    Result.SshHostKeyFingerprint := ConnectionProfile.SshHostKeyFingerprint;
+    Result.TlsCertificateFingerprint := ConnectionProfile.TlsCertificateFingerprint;
     Result.PassiveMode := ConnectionProfile.PassiveMode;
     Result.IgnoreCertErrors := ConnectionProfile.IgnoreCertErrors;
     SecretProfileName := ConnectionProfile.Name;
@@ -162,6 +166,8 @@ begin
     Result.Port := Profile.Port;
     Result.Username := Profile.Username;
     Result.PrivateKeyFile := ResolvePortablePath(Profile.PrivateKeyFile);
+    Result.SshHostKeyFingerprint := Profile.SshHostKeyFingerprint;
+    Result.TlsCertificateFingerprint := Profile.TlsCertificateFingerprint;
     Result.PassiveMode := Profile.PassiveMode;
     Result.IgnoreCertErrors := Profile.IgnoreCertErrors;
   end;

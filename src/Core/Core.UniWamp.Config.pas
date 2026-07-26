@@ -31,6 +31,8 @@ type
     Port: Integer;
     Username: string;
     PrivateKeyFile: string;    // sftp only; empty = password auth
+    SshHostKeyFingerprint: string;
+    TlsCertificateFingerprint: string;
     PassiveMode: Boolean;      // ftp/ftps only
     IgnoreCertErrors: Boolean; // ftps only
   end;
@@ -44,6 +46,8 @@ type
     Port: Integer;
     Username: string;
     PrivateKeyFile: string;    // sftp only; empty = password auth
+    SshHostKeyFingerprint: string;
+    TlsCertificateFingerprint: string;
     PassiveMode: Boolean;      // ftp/ftps only
     IgnoreCertErrors: Boolean; // ftps only
     DefaultTestVHost: string;
@@ -134,6 +138,9 @@ uses
   System.JSON,
   Core.UniWamp.AtomicFile,
   Core.UniWamp.Secrets;
+
+const
+  CurrentConfigVersion = 3;
 
 function NormalizePortablePath(const PathValue: string): string;
 begin
@@ -277,6 +284,8 @@ begin
   Result.Host := Trim(Profile.Host);
   Result.Username := Trim(Profile.Username);
   Result.PrivateKeyFile := Trim(Profile.PrivateKeyFile);
+  Result.SshHostKeyFingerprint := Trim(Profile.SshHostKeyFingerprint);
+  Result.TlsCertificateFingerprint := Trim(Profile.TlsCertificateFingerprint);
   Result.DefaultTestVHost := Trim(Profile.DefaultTestVHost);
   Result.PreSyncCommand := Trim(Profile.PreSyncCommand);
   Result.PostSyncCommand := Trim(Profile.PostSyncCommand);
@@ -313,6 +322,8 @@ begin
   Result.Host := Trim(Profile.Host);
   Result.Username := Trim(Profile.Username);
   Result.PrivateKeyFile := Trim(Profile.PrivateKeyFile);
+  Result.SshHostKeyFingerprint := Trim(Profile.SshHostKeyFingerprint);
+  Result.TlsCertificateFingerprint := Trim(Profile.TlsCertificateFingerprint);
   if Result.Port <= 0 then
   begin
     if Result.Protocol = 'sftp' then
@@ -447,8 +458,6 @@ begin
 end;
 
 function TUniWampConfig.LoadOrCreate(const Paths: TAppPaths): Boolean;
-const
-  CurrentConfigVersion = 2;
 var
   JsonText: string;
   Root: TJSONObject;
@@ -607,6 +616,8 @@ begin
         SyncProfile.Port := StrToIntDef(ReadStringOrDefault(Obj, 'port', '0'), 0);
         SyncProfile.Username := ReadStringOrDefault(Obj, 'username', '');
         SyncProfile.PrivateKeyFile := ReadStringOrDefault(Obj, 'privateKeyFile', '');
+        SyncProfile.SshHostKeyFingerprint := ReadStringOrDefault(Obj, 'sshHostKeyFingerprint', '');
+        SyncProfile.TlsCertificateFingerprint := ReadStringOrDefault(Obj, 'tlsCertificateFingerprint', '');
         SyncProfile.PassiveMode := ReadBooleanOrDefault(Obj, 'passiveMode', True);
         SyncProfile.IgnoreCertErrors := ReadBooleanOrDefault(Obj, 'ignoreCertErrors', False);
         SyncProfile.DefaultTestVHost := ReadStringOrDefault(Obj, 'defaultTestVHost', '');
@@ -645,6 +656,8 @@ begin
         ConnectionProfile.Port := StrToIntDef(ReadStringOrDefault(Obj, 'port', '0'), 0);
         ConnectionProfile.Username := ReadStringOrDefault(Obj, 'username', '');
         ConnectionProfile.PrivateKeyFile := ReadStringOrDefault(Obj, 'privateKeyFile', '');
+        ConnectionProfile.SshHostKeyFingerprint := ReadStringOrDefault(Obj, 'sshHostKeyFingerprint', '');
+        ConnectionProfile.TlsCertificateFingerprint := ReadStringOrDefault(Obj, 'tlsCertificateFingerprint', '');
         ConnectionProfile.PassiveMode := ReadBooleanOrDefault(Obj, 'passiveMode', True);
         ConnectionProfile.IgnoreCertErrors := ReadBooleanOrDefault(Obj, 'ignoreCertErrors', False);
         ConnectionProfile := NormalizeConnectionProfile(ConnectionProfile);
@@ -661,6 +674,8 @@ begin
         ConnectionProfile.Port := SyncProfile.Port;
         ConnectionProfile.Username := SyncProfile.Username;
         ConnectionProfile.PrivateKeyFile := SyncProfile.PrivateKeyFile;
+        ConnectionProfile.SshHostKeyFingerprint := SyncProfile.SshHostKeyFingerprint;
+        ConnectionProfile.TlsCertificateFingerprint := SyncProfile.TlsCertificateFingerprint;
         ConnectionProfile.PassiveMode := SyncProfile.PassiveMode;
         ConnectionProfile.IgnoreCertErrors := SyncProfile.IgnoreCertErrors;
         ConnectionProfile := NormalizeConnectionProfile(ConnectionProfile);
@@ -929,7 +944,7 @@ begin
     Root.AddPair('httpsPort', TJSONNumber.Create(HttpsPort));
     Root.AddPair('databasePort', TJSONNumber.Create(DatabasePort));
     Root.AddPair('hostName', HostName);
-    Root.AddPair('configVersion', TJSONNumber.Create(2));
+    Root.AddPair('configVersion', TJSONNumber.Create(CurrentConfigVersion));
     Root.AddPair('documentRoot', DocumentRoot);
     Root.AddPair('selectedPhpVersion', SelectedPhpVersion);
     Root.AddPair('selectedNodeVersion', SelectedNodeVersion);
@@ -998,6 +1013,8 @@ begin
       Obj.AddPair('port', TJSONNumber.Create(SyncProfile.Port));
       Obj.AddPair('username', SyncProfile.Username);
       Obj.AddPair('privateKeyFile', SyncProfile.PrivateKeyFile);
+      Obj.AddPair('sshHostKeyFingerprint', SyncProfile.SshHostKeyFingerprint);
+      Obj.AddPair('tlsCertificateFingerprint', SyncProfile.TlsCertificateFingerprint);
       Obj.AddPair('passiveMode', TJSONBool.Create(SyncProfile.PassiveMode));
       Obj.AddPair('ignoreCertErrors', TJSONBool.Create(SyncProfile.IgnoreCertErrors));
       Obj.AddPair('defaultTestVHost', SyncProfile.DefaultTestVHost);
@@ -1026,6 +1043,8 @@ begin
       Obj.AddPair('port', TJSONNumber.Create(ConnectionProfile.Port));
       Obj.AddPair('username', ConnectionProfile.Username);
       Obj.AddPair('privateKeyFile', ConnectionProfile.PrivateKeyFile);
+      Obj.AddPair('sshHostKeyFingerprint', ConnectionProfile.SshHostKeyFingerprint);
+      Obj.AddPair('tlsCertificateFingerprint', ConnectionProfile.TlsCertificateFingerprint);
       Obj.AddPair('passiveMode', TJSONBool.Create(ConnectionProfile.PassiveMode));
       Obj.AddPair('ignoreCertErrors', TJSONBool.Create(ConnectionProfile.IgnoreCertErrors));
       ConnectionProfilesArray.Add(Obj);

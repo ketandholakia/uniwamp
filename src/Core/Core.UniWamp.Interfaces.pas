@@ -65,6 +65,7 @@ type
     function StopMariaDb: TRuntimeActionResult;
     function RestartMariaDb: TRuntimeActionResult;
     function LaunchWinScp: TRuntimeActionResult;
+    function LaunchWinScpInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function BuildDiagnosticReport: string;
   end;
 

@@ -27,6 +27,7 @@ type
     FUseTls: Boolean;
     FClient: TIdFTP;
     FSsl: TIdSSLIOHandlerSocketOpenSSL;
+    FRemoteBaseDir: string;
     FOnLog: TSyncLogEvent;
     FCurrentProgressHandler: TSyncTransferProgressEvent;
     FCurrentFileName: string;
@@ -44,6 +45,8 @@ type
     procedure HandleWorkBegin(ASender: TObject; AWorkMode: TWorkMode; AWorkCountMax: Int64);
     procedure HandleWork(ASender: TObject; AWorkMode: TWorkMode; AWorkCount: Int64);
     function VerifyPeer(Certificate: TIdX509; AOk: Boolean; ADepth, AError: Integer): Boolean;
+    function CanonicalizeRemotePath(const RemotePath: string): string;
+    function ApplyRemoteBasePath(const RemotePath: string): string;
     function NormalizeRemotePath(const RemotePath: string): string;
   public
     constructor Create(const Credentials: TSyncCredentials);
@@ -168,11 +171,51 @@ end;
 
 function TFtpTransport.NormalizeRemotePath(const RemotePath: string): string;
 begin
-  Result := StringReplace(RemotePath, '\', '/', [rfReplaceAll]);
+  Result := ApplyRemoteBasePath(CanonicalizeRemotePath(RemotePath));
+end;
+
+function TFtpTransport.CanonicalizeRemotePath(const RemotePath: string): string;
+begin
+  Result := Trim(StringReplace(RemotePath, '\', '/', [rfReplaceAll]));
   if Result = '' then
     Result := '/';
   if (Length(Result) > 1) and (Result[1] <> '/') then
     Result := '/' + Result;
+end;
+
+function TFtpTransport.ApplyRemoteBasePath(const RemotePath: string): string;
+var
+  BasePath: string;
+  WorkPath: string;
+  NextSlash: Integer;
+  Mapped: Boolean;
+  PublicHtmlPos: Integer;
+begin
+  Result := RemotePath;
+  Mapped := False;
+  PublicHtmlPos := Pos('/public_html/', Result);
+  if PublicHtmlPos > 0 then
+    Exit(Copy(Result, PublicHtmlPos + Length('/public_html/'), MaxInt));
+  BasePath := Trim(StringReplace(FRemoteBaseDir, '\', '/', [rfReplaceAll]));
+  if (BasePath <> '') and (BasePath <> '/') then
+  begin
+    if (Length(BasePath) > 1) and BasePath.EndsWith('/') then
+      Delete(BasePath, Length(BasePath), 1);
+    if SameText(Result, BasePath) then
+      Exit('/');
+    if StartsText(BasePath + '/', Result) then
+    begin
+      Result := '/' + Copy(Result, Length(BasePath) + 2, MaxInt);
+      Mapped := True;
+    end;
+  end;
+  if (not Mapped) and StartsText('/home/', Result) then
+  begin
+    WorkPath := Result;
+    NextSlash := PosEx('/', WorkPath, Length('/home/') + 1);
+    if NextSlash > 0 then
+      Result := Copy(WorkPath, NextSlash, MaxInt);
+  end;
 end;
 
 procedure TFtpTransport.Connect;
@@ -231,6 +274,11 @@ begin
       raise ESyncTransportError.CreateFmt('FTP connect to %s:%d failed: %s',
         [FCredentials.Host, FClient.Port, E.Message]);
   end;
+  try
+    FRemoteBaseDir := CanonicalizeRemotePath(FClient.RetrieveCurrentDir);
+  except
+    FRemoteBaseDir := '';
+  end;
   if FUseTls then
   begin
     if not FPeerCertSeen then
@@ -257,6 +305,7 @@ begin
     except
       // best-effort on teardown
     end;
+  FRemoteBaseDir := '';
 end;
 
 function TFtpTransport.IsConnected: Boolean;
@@ -454,13 +503,34 @@ end;
 
 procedure TFtpTransport.UploadFile(const LocalPath, RemotePath: string;
   const OnProgress: TSyncTransferProgressEvent);
+var
+  ParentPath: string;
+  CurrentDir: string;
 begin
   FCurrentProgressHandler := OnProgress;
   FCurrentFileName := RemotePath;
   FCurrentIsUpload := True;
   FCurrentTotalBytes := 0;
   try
-    FClient.Put(LocalPath, NormalizeRemotePath(RemotePath), False);
+    ParentPath := ExtractFileDir(NormalizeRemotePath(RemotePath));
+    if ParentPath <> '' then
+    begin
+      EnsureRemoteDirectory(ParentPath);
+      CurrentDir := FClient.RetrieveCurrentDir;
+      FClient.ChangeDir(ParentPath);
+    end;
+    try
+      FClient.Put(LocalPath, ExtractFileName(NormalizeRemotePath(RemotePath)), False);
+    finally
+      if ParentPath <> '' then
+      begin
+        try
+          FClient.ChangeDir(CurrentDir);
+        except
+          // best-effort restore
+        end;
+      end;
+    end;
   except
     on E: Exception do
       raise ESyncTransportError.CreateFmt('Upload failed for "%s": %s', [RemotePath, E.Message]);

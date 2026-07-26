@@ -33,14 +33,14 @@ type
     Password: string;          // may be blank for sftp key-only auth
     PrivateKeyFile: string;    // sftp only
     KeyPassphrase: string;     // sftp only
+    SshHostKeyFingerprint: string;      // sftp only
+    TlsCertificateFingerprint: string;   // ftps only
     PassiveMode: Boolean;      // ftp/ftps only
     IgnoreCertErrors: Boolean; // ftps only
   end;
 
-  // Implemented by Core.UniWamp.FtpTransport (FTP/FTPS, via Indy) and
-  // Core.UniWamp.SftpTransport (SFTP, via TGPuttyLib). All paths are POSIX-style
-  // ('/' separators) remote paths; callers are responsible for local <-> remote
-  // path translation.
+  // Implemented by the WinSCP-backed transport. All paths are POSIX-style ('/')
+  // remote paths; callers are responsible for local <-> remote path translation.
   ISyncTransport = interface
     ['{9E1F2C3A-4B5D-4E6F-8A9B-0C1D2E3F4A5B}']
     procedure Connect;
@@ -72,17 +72,11 @@ var
 implementation
 
 uses
-  Core.UniWamp.FtpTransport,
-  Core.UniWamp.SftpTransport;
+  Core.UniWamp.WinScpTransport;
 
 function CreateSyncTransport(const Credentials: TSyncCredentials): ISyncTransport;
 begin
-  if SameText(Credentials.Protocol, 'sftp') then
-    Result := TSftpTransport.Create(Credentials)
-  else if SameText(Credentials.Protocol, 'ftp') or SameText(Credentials.Protocol, 'ftps') then
-    Result := TFtpTransport.Create(Credentials)
-  else
-    raise ESyncTransportError.CreateFmt('Unsupported sync protocol: %s', [Credentials.Protocol]);
+  Result := TWinScpTransport.Create(Credentials);
 end;
 
 initialization

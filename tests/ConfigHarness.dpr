@@ -312,6 +312,7 @@ begin
     EnsureTestLayout(Paths);
     JsonText :=
       '{' +
+      '"configVersion":3,' +
       '"httpPort":8080,' +
       '"httpsPort":8443,' +
       '"databasePort":3306,' +
@@ -353,7 +354,7 @@ begin
       AssertTrue(SameText(VHosts[0].SslKeyFile, TPath.Combine(Paths.AppRoot, 'ssl\key.pem')),
         'SSL key path should resolve against app root');
       AssertTrue(Config.LastMigrationMessage <> '', 'Migration should produce a message');
-      AssertConfigVersion(Paths.AppConfigFile, 2, 'Migrated config should persist configVersion');
+      AssertConfigVersion(Paths.AppConfigFile, 3, 'Migrated config should persist configVersion');
     finally
       Config.Free;
     end;
@@ -383,7 +384,7 @@ begin
       AssertIntEquals(3307, Config.DatabasePort, 'Database port should be corrected');
       AssertEquals('localhost', Config.HostName, 'Empty hostname should default to localhost');
       AssertEquals(Paths.WwwDir, Config.DocumentRoot, 'Empty document root should default to www');
-      AssertConfigVersion(Paths.AppConfigFile, 2, 'Saved config should persist configVersion');
+      AssertConfigVersion(Paths.AppConfigFile, 3, 'Saved config should persist configVersion');
     finally
       Config.Free;
     end;
@@ -457,7 +458,7 @@ begin
 
       AssertTrue(not Config.LoadOrCreate(Paths), 'Current config should not report migration');
       AssertTrue(Config.LastMigrationMessage = '', 'Current config should not set a migration message');
-      AssertConfigVersion(Paths.AppConfigFile, 2, 'Current config should remain versioned');
+      AssertConfigVersion(Paths.AppConfigFile, 3, 'Current config should remain versioned');
       AssertIntEquals(8080, Config.HttpPort, 'Current config should preserve the HTTP port');
       AssertEquals('Windows', Config.ThemeStyleName, 'Current config should preserve the theme style');
     finally
@@ -482,7 +483,7 @@ begin
     EnsureTestLayout(Paths);
     JsonText :=
       '{' +
-      '"configVersion":2,' +
+      '"configVersion":3,' +
       '"httpPort":8080,' +
       '"httpsPort":8443,' +
       '"databasePort":3307,' +

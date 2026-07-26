@@ -41,6 +41,8 @@ type
     FKeyPassphraseEdit: TEdit;
     FPrivateKeyEdit: TEdit;
     FPrivateKeyBrowseButton: TButton;
+    FHostKeyEdit: TEdit;
+    FTlsCertEdit: TEdit;
     FPassiveCheck: TCheckBox;
     FIgnoreCertCheck: TCheckBox;
     FValidationLabel: TLabel;
@@ -328,18 +330,23 @@ begin
   FPrivateKeyEdit := AddEdit(RightInner, 18, 318, 560);
   FPrivateKeyBrowseButton := AddButton(RightInner, 588, 316, 72, 28, 'Browse');
 
-  FPassiveCheck := AddCheck(RightInner, 18, 358, 'Passive mode');
-  FIgnoreCertCheck := AddCheck(RightInner, 160, 358, 'Ignore cert errors (insecure)');
+  AddLabel(RightInner, 18, 358, 'SSH host key fingerprint', 0);
+  AddLabel(RightInner, 430, 358, 'TLS certificate fingerprint', 0);
+  FHostKeyEdit := AddEdit(RightInner, 18, 378, 390);
+  FTlsCertEdit := AddEdit(RightInner, 430, 378, 230);
+
+  FPassiveCheck := AddCheck(RightInner, 18, 418, 'Passive mode');
+  FIgnoreCertCheck := AddCheck(RightInner, 160, 418, 'Ignore cert errors (insecure)');
   FIgnoreCertCheck.Hint := 'Disables FTPS certificate validation and hostname checks for this profile.';
   FIgnoreCertCheck.ShowHint := True;
 
-  FValidationLabel := AddLabel(RightInner, 18, 398, '', 610);
+  FValidationLabel := AddLabel(RightInner, 18, 458, '', 610);
   FValidationLabel.AutoSize := False;
   FValidationLabel.Height := 24;
   FValidationLabel.Font.Color := clGrayText;
   FValidationLabel.Font.Style := [];
 
-  FTestButton := AddButton(RightInner, 18, 436, 128, 28, 'Test connection');
+  FTestButton := AddButton(RightInner, 18, 496, 128, 28, 'Test connection');
 
   FooterPanel := TPanel.Create(Self);
   FooterPanel.Parent := Self;
@@ -368,6 +375,8 @@ begin
   FKeyPassphraseEdit.OnChange := EditorChanged;
   FPrivateKeyEdit.OnChange := EditorChanged;
   FPrivateKeyBrowseButton.OnClick := BrowsePrivateKeyClicked;
+  FHostKeyEdit.OnChange := EditorChanged;
+  FTlsCertEdit.OnChange := EditorChanged;
   FPassiveCheck.OnClick := EditorChanged;
   FIgnoreCertCheck.OnClick := EditorChanged;
   FAddButton.OnClick := AddProfileClicked;
@@ -491,6 +500,8 @@ begin
   end;
   Profile.Username := Trim(FUsernameEdit.Text);
   Profile.PrivateKeyFile := Trim(FPrivateKeyEdit.Text);
+  Profile.SshHostKeyFingerprint := Trim(FHostKeyEdit.Text);
+  Profile.TlsCertificateFingerprint := Trim(FTlsCertEdit.Text);
   Profile.PassiveMode := FPassiveCheck.Checked;
   Profile.IgnoreCertErrors := FIgnoreCertCheck.Checked;
   Result := True;
@@ -583,6 +594,8 @@ begin
   Result.AddPair('port', TJSONNumber.Create(Profile.Port));
   Result.AddPair('username', Profile.Username);
   Result.AddPair('privateKeyFile', Profile.PrivateKeyFile);
+  Result.AddPair('sshHostKeyFingerprint', Profile.SshHostKeyFingerprint);
+  Result.AddPair('tlsCertificateFingerprint', Profile.TlsCertificateFingerprint);
   Result.AddPair('passiveMode', TJSONBool.Create(Profile.PassiveMode));
   Result.AddPair('ignoreCertErrors', TJSONBool.Create(Profile.IgnoreCertErrors));
 end;
@@ -630,6 +643,8 @@ begin
         Profile.Port := Obj.GetValue<Integer>('port', 0);
         Profile.Username := Obj.GetValue<string>('username', '');
         Profile.PrivateKeyFile := Obj.GetValue<string>('privateKeyFile', '');
+        Profile.SshHostKeyFingerprint := Obj.GetValue<string>('sshHostKeyFingerprint', '');
+        Profile.TlsCertificateFingerprint := Obj.GetValue<string>('tlsCertificateFingerprint', '');
         Profile.PassiveMode := Obj.GetValue<Boolean>('passiveMode', True);
         Profile.IgnoreCertErrors := Obj.GetValue<Boolean>('ignoreCertErrors', False);
         if Profile.Name <> '' then
@@ -667,6 +682,8 @@ begin
     FPasswordEdit.Text := LoadConnectionPassword(FPaths, Effective.Name);
     FKeyPassphraseEdit.Text := LoadConnectionKeyPassphrase(FPaths, Effective.Name);
     FPrivateKeyEdit.Text := Effective.PrivateKeyFile;
+    FHostKeyEdit.Text := Effective.SshHostKeyFingerprint;
+    FTlsCertEdit.Text := Effective.TlsCertificateFingerprint;
     FPassiveCheck.Checked := Effective.PassiveMode;
     FIgnoreCertCheck.Checked := Effective.IgnoreCertErrors;
     FLoadedProfileName := Effective.Name;
@@ -689,6 +706,8 @@ begin
     FPasswordEdit.Clear;
     FKeyPassphraseEdit.Clear;
     FPrivateKeyEdit.Clear;
+    FHostKeyEdit.Clear;
+    FTlsCertEdit.Clear;
     FPassiveCheck.Checked := True;
     FIgnoreCertCheck.Checked := False;
     FLoadedProfileName := '';
@@ -712,6 +731,8 @@ begin
   FPrivateKeyEdit.Enabled := SameText(Protocol, 'sftp');
   FPrivateKeyBrowseButton.Enabled := SameText(Protocol, 'sftp');
   FKeyPassphraseEdit.Enabled := SameText(Protocol, 'sftp');
+  FHostKeyEdit.Enabled := SameText(Protocol, 'sftp');
+  FTlsCertEdit.Enabled := SameText(Protocol, 'ftps');
 end;
 
 procedure TConnectionProfilesForm.UpdateValidationMessage;
@@ -896,6 +917,8 @@ begin
   Credentials.Password := Trim(FPasswordEdit.Text);
   Credentials.PrivateKeyFile := Profile.PrivateKeyFile;
   Credentials.KeyPassphrase := Trim(FKeyPassphraseEdit.Text);
+  Credentials.SshHostKeyFingerprint := Trim(FHostKeyEdit.Text);
+  Credentials.TlsCertificateFingerprint := Trim(FTlsCertEdit.Text);
   Credentials.PassiveMode := Profile.PassiveMode;
   Credentials.IgnoreCertErrors := Profile.IgnoreCertErrors;
 
