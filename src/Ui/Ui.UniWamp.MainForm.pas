@@ -2949,11 +2949,10 @@ begin
   end;
   VHostGrid.BeginUpdate;
   try
-    VHostGrid.FixedRows := 1;
-    VHostGrid.RowCount := 1;
     TargetRowCount := Length(VHosts) + 1;
     if TargetRowCount < 2 then
       TargetRowCount := 2;
+    VHostGrid.FixedRows := 1;
     VHostGrid.RowCount := TargetRowCount;
     VHostGrid.Cells[0, 0] := 'Site Name';
     VHostGrid.Cells[1, 0] := 'Document Path';
