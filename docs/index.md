@@ -8,6 +8,7 @@ security notes.
 
 - [Installation](installation.md)
 - [Usage](usage.md)
+- [Beta Support Matrix](testing/BETA_SUPPORT_MATRIX.md)
 - [Screenshots](screenshots.md)
 - [Architecture](ARCHITECTURE.md)
 - [Connection and Sync Profiles](SYNC_PROFILES.md)
@@ -20,6 +21,7 @@ security notes.
 - Apache, MariaDB, PHP, and local vHost management
 - Connection profiles and sync profiles for FTP, FTPS, and SFTP
 - Backup, restore, and update workflows
+- Supported beta environments and upgrade expectations
 - Verification and release planning
 - Visual reference screenshots for the main forms
 

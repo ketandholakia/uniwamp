@@ -41,6 +41,7 @@ nav:
       - Release Process: RELEASE_PROCESS.md
   - Release Tracking:
       - Overview: testing/index.md
+      - Beta Support Matrix: testing/BETA_SUPPORT_MATRIX.md
       - Alpha Release Checklist: testing/ALPHA_RELEASE_CHECKLIST.md
       - Release Readiness: testing/UNIWAMP_RELEASE_READINESS.md
       - Testing Checklist: testing/UNIWAMP_TESTING_CHECKLIST.md
@@ -51,3 +52,4 @@ nav:
       - Scripts Maintenance: SCRIPTS_MAINTENANCE.md
   - Releases:
       - v0.1.0-alpha: releases/v0.1.0-alpha.md
+      - v0.2.0-beta: releases/v0.2.0-beta.md

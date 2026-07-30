@@ -1,25 +1,25 @@
 # UniWamp
 
-Current release target: `v0.2.0-alpha`
+Current release target: `v0.2.0-beta`
 
-UniWamp is currently preparing for an alpha release. The alpha is intended for early validation on Windows development machines, not for production use or unattended deployment.
+UniWamp is currently preparing for a beta release. The beta is intended for early validation on Windows development machines, not for production use or unattended deployment.
 
 UniWamp is a portable Windows WAMP dashboard built in Delphi 12.4. It controls a local Apache, MariaDB, and PHP stack from a single VCL app and keeps its runtime state inside the UniWamp folder.
 
-## Alpha Status
+## Beta Status
 
-Target version: `v0.2.0-alpha`
+Target version: `v0.2.0-beta`
 
-Alpha scope:
+Beta scope:
 
 - Portable Windows WAMP dashboard for Apache, MariaDB, PHP, local vHosts, generated config, and developer tools.
 - Script catalog and installer flow for common PHP applications.
 - Early release packaging and clean-machine validation.
 
-Known alpha limitations:
+Known beta limitations:
 
 - Runtime binaries must be provided in the expected folders unless using a package profile that includes them.
-- Clean-machine, portability, and long-running stability validation are still tracked in `docs/testing/ALPHA_RELEASE_CHECKLIST.md`.
+- Clean-machine, portability, and long-running stability validation are tracked in `BETA_RELEASE_CHECKLIST.md` and the beta docs.
 - The script manager is under active validation and may need catalog-specific fixes for individual upstream installers.
 - The app is intended for local development only.
 
@@ -59,11 +59,13 @@ Known alpha limitations:
 - Installation guide: [`docs/installation.md`](docs/installation.md)
 - Usage guide: [`docs/usage.md`](docs/usage.md)
 - Reference docs: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/CONFIG_SCHEMA.md`](docs/CONFIG_SCHEMA.md), [`docs/SYNC_PROFILES.md`](docs/SYNC_PROFILES.md), [`docs/SECURITY_AND_OPERATIONS.md`](docs/SECURITY_AND_OPERATIONS.md), [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md)
+- Beta support matrix: [`docs/testing/BETA_SUPPORT_MATRIX.md`](docs/testing/BETA_SUPPORT_MATRIX.md)
+- Beta release checklist: [`BETA_RELEASE_CHECKLIST.md`](BETA_RELEASE_CHECKLIST.md)
 - Published static site output is built into `site/` when you run `mkdocs build`
 
 ## Requirements
 
-- Windows
+- Windows 10 or Windows 11 x64 for the beta target
 - Delphi 12.4 to build the VCL app
 - PowerShell 7 (`pwsh`) or Windows PowerShell 5.1 for the repo verification script
 - Apache, MariaDB, and PHP binaries placed into the expected runtime folders
@@ -231,11 +233,11 @@ To build the installer on a machine with Delphi and Inno Setup installed:
 
 The build script generates five installer files:
 
-- `UniWamp-Php82-Setup-v0.2.0-alpha.exe`
-- `UniWamp-Php83-Setup-v0.2.0-alpha.exe`
-- `UniWamp-Php84-Setup-v0.2.0-alpha.exe`
-- `UniWamp-Php85-Setup-v0.2.0-alpha.exe`
-- `UniWamp-Full-Setup-v0.2.0-alpha.exe`
+- `UniWamp-Php82-Setup-v0.2.0-beta.exe`
+- `UniWamp-Php83-Setup-v0.2.0-beta.exe`
+- `UniWamp-Php84-Setup-v0.2.0-beta.exe`
+- `UniWamp-Php85-Setup-v0.2.0-beta.exe`
+- `UniWamp-Full-Setup-v0.2.0-beta.exe`
 
 Profile scope:
 

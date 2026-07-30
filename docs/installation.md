@@ -5,13 +5,16 @@ application, so the repository folder is the installation root.
 
 ## Prerequisites
 
-- Windows
+- Windows 10 or Windows 11 x64 for the current beta target
 - Delphi 12.4 or a compatible RAD Studio version with `dcc32.exe` available on
   `PATH`
 - Apache, MariaDB, and PHP binaries placed into the expected `runtime\`
   folders
 - Optional: Node.js, Cmder, and other bundled developer tools when you want the
   extended launchers to work
+
+See the [beta support matrix](testing/BETA_SUPPORT_MATRIX.md) for the current
+validated desktop targets, runtime expectations, and known beta limits.
 
 ## Clone the repository
 
@@ -66,7 +69,7 @@ compiles the profile-specific Inno Setup packages.
 3. Confirm the selected PHP version and document root are valid.
 4. Use the main dashboard to start Apache and MariaDB.
 
-If you want to validate the full repo after a fresh checkout, run:
+If you want to validate the full repo after a fresh checkout or an upgrade, run:
 
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tests\run-all.ps1
@@ -74,6 +77,15 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tests\run-all.ps1
 
 If `pwsh` is not installed, use `powershell.exe` to run the individual helper
 scripts from `tests\` and `installer\`.
+
+## Upgrade behavior
+
+- UniWamp upgrades are in-place and keep the portable repository layout
+  intact.
+- `config\`, `logs\`, `ssl\`, `tmp\`, and generated configuration files stay
+  inside the UniWamp folder across upgrades.
+- Always rerun `tests\run-all.ps1` after an upgrade to confirm the stack still
+  starts, stops, and reports state correctly.
 
 ## Optional package-specific setup
 
