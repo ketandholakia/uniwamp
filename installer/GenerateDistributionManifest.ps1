@@ -123,4 +123,10 @@ $manifest = [ordered]@{
 }
 
 $json = $manifest | ConvertTo-Json -Depth 6
-Set-Content -LiteralPath $OutputPath -Value $json -Encoding UTF8
+$existing = ''
+if (Test-Path -LiteralPath $OutputPath) {
+  $existing = Get-Content -LiteralPath $OutputPath -Raw
+}
+if ($existing -ne $json) {
+  Set-Content -LiteralPath $OutputPath -Value $json -Encoding UTF8
+}
