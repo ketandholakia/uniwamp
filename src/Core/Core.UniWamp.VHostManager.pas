@@ -200,6 +200,7 @@ var
   Entry: TVHostEntry;
   VHost: TVHostEntry;
   HostsError: string;
+  PendingConfig: TUniWampConfig;
   ConfigGenerator: TConfigurationGenerator;
   HostsFileService: THostsFileService;
   ManagedSslDir: string;
@@ -219,6 +220,26 @@ begin
       Break;
     end;
 
+  PendingConfig := TUniWampConfig.Create;
+  try
+    PendingConfig.HostName := FConfig.HostName;
+    PendingConfig.ReplaceVHosts(FConfig.VHosts);
+    PendingConfig.DeleteVHost(ServerName);
+    HostsFileService := THostsFileService.Create(FPaths, PendingConfig);
+    try
+      if not HostsFileService.SyncHostsFile(HostsError) then
+      begin
+        Result.Success := False;
+        Result.Message := 'VHost remove failed: ' + HostsError;
+        Exit;
+      end;
+    finally
+      HostsFileService.Free;
+    end;
+  finally
+    PendingConfig.Free;
+  end;
+
   FConfig.DeleteVHost(ServerName);
   ConfigGenerator := TConfigurationGenerator.Create(FPaths, FConfig);
   try
@@ -236,15 +257,7 @@ begin
     if TDirectory.Exists(ManagedSslDir) and TDirectory.IsEmpty(ManagedSslDir) then
       TDirectory.Delete(ManagedSslDir);
   end;
-  HostsFileService := THostsFileService.Create(FPaths, FConfig);
-  try
-    if HostsFileService.SyncHostsFile(HostsError) then
-      Result.Message := 'VHost removed: ' + ServerName
-    else
-      Result.Message := 'VHost removed: ' + ServerName + ' (' + HostsError + ')';
-  finally
-    HostsFileService.Free;
-  end;
+  Result.Message := 'VHost removed: ' + ServerName;
   Result.Success := True;
 end;
 

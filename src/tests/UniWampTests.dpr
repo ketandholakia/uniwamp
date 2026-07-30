@@ -12,6 +12,7 @@ uses
   Test.UniWamp.SyncEngine in 'Test.UniWamp.SyncEngine.pas',
   Test.UniWamp.Security in 'Test.UniWamp.Security.pas',
   Test.UniWamp.PackageManager in 'Test.UniWamp.PackageManager.pas',
+  Test.UniWamp.VHostManager in 'Test.UniWamp.VHostManager.pas',
   Test.UniWamp.Secrets in 'Test.UniWamp.Secrets.pas',
   Test.UniWamp.MariaDbAuth in 'Test.UniWamp.MariaDbAuth.pas';
 
