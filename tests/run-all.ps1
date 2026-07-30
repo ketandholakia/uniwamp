@@ -10,6 +10,9 @@ try {
   try {
     & cmd.exe /c build.bat
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+    & cmd.exe /c test.bat
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   }
   finally {
     Pop-Location
