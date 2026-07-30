@@ -1,0 +1,164 @@
+unit Test.UniWamp.PackageManager;
+
+interface
+
+uses
+  DUnitX.TestFramework;
+
+type
+  [TestFixture]
+  TPackageManagerTests = class
+  public
+    [Test]
+    procedure TestStageValidatedUpdatePackageRejectsHashMismatch;
+    [Test]
+    procedure TestStageValidatedUpdatePackageAcceptsValidPackage;
+  end;
+
+implementation
+
+uses
+  System.Classes,
+  System.IOUtils,
+  System.SysUtils,
+  System.JSON,
+  System.Zip,
+  Core.UniWamp.PackageManager,
+  Core.UniWamp.Paths;
+
+function CreateTempRoot(const Name: string): string;
+var
+  GuidText: string;
+begin
+  GuidText := StringReplace(GUIDToString(TGUID.NewGuid), '{', '', [rfReplaceAll]);
+  GuidText := StringReplace(GuidText, '}', '', [rfReplaceAll]);
+  Result := TPath.Combine(TPath.GetTempPath, 'UniWamp-' + Name + '-' + GuidText);
+  TDirectory.CreateDirectory(Result);
+end;
+
+function BuildPaths(const Root: string): TAppPaths;
+begin
+  Result := Default(TAppPaths);
+  Result.AppRoot := Root;
+  Result.TmpDir := TPath.Combine(Root, 'tmp');
+  Result.UpdatesDir := TPath.Combine(Result.TmpDir, 'updates');
+  EnsureDirectory(Result.TmpDir);
+  EnsureDirectory(Result.UpdatesDir);
+end;
+
+function CreateZipPackage(const ZipPath, EntryName, Content: string): string;
+var
+  SourceFile: string;
+  Zip: TZipFile;
+begin
+  SourceFile := TPath.ChangeExtension(TPath.GetTempFileName, '.txt');
+  TFile.WriteAllText(SourceFile, Content, TEncoding.UTF8);
+  Zip := TZipFile.Create;
+  try
+    Zip.Open(ZipPath, zmWrite);
+    Zip.Add(SourceFile, EntryName);
+    Zip.Close;
+  finally
+    Zip.Free;
+    if TFile.Exists(SourceFile) then
+      TFile.Delete(SourceFile);
+  end;
+  Result := ZipPath;
+end;
+
+function WriteUpdateManifest(const ManifestPath, PackageFileName, ExpectedSha256, PackageVersion: string): string;
+var
+  JsonObject: TJSONObject;
+begin
+  JsonObject := TJSONObject.Create;
+  try
+    JsonObject.AddPair('packageFileName', PackageFileName);
+    JsonObject.AddPair('expectedSha256', ExpectedSha256);
+    JsonObject.AddPair('packageVersion', PackageVersion);
+    TFile.WriteAllText(ManifestPath, JsonObject.Format, TEncoding.UTF8);
+  finally
+    JsonObject.Free;
+  end;
+  Result := ManifestPath;
+end;
+
+procedure TPackageManagerTests.TestStageValidatedUpdatePackageRejectsHashMismatch;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Manager: TPackageManager;
+  PackagePath: string;
+  ManifestPath: string;
+  StagingDir: string;
+  MetadataFileName: string;
+  ErrorMessage: string;
+begin
+  RootDir := CreateTempRoot('package-manager-mismatch');
+  try
+    Paths := BuildPaths(RootDir);
+    PackagePath := TPath.Combine(RootDir, 'update.zip');
+    ManifestPath := TPath.Combine(RootDir, 'update.json');
+    CreateZipPackage(PackagePath, 'payload.txt', 'payload');
+    WriteUpdateManifest(ManifestPath, ExtractFileName(PackagePath), StringOfChar('0', 64), '1.0.0');
+
+    Manager := TPackageManager.Create(Paths);
+    try
+      Assert.IsFalse(Manager.StageValidatedUpdatePackage(ManifestPath, StagingDir, MetadataFileName, ErrorMessage),
+        'A mismatched hash must block staging before extraction.');
+      Assert.IsTrue(ErrorMessage.Contains('mismatch'), ErrorMessage);
+      Assert.AreEqual('', StagingDir);
+      Assert.AreEqual('', MetadataFileName);
+      Assert.IsFalse(TDirectory.Exists(TPath.Combine(Paths.UpdatesDir, '1.0.0')),
+        'No staging directory should be created on hash mismatch.');
+    finally
+      Manager.Free;
+    end;
+  finally
+    if TDirectory.Exists(RootDir) then
+      TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TPackageManagerTests.TestStageValidatedUpdatePackageAcceptsValidPackage;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Manager: TPackageManager;
+  PackagePath: string;
+  ManifestPath: string;
+  StagingDir: string;
+  MetadataFileName: string;
+  ErrorMessage: string;
+  PackageSha256: string;
+begin
+  RootDir := CreateTempRoot('package-manager-valid');
+  try
+    Paths := BuildPaths(RootDir);
+    PackagePath := TPath.Combine(RootDir, 'update.zip');
+    ManifestPath := TPath.Combine(RootDir, 'update.json');
+    CreateZipPackage(PackagePath, 'payload.txt', 'payload');
+
+    Manager := TPackageManager.Create(Paths);
+    try
+      PackageSha256 := Manager.ComputeFileSha256Hex(PackagePath);
+      WriteUpdateManifest(ManifestPath, ExtractFileName(PackagePath), PackageSha256, '1.0.0');
+
+      Assert.IsTrue(Manager.StageValidatedUpdatePackage(ManifestPath, StagingDir, MetadataFileName, ErrorMessage),
+        ErrorMessage);
+      Assert.IsTrue(TDirectory.Exists(StagingDir), 'Validated packages should be staged.');
+      Assert.IsTrue(TFile.Exists(TPath.Combine(StagingDir, 'payload.txt')),
+        'Validated packages should extract payload contents.');
+      Assert.IsTrue(TFile.Exists(MetadataFileName), 'Validated packages should write staging metadata.');
+    finally
+      Manager.Free;
+    end;
+  finally
+    if TDirectory.Exists(RootDir) then
+      TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+initialization
+  TDUnitX.RegisterTestFixture(TPackageManagerTests);
+
+end.
