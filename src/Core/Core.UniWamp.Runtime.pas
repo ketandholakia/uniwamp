@@ -126,7 +126,8 @@ uses
   Core.UniWamp.ServiceLocator,
   Core.UniWamp.HostsFileService,
   Core.UniWamp.PackageManager,
-  Core.UniWamp.Secrets;
+  Core.UniWamp.Secrets,
+  Core.UniWamp.Diagnostics;
 
 
 
@@ -917,7 +918,7 @@ begin
     finally
       HostsFileService.Free;
     end;
-    Result := Lines.Text;
+    Result := RedactSensitiveText(Lines.Text);
   finally
     Lines.Free;
   end;

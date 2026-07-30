@@ -16,7 +16,8 @@ uses
   Test.UniWamp.PhpVersionChange in 'Test.UniWamp.PhpVersionChange.pas',
   Test.UniWamp.DatabaseBackupService in 'Test.UniWamp.DatabaseBackupService.pas',
   Test.UniWamp.Secrets in 'Test.UniWamp.Secrets.pas',
-  Test.UniWamp.MariaDbAuth in 'Test.UniWamp.MariaDbAuth.pas';
+  Test.UniWamp.MariaDbAuth in 'Test.UniWamp.MariaDbAuth.pas',
+  Test.UniWamp.Diagnostics in 'Test.UniWamp.Diagnostics.pas';
 
 var
   runner : ITestRunner;

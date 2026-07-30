@@ -3075,7 +3075,7 @@ procedure TMainForm.AppendStatus(const Text: string);
 var
   Line: string;
 begin
-  Line := FormatDateTime('hh:nn:ss', Now) + '  ' + Text;
+  Line := FormatDateTime('hh:nn:ss', Now) + '  ' + RedactSensitiveText(Text);
   AppendRotatedLogLine(TPath.Combine(FPaths.LogsDir, 'activity.log'), Line, 500);
   if Assigned(FActivityMemo) then
   begin
@@ -4143,7 +4143,7 @@ begin
     StatusText := 'failed';
   Line := Format('%s | project=%s | direction=%s | mode=%s | profile=%s | result=%s | message=%s',
     [FormatDateTime('yyyy-mm-dd hh:nn:ss', Now), ServerName, DirectionName, RunKind,
-     ProfileName, StatusText, StringReplace(Trim(MessageText), sLineBreak, ' ', [rfReplaceAll])]);
+     ProfileName, StatusText, StringReplace(RedactSensitiveText(Trim(MessageText)), sLineBreak, ' ', [rfReplaceAll])]);
   TFile.AppendAllText(LogFileName, Line + sLineBreak, TEncoding.UTF8);
 end;
 
