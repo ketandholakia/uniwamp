@@ -26,12 +26,12 @@ type
     function OpenSshClientPath: string;
     function BundledPsftpPath: string;
     function PsftpClientPath: string;
+    function WinScpClientPath: string;
     function SshKeyScanPath: string;
     function SshKeyGenPath: string;
     function ExtractWorkingDirectory(const Output: string): string;
     function BuildOpenSshArguments(const BatchFileName: string): string;
-    function BuildPsftpArguments(const BatchFileName, PasswordFileName,
-      HostKeyFingerprint: string): string;
+    function BuildWinScpOpenCommand: string;
     function ResolvePsftpHostKeyFingerprint: string;
     function RunOpenSshCommands(const Commands: array of string; out Output: string): Boolean;
     function RunPsftpCommands(const Commands: array of string; out Output: string): Boolean;
@@ -129,6 +129,19 @@ begin
 
   raise ESyncTransportError.Create(
     'SFTP password authentication requires PuTTY PSFTP in runtime\\tools\\putty or on PATH.');
+end;
+
+function TSftpTransport.WinScpClientPath: string;
+var
+  Candidate: string;
+begin
+  Candidate := TPath.Combine(TAppPaths.Detect.WinScpDir, 'WinSCP.com');
+  if TFile.Exists(Candidate) then
+    Exit(Candidate);
+  Candidate := TPath.Combine(TAppPaths.Detect.WinScpDir, 'WinSCP.exe');
+  if TFile.Exists(Candidate) then
+    Exit(Candidate);
+  raise ESyncTransportError.Create('WinSCP was not found in runtime\\tools\\winscp.');
 end;
 
 function TSftpTransport.SshKeyScanPath: string;
@@ -265,7 +278,7 @@ begin
       raise ESyncTransportError.Create(
         'This SFTP build cannot unlock encrypted private keys with a stored passphrase. ' +
         'Use a password-based session, ssh-agent, or an unencrypted deployment key.');
-    PsftpClientPath;
+    WinScpClientPath;
     Exit;
   end;
 
@@ -286,18 +299,19 @@ begin
   Result := Result + ' ' + QuoteBatchArgument(Destination);
 end;
 
-function TSftpTransport.BuildPsftpArguments(const BatchFileName, PasswordFileName,
-  HostKeyFingerprint: string): string;
+function TSftpTransport.BuildWinScpOpenCommand: string;
 begin
-  Result := '-batch -b ' + QuoteBatchArgument(BatchFileName) +
-    ' -hostkey ' + QuoteBatchArgument(HostKeyFingerprint);
-  if PasswordFileName <> '' then
-    Result := Result + ' -pwfile ' + QuoteBatchArgument(PasswordFileName);
-  if FCredentials.Port > 0 then
-    Result := Result + ' -P ' + IntToStr(FCredentials.Port);
+  Result := Format('open sftp://%s:%d/', [FCredentials.Host, FCredentials.Port]);
+  if Trim(FCredentials.Username) <> '' then
+    Result := Result + ' -username=' + QuoteBatchArgument(FCredentials.Username);
+  if Trim(FCredentials.Password) <> '' then
+    Result := Result + ' -password=' + QuoteBatchArgument(FCredentials.Password);
   if Trim(FCredentials.PrivateKeyFile) <> '' then
-    Result := Result + ' -i ' + QuoteBatchArgument(FCredentials.PrivateKeyFile);
-  Result := Result + ' ' + QuoteBatchArgument(Destination);
+    Result := Result + ' -privatekey=' + QuoteBatchArgument(FCredentials.PrivateKeyFile);
+  if Trim(FCredentials.SshHostKeyFingerprint) <> '' then
+    Result := Result + ' -hostkey=' + QuoteBatchArgument(FCredentials.SshHostKeyFingerprint)
+  else
+    Result := Result + ' -hostkey=*';
 end;
 
 function TSftpTransport.ResolvePsftpHostKeyFingerprint: string;
@@ -387,42 +401,62 @@ end;
 
 function TSftpTransport.RunPsftpCommands(const Commands: array of string; out Output: string): Boolean;
 var
-  BatchFileName: string;
-  PasswordFileName: string;
-  HostKeyFingerprint: string;
-  CommandText: TStringList;
-  CommandTextLine: string;
-  PasswordBytes: TBytes;
+  Exe: string;
+  Args: string;
+  Session: IInteractiveProcessSession;
+  StartError: string;
+  CommandText: string;
 begin
-  BatchFileName := TPath.ChangeExtension(TPath.GetTempFileName, '.psftp');
-  PasswordFileName := TPath.ChangeExtension(TPath.GetTempFileName, '.pwd');
-  CommandText := TStringList.Create;
+  Output := '';
+  Exe := WinScpClientPath;
+  Args := '/ini=nul /xmlgroups';
+  Session := TProcessManager.StartInteractive(Exe, Args, TPath.GetDirectoryName(Exe), nil, StartError);
+  if not Assigned(Session) then
+  begin
+    Output := StartError;
+    Exit(False);
+  end;
+
   try
-    for CommandTextLine in Commands do
-      CommandText.Add(CommandTextLine);
-    TFile.WriteAllText(BatchFileName, CommandText.Text, TEncoding.ASCII);
-    PasswordBytes := TEncoding.UTF8.GetBytes(FCredentials.Password);
-    TFile.WriteAllBytes(PasswordFileName, PasswordBytes);
-    HostKeyFingerprint := Trim(ResolvePsftpHostKeyFingerprint);
-    Log('psftp ' + Destination);
-    Result := TProcessManager.RunAndCaptureOutput(
-      PsftpClientPath,
-      BuildPsftpArguments(BatchFileName, PasswordFileName, HostKeyFingerprint),
-      TPath.GetDirectoryName(PsftpClientPath),
-      Output,
-      120000);
+    if not Session.SendLine('option batch abort') then
+    begin
+      Output := Session.CapturedOutput;
+      Exit(False);
+    end;
+    if not Session.SendLine('option confirm off') then
+    begin
+      Output := Session.CapturedOutput;
+      Exit(False);
+    end;
+    if not Session.SendLine(BuildWinScpOpenCommand) then
+    begin
+      Output := Session.CapturedOutput;
+      Exit(False);
+    end;
+    for CommandText in Commands do
+      if Trim(CommandText) <> '' then
+        if not Session.SendLine(CommandText) then
+        begin
+          Output := Session.CapturedOutput;
+          Exit(False);
+        end;
+    if not Session.SendLine('exit') then
+    begin
+      Output := Session.CapturedOutput;
+      Exit(False);
+    end;
+    Session.CloseInput;
+    if not Session.WaitForExit(120000) then
+    begin
+      Session.Terminate;
+      Output := Session.CapturedOutput;
+      Exit(False);
+    end;
+    Output := Session.CapturedOutput;
+    Log('winscp ' + Destination);
+    Result := True;
   finally
-    CommandText.Free;
-    try
-      TFile.Delete(BatchFileName);
-    except
-      // best-effort temp cleanup
-    end;
-    try
-      TFile.Delete(PasswordFileName);
-    except
-      // best-effort temp cleanup
-    end;
+    Session := nil;
   end;
 end;
 
@@ -457,7 +491,7 @@ begin
   FRemoteBaseDir := CanonicalizeRemotePath(ExtractWorkingDirectory(Output));
 
   if UsePsftpBackend then
-    BackendName := 'PuTTY PSFTP'
+    BackendName := 'WinSCP'
   else
     BackendName := 'OpenSSH';
   FConnected := True;

@@ -21,7 +21,7 @@ type
     function RemoteFileName(const Value: string): string;
     function RemoteCombine(const Left, Right: string): string;
     function BuildOpenCommand: string;
-    function BuildScriptFile(const Commands: TArray<string>; out ScriptFile, XmlLogFile: string): Boolean;
+    function RunInteractiveCommands(const Commands: TArray<string>; out OutputText, XmlLogFile: string): Boolean;
     function ExecuteScript(const Commands: TArray<string>; out OutputText, XmlLogFile: string): Boolean;
     function ContainsMissingPathText(const Text: string): Boolean;
     procedure RequireConnected;
@@ -350,43 +350,13 @@ begin
   end;
 end;
 
-function TWinScpTransport.BuildScriptFile(const Commands: TArray<string>; out ScriptFile, XmlLogFile: string): Boolean;
+function TWinScpTransport.RunInteractiveCommands(const Commands: TArray<string>; out OutputText, XmlLogFile: string): Boolean;
 var
-  Lines: TStringList;
-  GuidText: string;
-  TempDir: string;
-  CommandText: string;
-begin
-  Result := False;
-  ScriptFile := '';
-  XmlLogFile := '';
-  TempDir := TPath.GetTempPath;
-  GuidText := StringReplace(GUIDToString(TGUID.NewGuid), '{', '', [rfReplaceAll]);
-  GuidText := StringReplace(GuidText, '}', '', [rfReplaceAll]);
-  ScriptFile := TPath.Combine(TempDir, 'uniwamp-winscp-' + GuidText + '.txt');
-  XmlLogFile := TPath.Combine(TempDir, 'uniwamp-winscp-' + GuidText + '.xml');
-  Lines := TStringList.Create;
-  try
-    Lines.LineBreak := sLineBreak;
-    Lines.Add('option batch abort');
-    Lines.Add('option confirm off');
-    Lines.Add(BuildOpenCommand);
-    for CommandText in Commands do
-      if Trim(CommandText) <> '' then
-        Lines.Add(CommandText);
-    Lines.Add('exit');
-    Lines.SaveToFile(ScriptFile, TEncoding.UTF8);
-    Result := True;
-  finally
-    Lines.Free;
-  end;
-end;
-
-function TWinScpTransport.ExecuteScript(const Commands: TArray<string>; out OutputText, XmlLogFile: string): Boolean;
-var
-  ScriptFile: string;
-  Args: string;
   Exe: string;
+  Args: string;
+  Session: IInteractiveProcessSession;
+  StartError: string;
+  CommandText: string;
 begin
   OutputText := '';
   XmlLogFile := '';
@@ -394,15 +364,63 @@ begin
   Exe := ResolveWinScpExecutable;
   if Exe = '' then
     raise ESyncTransportError.Create('WinSCP was not found in runtime\tools\winscp.');
-  if not BuildScriptFile(Commands, ScriptFile, XmlLogFile) then
-    raise ESyncTransportError.Create('Unable to prepare WinSCP script.');
-  try
-    Args := '/ini=nul /xmllog=' + QuoteScriptToken(XmlLogFile) + ' /xmlgroups /script=' + QuoteScriptToken(ScriptFile);
-    Result := TProcessManager.RunAndCaptureOutput(Exe, Args, ResolveWorkDir, OutputText);
-  finally
-    if FileExists(ScriptFile) then
-      TFile.Delete(ScriptFile);
+
+  XmlLogFile := TPath.Combine(TPath.GetTempPath,
+    'uniwamp-winscp-' + StringReplace(GUIDToString(TGUID.NewGuid), '{', '', [rfReplaceAll]).Replace('}', '') + '.xml');
+  Args := '/ini=nul /xmllog=' + QuoteScriptToken(XmlLogFile) + ' /xmlgroups';
+
+  Session := TProcessManager.StartInteractive(Exe, Args, ResolveWorkDir, nil, StartError);
+  if not Assigned(Session) then
+  begin
+    OutputText := StartError;
+    Exit(False);
   end;
+
+  try
+    if not Session.SendLine('option batch abort') then
+    begin
+      OutputText := Session.CapturedOutput;
+      Exit(False);
+    end;
+    if not Session.SendLine('option confirm off') then
+    begin
+      OutputText := Session.CapturedOutput;
+      Exit(False);
+    end;
+    if not Session.SendLine(BuildOpenCommand) then
+    begin
+      OutputText := Session.CapturedOutput;
+      Exit(False);
+    end;
+    for CommandText in Commands do
+      if Trim(CommandText) <> '' then
+        if not Session.SendLine(CommandText) then
+        begin
+          OutputText := Session.CapturedOutput;
+          Exit(False);
+        end;
+    if not Session.SendLine('exit') then
+    begin
+      OutputText := Session.CapturedOutput;
+      Exit(False);
+    end;
+    Session.CloseInput;
+    if not Session.WaitForExit(120000) then
+    begin
+      Session.Terminate;
+      OutputText := Session.CapturedOutput;
+      Exit(False);
+    end;
+    OutputText := Session.CapturedOutput;
+    Result := True;
+  finally
+    Session := nil;
+  end;
+end;
+
+function TWinScpTransport.ExecuteScript(const Commands: TArray<string>; out OutputText, XmlLogFile: string): Boolean;
+begin
+  Result := RunInteractiveCommands(Commands, OutputText, XmlLogFile);
 end;
 
 function TWinScpTransport.ContainsMissingPathText(const Text: string): Boolean;
