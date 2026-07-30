@@ -229,10 +229,15 @@ end;
 
 function TPackageManager.PromoteStagedUpdate(const StagingDir, TargetDir: string; out BackupDir, ErrorMessage: string;
   ForceFailureAfterBackup: Boolean): Boolean;
+var
+  TargetExisted: Boolean;
+  Restored: Boolean;
 begin
   Result := False;
   ErrorMessage := '';
   BackupDir := '';
+  TargetExisted := False;
+  Restored := False;
   if not TDirectory.Exists(StagingDir) then
   begin
     ErrorMessage := 'Staging directory not found: ' + StagingDir;
@@ -244,6 +249,7 @@ begin
     Exit;
   end;
   try
+    TargetExisted := TDirectory.Exists(TargetDir);
     if TDirectory.Exists(TargetDir) then
     begin
       BackupDir := TPath.Combine(FPaths.UpdatesDir, 'backup\' + FormatDateTime('yyyymmddhhnnsszzz', Now));
@@ -267,8 +273,25 @@ begin
           if TDirectory.Exists(TargetDir) then
             TDirectory.Delete(TargetDir, True);
           TDirectory.Copy(BackupDir, TargetDir);
+          Restored := True;
         except
-          // Leave the original backup in place if restore fails.
+          Restored := False;
+        end;
+      end;
+      if not Restored and TDirectory.Exists(TargetDir) then
+      begin
+        try
+          TDirectory.Delete(TargetDir, True);
+        except
+          // Leave the filesystem in its best-effort cleaned state.
+        end;
+      end;
+      if (not TargetExisted) and TDirectory.Exists(TargetDir) then
+      begin
+        try
+          TDirectory.Delete(TargetDir, True);
+        except
+          // Leave the filesystem in its best-effort cleaned state.
         end;
       end;
       ErrorMessage := 'Staged update promotion failed: ' + E.Message;

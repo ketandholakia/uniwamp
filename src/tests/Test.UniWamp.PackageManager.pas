@@ -13,6 +13,8 @@ type
     procedure TestStageValidatedUpdatePackageRejectsHashMismatch;
     [Test]
     procedure TestStageValidatedUpdatePackageAcceptsValidPackage;
+    [Test]
+    procedure TestPromoteStagedUpdateRestoresOriginalOnFailure;
   end;
 
 implementation
@@ -149,6 +151,45 @@ begin
       Assert.IsTrue(TFile.Exists(TPath.Combine(StagingDir, 'payload.txt')),
         'Validated packages should extract payload contents.');
       Assert.IsTrue(TFile.Exists(MetadataFileName), 'Validated packages should write staging metadata.');
+    finally
+      Manager.Free;
+    end;
+  finally
+    if TDirectory.Exists(RootDir) then
+      TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TPackageManagerTests.TestPromoteStagedUpdateRestoresOriginalOnFailure;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Manager: TPackageManager;
+  StagingDir: string;
+  TargetDir: string;
+  BackupDir: string;
+  ErrorMessage: string;
+begin
+  RootDir := CreateTempRoot('package-manager-rollback');
+  try
+    Paths := BuildPaths(RootDir);
+    Manager := TPackageManager.Create(Paths);
+    try
+      StagingDir := TPath.Combine(RootDir, 'staging');
+      TargetDir := TPath.Combine(RootDir, 'target');
+      TDirectory.CreateDirectory(StagingDir);
+      TDirectory.CreateDirectory(TargetDir);
+      TFile.WriteAllText(TPath.Combine(StagingDir, 'app.txt'), 'new version', TEncoding.UTF8);
+      TFile.WriteAllText(TPath.Combine(TargetDir, 'app.txt'), 'original version', TEncoding.UTF8);
+
+      Assert.IsFalse(Manager.PromoteStagedUpdate(StagingDir, TargetDir, BackupDir, ErrorMessage, True),
+        'Injected failure should force rollback.');
+      Assert.IsTrue(ErrorMessage.Contains('failed'), ErrorMessage);
+      Assert.AreEqual('original version', TFile.ReadAllText(TPath.Combine(TargetDir, 'app.txt'), TEncoding.UTF8),
+        'Rollback should restore the original target contents.');
+      Assert.IsTrue(TDirectory.Exists(BackupDir), 'A backup copy should remain available for recovery.');
+      Assert.AreEqual('new version', TFile.ReadAllText(TPath.Combine(StagingDir, 'app.txt'), TEncoding.UTF8),
+        'The staging area should remain intact for retry.');
     finally
       Manager.Free;
     end;
