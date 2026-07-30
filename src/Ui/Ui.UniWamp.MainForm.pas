@@ -35,6 +35,7 @@ uses
   Core.UniWamp.Diagnostics,
   Core.UniWamp.Types,
   Core.UniWamp.Paths,
+  Core.UniWamp.PhpVersionChange,
   Core.UniWamp.Security,
   Core.UniWamp.PackageManager,
   Core.UniWamp.PortUtils,
@@ -4707,11 +4708,36 @@ begin
 end;
 
 procedure TMainForm.SaveConfigClick(Sender: TObject);
+var
+  OldPhpVersion: string;
+  ErrorMessage: string;
 begin
+  OldPhpVersion := FConfig.SelectedPhpVersion;
   if not SaveUiIntoState then
     Exit;
-  FConfig.Save(FPaths);
-  FRuntime.GenerateAllConfigs;
+  if not CommitPhpVersionChange(FConfig, FPaths, OldPhpVersion, FConfig.SelectedPhpVersion,
+    procedure
+    begin
+      FConfig.Save(FPaths);
+    end,
+    procedure
+    begin
+      FRuntime.GenerateAllConfigs;
+    end,
+    function: TRuntimeActionResult
+    begin
+      Result := FRuntime.RestartApache;
+    end,
+    function: Boolean
+    begin
+      Result := FRuntime.ApacheIsRunning;
+    end,
+    ErrorMessage) then
+  begin
+    AppendStatus('Configuration save failed: ' + ErrorMessage);
+    RefreshStatus;
+    Exit;
+  end;
   AppendStatus('Configuration saved and generated.');
   RefreshStatus;
 end;

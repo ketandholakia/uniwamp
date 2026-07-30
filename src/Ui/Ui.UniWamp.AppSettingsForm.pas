@@ -13,6 +13,7 @@ uses
   Vcl.StdCtrls,
   Vcl.Themes,
   Core.UniWamp.Types,
+  Core.UniWamp.PhpVersionChange,
   Core.UniWamp.Security,
   Core.UniWamp.Config,
   Core.UniWamp.Paths,
@@ -256,7 +257,6 @@ var
   SelectedPhpProfile: string;
   SelectedThemeStyle: string;
   OldPhpVersion: string;
-  RestartInfo: TRuntimeActionResult;
 begin
   if not TryStrToInt(Trim(FHttpPortEdit.Text), HttpPort) then
   begin
@@ -343,20 +343,35 @@ begin
   else
     TStyleManager.TrySetStyle(SelectedThemeStyle);
 
-  FConfig.Save(FPaths);
   if Assigned(FRuntime) then
   begin
-    FRuntime.GenerateAllConfigs;
-    if FRuntime.ApacheIsRunning and not SameText(OldPhpVersion, FConfig.SelectedPhpVersion) then
-    begin
-      RestartInfo := FRuntime.RestartApache;
-      if not RestartInfo.Success then
+    if not CommitPhpVersionChange(FConfig, FPaths, OldPhpVersion, SelectedPhpVersion,
+      procedure
       begin
-        MessageDlg('Settings saved, but Apache restart failed: ' + RestartInfo.Message,
-          mtWarning, [mbOK], 0);
-        Exit;
-      end;
+        FConfig.Save(FPaths);
+      end,
+      procedure
+      begin
+        FRuntime.GenerateAllConfigs;
+      end,
+      function: TRuntimeActionResult
+      begin
+        Result := FRuntime.RestartApache;
+      end,
+      function: Boolean
+      begin
+        Result := FRuntime.ApacheIsRunning;
+      end,
+      ErrorMessage) then
+    begin
+      MessageDlg('Settings save failed: ' + ErrorMessage, mtWarning, [mbOK], 0);
+      Exit;
     end;
+  end
+  else
+  begin
+    FConfig.SelectedPhpVersion := SelectedPhpVersion;
+    FConfig.Save(FPaths);
   end;
   ModalResult := mrOk;
 end;
