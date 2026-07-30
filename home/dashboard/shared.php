@@ -109,6 +109,42 @@ function dashboardCoreProcessExists(int $pid): bool
     return $result['success'] && str_contains($result['output'], (string) $pid);
 }
 
+function dashboardCoreProcessImageName(int $pid): string
+{
+    if ($pid <= 0) {
+        return '';
+    }
+
+    $result = dashboardRunCommand('tasklist /FI "PID eq ' . $pid . '" /FO CSV /NH');
+    if (!$result['success']) {
+        return '';
+    }
+
+    $output = trim((string) $result['output']);
+    if ($output === '') {
+        return '';
+    }
+
+    $lines = preg_split("/\r\n|\n|\r/", $output) ?: [];
+    if (count($lines) === 0) {
+        return '';
+    }
+
+    $fields = str_getcsv($lines[0], ',', '"', '\\');
+    return isset($fields[0]) ? trim((string) $fields[0], " \t\n\r\0\x0B\"") : '';
+}
+
+function dashboardCoreProcessMatchesImage(int $pid, array $expectedImageNames): bool
+{
+    $imageName = strtolower(dashboardCoreProcessImageName($pid));
+    if ($imageName === '') {
+        return false;
+    }
+
+    $expectedImageNames = array_map(static fn(string $value): string => strtolower($value), $expectedImageNames);
+    return in_array($imageName, $expectedImageNames, true);
+}
+
 function dashboardDefaultPhpExtensions(): array
 {
     return [
@@ -387,6 +423,7 @@ function dashboardCoreRefreshRuntimeState(array $config, array $paths): array
     if ($apachePid === 0) {
         $apachePid = (int) ($config['apachePid'] ?? 0);
     }
+
     $mariaPid = dashboardReadPid($paths['mariadbPidFile']);
     if ($mariaPid === 0) {
         $mariaPid = (int) ($config['mariaDbPid'] ?? 0);
@@ -394,8 +431,8 @@ function dashboardCoreRefreshRuntimeState(array $config, array $paths): array
 
     $apachePort = (int) ($config['httpPort'] ?? 8080);
     $mariaPort = (int) ($config['databasePort'] ?? $config['dbPort'] ?? 3309);
-    $apacheRunning = $apachePid > 0 ? dashboardCoreProcessExists($apachePid) : dashboardWaitForPort($apachePort, true, 200);
-    $mariaRunning = $mariaPid > 0 ? dashboardCoreProcessExists($mariaPid) : dashboardWaitForPort($mariaPort, true, 200);
+    $apacheRunning = $apachePid > 0 ? dashboardCoreProcessMatchesImage($apachePid, ['httpd.exe']) : dashboardWaitForPort($apachePort, true, 200);
+    $mariaRunning = $mariaPid > 0 ? dashboardCoreProcessMatchesImage($mariaPid, ['mariadbd.exe', 'mysqld.exe']) : dashboardWaitForPort($mariaPort, true, 200);
 
     $config['apachePid'] = $apacheRunning ? $apachePid : 0;
     $config['mariaDbPid'] = $mariaRunning ? $mariaPid : 0;
