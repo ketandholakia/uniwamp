@@ -12,6 +12,7 @@ uses
   System.Generics.Collections,
   System.Net.HttpClient,
   System.Net.URLClient,
+  System.StrUtils,
   Core.UniWamp.Paths,
   Core.UniWamp.Security;
 
@@ -23,8 +24,10 @@ type
     constructor Create(const Paths: TAppPaths);
     function ComputeFileSha256Hex(const FileName: string): string;
     function ValidatePackageSha256(const PackageFileName, ExpectedSha256: string; out ErrorMessage: string): Boolean;
-    function ValidateUpdateManifest(const ManifestFileName: string; out PackageFileName, ExpectedSha256, PackageVersion: string; out ErrorMessage: string): Boolean;
-    function WriteUpdateStagingMetadata(const StagingDir, PackageFileName, ExpectedSha256, PackageVersion: string; out MetadataFileName, ErrorMessage: string): Boolean;
+    function ValidateUpdateManifest(const ManifestFileName: string; out PackageFileName, ExpectedSha256,
+      PackageVersion, SourceUrl: string; out ErrorMessage: string): Boolean;
+    function WriteUpdateStagingMetadata(const StagingDir, PackageFileName, ExpectedSha256, PackageVersion,
+      SourceUrl: string; out MetadataFileName, ErrorMessage: string): Boolean;
     function CleanupUpdateWorkspace(const WorkspaceDir: string; out ErrorMessage: string): Boolean;
     function StageValidatedUpdatePackage(const ManifestFileName: string; out StagingDir, MetadataFileName, ErrorMessage: string): Boolean;
     function PromoteStagedUpdate(const StagingDir, TargetDir: string; out BackupDir, ErrorMessage: string;
@@ -95,7 +98,8 @@ begin
   Result := True;
 end;
 
-function TPackageManager.ValidateUpdateManifest(const ManifestFileName: string; out PackageFileName, ExpectedSha256, PackageVersion: string; out ErrorMessage: string): Boolean;
+function TPackageManager.ValidateUpdateManifest(const ManifestFileName: string; out PackageFileName,
+  ExpectedSha256, PackageVersion, SourceUrl: string; out ErrorMessage: string): Boolean;
 var
   JsonValue: TJSONValue;
   JsonObject: TJSONObject;
@@ -105,6 +109,7 @@ begin
   PackageFileName := '';
   ExpectedSha256 := '';
   PackageVersion := '';
+  SourceUrl := '';
   if not FileExists(ManifestFileName) then
   begin
     ErrorMessage := 'Update manifest not found: ' + ManifestFileName;
@@ -121,6 +126,7 @@ begin
     PackageFileName := JsonObject.GetValue<string>('packageFileName', '');
     ExpectedSha256 := JsonObject.GetValue<string>('expectedSha256', '');
     PackageVersion := JsonObject.GetValue<string>('packageVersion', '');
+    SourceUrl := JsonObject.GetValue<string>('sourceUrl', '');
     if Trim(PackageFileName) = '' then
     begin
       ErrorMessage := 'Update manifest is missing packageFileName.';
@@ -131,9 +137,19 @@ begin
       ErrorMessage := 'Update manifest is missing expectedSha256.';
       Exit;
     end;
-  if Trim(PackageVersion) = '' then
+    if Trim(PackageVersion) = '' then
     begin
       ErrorMessage := 'Update manifest is missing packageVersion.';
+      Exit;
+    end;
+    if Trim(SourceUrl) = '' then
+    begin
+      ErrorMessage := 'Update manifest is missing sourceUrl.';
+      Exit;
+    end;
+    if not StartsText('https://', Trim(SourceUrl)) then
+    begin
+      ErrorMessage := 'Update manifest sourceUrl must use HTTPS.';
       Exit;
     end;
     if not ValidateUpdatePackageFileName(PackageFileName, ErrorMessage) then
@@ -144,7 +160,8 @@ begin
   end;
 end;
 
-function TPackageManager.WriteUpdateStagingMetadata(const StagingDir, PackageFileName, ExpectedSha256, PackageVersion: string; out MetadataFileName, ErrorMessage: string): Boolean;
+function TPackageManager.WriteUpdateStagingMetadata(const StagingDir, PackageFileName, ExpectedSha256,
+  PackageVersion, SourceUrl: string; out MetadataFileName, ErrorMessage: string): Boolean;
 var
   JsonObject: TJSONObject;
 begin
@@ -163,6 +180,7 @@ begin
       JsonObject.AddPair('packageFileName', PackageFileName);
       JsonObject.AddPair('expectedSha256', ExpectedSha256);
       JsonObject.AddPair('packageVersion', PackageVersion);
+      JsonObject.AddPair('sourceUrl', SourceUrl);
       JsonObject.AddPair('stagingDir', StagingDir);
       AtomicWriteTextFile(MetadataFileName, JsonObject.Format, TEncoding.UTF8);
       Result := True;
@@ -203,6 +221,7 @@ var
   PackageFileName: string;
   ExpectedSha256: string;
   PackageVersion: string;
+  SourceUrl: string;
   PackagePath: string;
 begin
   Result := False;
@@ -210,7 +229,7 @@ begin
   StagingDir := '';
   MetadataFileName := '';
 
-  if not ValidateUpdateManifest(ManifestFileName, PackageFileName, ExpectedSha256, PackageVersion, ErrorMessage) then
+  if not ValidateUpdateManifest(ManifestFileName, PackageFileName, ExpectedSha256, PackageVersion, SourceUrl, ErrorMessage) then
     Exit;
 
   PackagePath := TPath.Combine(ExtractFileDir(ManifestFileName), PackageFileName);
@@ -222,7 +241,7 @@ begin
     Exit;
   if not ImportRuntimeZipArchiveInto(PackagePath, StagingDir, ErrorMessage) then
     Exit;
-  if not WriteUpdateStagingMetadata(StagingDir, PackageFileName, ExpectedSha256, PackageVersion, MetadataFileName, ErrorMessage) then
+  if not WriteUpdateStagingMetadata(StagingDir, PackageFileName, ExpectedSha256, PackageVersion, SourceUrl, MetadataFileName, ErrorMessage) then
     Exit;
   Result := True;
 end;

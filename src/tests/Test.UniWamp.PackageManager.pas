@@ -14,6 +14,8 @@ type
     [Test]
     procedure TestStageValidatedUpdatePackageAcceptsValidPackage;
     [Test]
+    procedure TestStageValidatedUpdatePackageRejectsInsecureProvenance;
+    [Test]
     procedure TestPromoteStagedUpdateRestoresOriginalOnFailure;
   end;
 
@@ -68,7 +70,7 @@ begin
   Result := ZipPath;
 end;
 
-function WriteUpdateManifest(const ManifestPath, PackageFileName, ExpectedSha256, PackageVersion: string): string;
+function WriteUpdateManifest(const ManifestPath, PackageFileName, ExpectedSha256, PackageVersion, SourceUrl: string): string;
 var
   JsonObject: TJSONObject;
 begin
@@ -77,6 +79,7 @@ begin
     JsonObject.AddPair('packageFileName', PackageFileName);
     JsonObject.AddPair('expectedSha256', ExpectedSha256);
     JsonObject.AddPair('packageVersion', PackageVersion);
+    JsonObject.AddPair('sourceUrl', SourceUrl);
     TFile.WriteAllText(ManifestPath, JsonObject.Format, TEncoding.UTF8);
   finally
     JsonObject.Free;
@@ -101,7 +104,8 @@ begin
     PackagePath := TPath.Combine(RootDir, 'update.zip');
     ManifestPath := TPath.Combine(RootDir, 'update.json');
     CreateZipPackage(PackagePath, 'payload.txt', 'payload');
-    WriteUpdateManifest(ManifestPath, ExtractFileName(PackagePath), StringOfChar('0', 64), '1.0.0');
+    WriteUpdateManifest(ManifestPath, ExtractFileName(PackagePath), StringOfChar('0', 64), '1.0.0',
+      'https://example.invalid/downloads/update.zip');
 
     Manager := TPackageManager.Create(Paths);
     try
@@ -143,14 +147,56 @@ begin
     Manager := TPackageManager.Create(Paths);
     try
       PackageSha256 := Manager.ComputeFileSha256Hex(PackagePath);
-      WriteUpdateManifest(ManifestPath, ExtractFileName(PackagePath), PackageSha256, '1.0.0');
+      WriteUpdateManifest(ManifestPath, ExtractFileName(PackagePath), PackageSha256, '1.0.0',
+        'https://example.invalid/downloads/update.zip');
 
       Assert.IsTrue(Manager.StageValidatedUpdatePackage(ManifestPath, StagingDir, MetadataFileName, ErrorMessage),
         ErrorMessage);
       Assert.IsTrue(TDirectory.Exists(StagingDir), 'Validated packages should be staged.');
-      Assert.IsTrue(TFile.Exists(TPath.Combine(StagingDir, 'payload.txt')),
-        'Validated packages should extract payload contents.');
-      Assert.IsTrue(TFile.Exists(MetadataFileName), 'Validated packages should write staging metadata.');
+        Assert.IsTrue(TFile.Exists(TPath.Combine(StagingDir, 'payload.txt')),
+          'Validated packages should extract payload contents.');
+        Assert.IsTrue(TFile.Exists(MetadataFileName), 'Validated packages should write staging metadata.');
+        Assert.Contains(TFile.ReadAllText(MetadataFileName, TEncoding.UTF8), '"sourceUrl"',
+          'Validated packages should record provenance in staging metadata.');
+    finally
+      Manager.Free;
+    end;
+  finally
+    if TDirectory.Exists(RootDir) then
+      TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TPackageManagerTests.TestStageValidatedUpdatePackageRejectsInsecureProvenance;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Manager: TPackageManager;
+  PackagePath: string;
+  ManifestPath: string;
+  StagingDir: string;
+  MetadataFileName: string;
+  ErrorMessage: string;
+  PackageSha256: string;
+begin
+  RootDir := CreateTempRoot('package-manager-provenance');
+  try
+    Paths := BuildPaths(RootDir);
+    PackagePath := TPath.Combine(RootDir, 'update.zip');
+    ManifestPath := TPath.Combine(RootDir, 'update.json');
+    CreateZipPackage(PackagePath, 'payload.txt', 'payload');
+
+    Manager := TPackageManager.Create(Paths);
+    try
+      PackageSha256 := Manager.ComputeFileSha256Hex(PackagePath);
+      WriteUpdateManifest(ManifestPath, ExtractFileName(PackagePath), PackageSha256, '1.0.0',
+        'http://example.invalid/downloads/update.zip');
+
+      Assert.IsFalse(Manager.StageValidatedUpdatePackage(ManifestPath, StagingDir, MetadataFileName, ErrorMessage),
+        'Insecure provenance must block update staging.');
+      Assert.Contains(ErrorMessage, 'HTTPS', 'Provenance failures should identify the transport requirement.');
+      Assert.AreEqual('', StagingDir);
+      Assert.AreEqual('', MetadataFileName);
     finally
       Manager.Free;
     end;

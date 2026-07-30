@@ -2074,6 +2074,7 @@ var
   PackageFileName: string;
   ExpectedSha256: string;
   PackageVersion: string;
+  SourceUrl: string;
   ErrorMessage: string;
 begin
   RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-manifest-' + TGuid.NewGuid.ToString);
@@ -2087,12 +2088,13 @@ begin
       try
         ManifestPath := TPath.Combine(RootDir, 'update.json');
         TFile.WriteAllText(ManifestPath,
-          '{"packageFileName":"runtime.zip","expectedSha256":"abc","packageVersion":"1.0.0"}',
+          '{"packageFileName":"runtime.zip","expectedSha256":"abc","packageVersion":"1.0.0","sourceUrl":"https://example.invalid/downloads/runtime.zip"}',
           TEncoding.UTF8);
-        AssertTrue(Runtime.ValidateUpdateManifest(ManifestPath, PackageFileName, ExpectedSha256, PackageVersion, ErrorMessage), ErrorMessage);
+        AssertTrue(Runtime.ValidateUpdateManifest(ManifestPath, PackageFileName, ExpectedSha256, PackageVersion, SourceUrl, ErrorMessage), ErrorMessage);
         AssertTrue(PackageFileName = 'runtime.zip', 'Manifest should expose the package file name');
         AssertTrue(ExpectedSha256 = 'abc', 'Manifest should expose the expected hash');
         AssertTrue(PackageVersion = '1.0.0', 'Manifest should expose the package version');
+        AssertTrue(SourceUrl = 'https://example.invalid/downloads/runtime.zip', 'Manifest should expose provenance');
       finally
         Runtime.Free;
       end;
@@ -2113,6 +2115,7 @@ var
   PackageFileName: string;
   ExpectedSha256: string;
   PackageVersion: string;
+  SourceUrl: string;
   ErrorMessage: string;
 begin
   RootDir := TPath.Combine(TPath.GetTempPath, 'UniWamp-process-manifest-invalid-' + TGuid.NewGuid.ToString);
@@ -2124,9 +2127,9 @@ begin
     try
       ManifestPath := TPath.Combine(RootDir, 'update.json');
       TFile.WriteAllText(ManifestPath,
-        '{"packageFileName":"..\\runtime.zip","expectedSha256":"abc","packageVersion":"1.0.0"}',
+        '{"packageFileName":"..\\runtime.zip","expectedSha256":"abc","packageVersion":"1.0.0","sourceUrl":"https://example.invalid/downloads/runtime.zip"}',
         TEncoding.UTF8);
-      AssertTrue(not PackageManager.ValidateUpdateManifest(ManifestPath, PackageFileName, ExpectedSha256, PackageVersion, ErrorMessage),
+      AssertTrue(not PackageManager.ValidateUpdateManifest(ManifestPath, PackageFileName, ExpectedSha256, PackageVersion, SourceUrl, ErrorMessage),
         'Manifest should reject traversal package names');
       AssertContains(ErrorMessage, 'plain file name', 'Traversal package names should be rejected explicitly');
     finally
@@ -2160,7 +2163,8 @@ begin
       try
         StagingDir := TPath.Combine(Paths.UpdatesDir, 'UniWamp-1.0.0');
         TDirectory.CreateDirectory(StagingDir);
-        AssertTrue(Runtime.WriteUpdateStagingMetadata(StagingDir, 'runtime.zip', 'abc', '1.0.0', MetadataFileName, ErrorMessage), ErrorMessage);
+        AssertTrue(Runtime.WriteUpdateStagingMetadata(StagingDir, 'runtime.zip', 'abc', '1.0.0',
+          'https://example.invalid/downloads/runtime.zip', MetadataFileName, ErrorMessage), ErrorMessage);
         AssertTrue(TFile.Exists(MetadataFileName), 'Staging metadata should be written');
         AssertTrue(Length(TDirectory.GetFiles(StagingDir, '*.tmp')) = 0,
           'Atomic metadata write should not leave temporary files behind');
@@ -2171,6 +2175,7 @@ begin
           AssertTrue(JsonObject.GetValue<string>('packageFileName', '') = 'runtime.zip', 'Metadata should include the package file');
           AssertTrue(JsonObject.GetValue<string>('expectedSha256', '') = 'abc', 'Metadata should include the package hash');
           AssertTrue(JsonObject.GetValue<string>('packageVersion', '') = '1.0.0', 'Metadata should include the package version');
+          AssertTrue(JsonObject.GetValue<string>('sourceUrl', '') = 'https://example.invalid/downloads/runtime.zip', 'Metadata should include provenance');
         finally
           JsonValue.Free;
         end;
@@ -2286,7 +2291,7 @@ begin
         end;
         ManifestPath := TPath.Combine(RootDir, 'update.json');
         TFile.WriteAllText(ManifestPath,
-          '{"packageFileName":"runtime.zip","expectedSha256":"' + Runtime.ComputeFileSha256Hex(PackagePath) + '","packageVersion":"1.0.0"}',
+          '{"packageFileName":"runtime.zip","expectedSha256":"' + Runtime.ComputeFileSha256Hex(PackagePath) + '","packageVersion":"1.0.0","sourceUrl":"https://example.invalid/downloads/runtime.zip"}',
           TEncoding.UTF8);
         AssertTrue(Runtime.StageValidatedUpdatePackage(ManifestPath, StagingDir, MetadataFileName, ErrorMessage), ErrorMessage);
         AssertTrue(TDirectory.Exists(StagingDir), 'Staging directory should be created');
@@ -2297,6 +2302,7 @@ begin
           AssertTrue(JsonValue is TJSONObject, 'Staging metadata should be valid JSON');
           JsonObject := TJSONObject(JsonValue);
           AssertTrue(JsonObject.GetValue<string>('packageVersion', '') = '1.0.0', 'Metadata should include the package version');
+          AssertTrue(JsonObject.GetValue<string>('sourceUrl', '') = 'https://example.invalid/downloads/runtime.zip', 'Metadata should include provenance');
         finally
           JsonValue.Free;
         end;

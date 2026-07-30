@@ -70,8 +70,10 @@ type
     function GenerateEnvBat(const WorkingDir: string): Boolean;
     function ComputeFileSha256Hex(const FileName: string): string;
     function ValidatePackageSha256(const PackageFileName, ExpectedSha256: string; out ErrorMessage: string): Boolean;
-    function ValidateUpdateManifest(const ManifestFileName: string; out PackageFileName, ExpectedSha256, PackageVersion: string; out ErrorMessage: string): Boolean;
-    function WriteUpdateStagingMetadata(const StagingDir, PackageFileName, ExpectedSha256, PackageVersion: string; out MetadataFileName, ErrorMessage: string): Boolean;
+    function ValidateUpdateManifest(const ManifestFileName: string; out PackageFileName, ExpectedSha256,
+      PackageVersion, SourceUrl: string; out ErrorMessage: string): Boolean;
+    function WriteUpdateStagingMetadata(const StagingDir, PackageFileName, ExpectedSha256, PackageVersion,
+      SourceUrl: string; out MetadataFileName, ErrorMessage: string): Boolean;
     function CleanupUpdateWorkspace(const WorkspaceDir: string; out ErrorMessage: string): Boolean;
     function StageValidatedUpdatePackage(const ManifestFileName: string; out StagingDir, MetadataFileName, ErrorMessage: string): Boolean;
     function PromoteStagedUpdate(const StagingDir, TargetDir: string; out BackupDir, ErrorMessage: string;
@@ -1123,22 +1125,22 @@ begin
 end;
 
 function TUniWampRuntime.ValidateUpdateManifest(const ManifestFileName: string;
-  out PackageFileName, ExpectedSha256, PackageVersion: string; out ErrorMessage: string): Boolean;
+  out PackageFileName, ExpectedSha256, PackageVersion, SourceUrl: string; out ErrorMessage: string): Boolean;
 begin
   with TPackageManager.Create(FPaths) do
   try
-    Result := ValidateUpdateManifest(ManifestFileName, PackageFileName, ExpectedSha256, PackageVersion, ErrorMessage);
+    Result := ValidateUpdateManifest(ManifestFileName, PackageFileName, ExpectedSha256, PackageVersion, SourceUrl, ErrorMessage);
   finally
     Free;
   end;
 end;
 
 function TUniWampRuntime.WriteUpdateStagingMetadata(const StagingDir, PackageFileName,
-  ExpectedSha256, PackageVersion: string; out MetadataFileName, ErrorMessage: string): Boolean;
+  ExpectedSha256, PackageVersion, SourceUrl: string; out MetadataFileName, ErrorMessage: string): Boolean;
 begin
   with TPackageManager.Create(FPaths) do
   try
-    Result := WriteUpdateStagingMetadata(StagingDir, PackageFileName, ExpectedSha256, PackageVersion, MetadataFileName, ErrorMessage);
+    Result := WriteUpdateStagingMetadata(StagingDir, PackageFileName, ExpectedSha256, PackageVersion, SourceUrl, MetadataFileName, ErrorMessage);
   finally
     Free;
   end;
