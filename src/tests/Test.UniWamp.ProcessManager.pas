@@ -14,6 +14,8 @@ type
     procedure TestRunAndCaptureOutput_Success;
     [Test]
     procedure TestStartDetached_Success;
+    [Test]
+    procedure TestStartInteractive_SendLine;
   end;
 
 implementation
@@ -40,6 +42,30 @@ begin
   
   // Wait for it to close
   TProcessManager.WaitForExit(StartResult.ProcessId, 5000);
+end;
+
+procedure TProcessManagerTests.TestStartInteractive_SendLine;
+var
+  Session: IInteractiveProcessSession;
+  OutputStr: string;
+  StartError: string;
+begin
+  OutputStr := '';
+  Session := TProcessManager.StartInteractive(
+    'C:\Windows\System32\cmd.exe',
+    '/v:on /c "set /p X=Prompt: & echo !X!"',
+    '',
+    procedure(const Text: string)
+    begin
+      OutputStr := OutputStr + Text;
+    end,
+    StartError);
+
+  Assert.IsTrue(Assigned(Session), StartError);
+  Assert.IsTrue(Session.SendLine('hello'));
+  Assert.IsTrue(Session.WaitForExit(5000), 'Interactive session should exit after input is sent.');
+  OutputStr := OutputStr + Session.CapturedOutput;
+  Assert.Contains(OutputStr, 'hello');
 end;
 
 initialization

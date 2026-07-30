@@ -7,11 +7,13 @@ uses
   Winapi.Messages,
   Winapi.PsAPI,
   System.Classes,
+  System.SyncObjs,
   System.SysUtils;
 
 type
   TProcessOutputEvent = reference to procedure(const Text: string);
   TProcessResultCallback = reference to procedure(const Success: Boolean; const Output: string);
+  TProcessSessionEvent = reference to procedure(const Session: IInterface);
 
   TProcessStartResult = record
     Success: Boolean;
@@ -19,9 +21,25 @@ type
     ErrorMessage: string;
   end;
 
+  IInteractiveProcessSession = interface
+    ['{0C4C53D2-6A8C-4E7A-8F7B-7F2C1B5C3F64}']
+    function ProcessId: Cardinal;
+    function IsRunning: Boolean;
+    function SendInput(const Text: string): Boolean;
+    function SendLine(const Text: string): Boolean;
+    function CloseInput: Boolean;
+    function Terminate: Boolean;
+    function WaitForExit(const TimeoutMs: Cardinal): Boolean;
+    function CapturedOutput: string;
+    function ExitCode: Cardinal;
+    function Success: Boolean;
+  end;
+
   TProcessManager = class
   public
     class function StartDetached(const ExecutablePath, Arguments, WorkingDirectory: string): TProcessStartResult; static;
+    class function StartInteractive(const ExecutablePath, Arguments, WorkingDirectory: string;
+      const OnOutput: TProcessOutputEvent; out ErrorMessage: string): IInteractiveProcessSession; static;
     class function RunAndCaptureOutput(const ExecutablePath, Arguments, WorkingDirectory: string;
       out Output: string; const TimeoutMs: Cardinal = 0;
       const OnOutput: TProcessOutputEvent = nil): Boolean; static;
@@ -39,6 +57,337 @@ implementation
 uses
   System.Threading,
   Core.UniWamp.TaskRunner;
+
+type
+  TInteractiveProcessSession = class(TInterfacedObject, IInteractiveProcessSession)
+  private
+    FProcessInfo: TProcessInformation;
+    FStdoutRead: THandle;
+    FStdoutWrite: THandle;
+    FStdinRead: THandle;
+    FStdinWrite: THandle;
+    FOutputCallback: TProcessOutputEvent;
+    FOutputLock: TCriticalSection;
+    FCapturedOutput: string;
+    FCompletedEvent: TEvent;
+    FWorkerThread: TThread;
+    FExitCode: Cardinal;
+    FHasExitCode: Boolean;
+    FRunning: Boolean;
+    FStartSucceeded: Boolean;
+    procedure AppendOutputChunk(const Text: string);
+    procedure FinalizeProcess;
+    procedure RunWorker;
+  public
+    constructor Create(const ExecutablePath, Arguments, WorkingDirectory: string;
+      const OnOutput: TProcessOutputEvent; out ErrorMessage: string);
+    destructor Destroy; override;
+    function ProcessId: Cardinal;
+    function IsRunning: Boolean;
+    function SendInput(const Text: string): Boolean;
+    function SendLine(const Text: string): Boolean;
+    function CloseInput: Boolean;
+    function Terminate: Boolean;
+    function WaitForExit(const TimeoutMs: Cardinal): Boolean;
+    function CapturedOutput: string;
+    function ExitCode: Cardinal;
+    function Success: Boolean;
+  end;
+
+constructor TInteractiveProcessSession.Create(const ExecutablePath, Arguments,
+  WorkingDirectory: string; const OnOutput: TProcessOutputEvent; out ErrorMessage: string);
+var
+  StartupInfo: TStartupInfo;
+  CommandLine: string;
+  PWorkingDir: PChar;
+  SecurityAttributes: TSecurityAttributes;
+begin
+  inherited Create;
+  ErrorMessage := '';
+  FStdoutRead := 0;
+  FStdoutWrite := 0;
+  FStdinRead := 0;
+  FStdinWrite := 0;
+  FOutputCallback := OnOutput;
+  FOutputLock := TCriticalSection.Create;
+  FCompletedEvent := TEvent.Create(nil, True, False, '');
+  FRunning := False;
+  FStartSucceeded := False;
+  FExitCode := 0;
+  FHasExitCode := False;
+
+  if not FileExists(ExecutablePath) then
+  begin
+    ErrorMessage := 'Executable not found: ' + ExecutablePath;
+    Exit;
+  end;
+
+  ZeroMemory(@SecurityAttributes, SizeOf(SecurityAttributes));
+  SecurityAttributes.nLength := SizeOf(SecurityAttributes);
+  SecurityAttributes.bInheritHandle := True;
+  SecurityAttributes.lpSecurityDescriptor := nil;
+
+  if not CreatePipe(FStdoutRead, FStdoutWrite, @SecurityAttributes, 0) then
+  begin
+    ErrorMessage := SysErrorMessage(GetLastError);
+    Exit;
+  end;
+  if not SetHandleInformation(FStdoutRead, HANDLE_FLAG_INHERIT, 0) then
+  begin
+    ErrorMessage := SysErrorMessage(GetLastError);
+    Exit;
+  end;
+
+  if not CreatePipe(FStdinRead, FStdinWrite, @SecurityAttributes, 0) then
+  begin
+    ErrorMessage := SysErrorMessage(GetLastError);
+    Exit;
+  end;
+  if not SetHandleInformation(FStdinWrite, HANDLE_FLAG_INHERIT, 0) then
+  begin
+    ErrorMessage := SysErrorMessage(GetLastError);
+    Exit;
+  end;
+
+  ZeroMemory(@StartupInfo, SizeOf(StartupInfo));
+  StartupInfo.cb := SizeOf(StartupInfo);
+  StartupInfo.dwFlags := STARTF_USESHOWWINDOW or STARTF_USESTDHANDLES;
+  StartupInfo.wShowWindow := SW_HIDE;
+  StartupInfo.hStdOutput := FStdoutWrite;
+  StartupInfo.hStdError := FStdoutWrite;
+  StartupInfo.hStdInput := FStdinRead;
+  ZeroMemory(@FProcessInfo, SizeOf(FProcessInfo));
+
+  CommandLine := '"' + ExecutablePath + '"';
+  if Arguments <> '' then
+    CommandLine := CommandLine + ' ' + Arguments;
+  UniqueString(CommandLine);
+
+  if WorkingDirectory = '' then
+    PWorkingDir := nil
+  else
+    PWorkingDir := PChar(WorkingDirectory);
+
+  if not CreateProcess(nil, PChar(CommandLine), nil, nil, True, CREATE_NO_WINDOW,
+    nil, PWorkingDir, StartupInfo, FProcessInfo) then
+  begin
+    ErrorMessage := SysErrorMessage(GetLastError);
+    Exit;
+  end;
+
+  FStartSucceeded := True;
+  FRunning := True;
+
+  CloseHandle(FStdoutWrite);
+  FStdoutWrite := 0;
+  CloseHandle(FStdinRead);
+  FStdinRead := 0;
+
+  FWorkerThread := TThread.CreateAnonymousThread(
+    procedure
+    begin
+      RunWorker;
+    end);
+  FWorkerThread.FreeOnTerminate := False;
+  FWorkerThread.Start;
+end;
+
+destructor TInteractiveProcessSession.Destroy;
+begin
+  Terminate;
+  CloseInput;
+  if Assigned(FWorkerThread) then
+  begin
+    FWorkerThread.WaitFor;
+    FWorkerThread.Free;
+  end;
+  if FCompletedEvent <> nil then
+    FCompletedEvent.Free;
+  if FOutputLock <> nil then
+    FOutputLock.Free;
+  if FStdoutRead <> 0 then
+    CloseHandle(FStdoutRead);
+  if FStdoutWrite <> 0 then
+    CloseHandle(FStdoutWrite);
+  if FStdinRead <> 0 then
+    CloseHandle(FStdinRead);
+  if FStdinWrite <> 0 then
+    CloseHandle(FStdinWrite);
+  if FStartSucceeded then
+  begin
+    if FProcessInfo.hThread <> 0 then
+      CloseHandle(FProcessInfo.hThread);
+    if FProcessInfo.hProcess <> 0 then
+      CloseHandle(FProcessInfo.hProcess);
+  end;
+  inherited;
+end;
+
+procedure TInteractiveProcessSession.AppendOutputChunk(const Text: string);
+begin
+  if Text = '' then
+    Exit;
+  FOutputLock.Acquire;
+  try
+    FCapturedOutput := FCapturedOutput + Text;
+  finally
+    FOutputLock.Release;
+  end;
+  if Assigned(FOutputCallback) then
+    FOutputCallback(Text);
+end;
+
+procedure TInteractiveProcessSession.FinalizeProcess;
+begin
+  FRunning := False;
+  if FCompletedEvent <> nil then
+    FCompletedEvent.SetEvent;
+end;
+
+procedure TInteractiveProcessSession.RunWorker;
+var
+  Buffer: array[0..4095] of Byte;
+  BytesRead: DWORD;
+  BytesAvailable: DWORD;
+  Chunk: TBytes;
+  WaitResult: DWORD;
+  ExitCode: DWORD;
+begin
+  try
+    repeat
+      while PeekNamedPipe(FStdoutRead, nil, 0, nil, @BytesAvailable, nil) and (BytesAvailable > 0) do
+      begin
+        if BytesAvailable > SizeOf(Buffer) then
+          BytesAvailable := SizeOf(Buffer);
+        if not ReadFile(FStdoutRead, Buffer, BytesAvailable, BytesRead, nil) or (BytesRead = 0) then
+          Break;
+        SetLength(Chunk, BytesRead);
+        Move(Buffer[0], Chunk[0], BytesRead);
+        AppendOutputChunk(TEncoding.Default.GetString(Chunk));
+      end;
+
+      WaitResult := WaitForSingleObject(FProcessInfo.hProcess, 50);
+    until (WaitResult = WAIT_OBJECT_0) and
+      (not PeekNamedPipe(FStdoutRead, nil, 0, nil, @BytesAvailable, nil) or (BytesAvailable = 0));
+
+    while PeekNamedPipe(FStdoutRead, nil, 0, nil, @BytesAvailable, nil) and (BytesAvailable > 0) do
+    begin
+      if BytesAvailable > SizeOf(Buffer) then
+        BytesAvailable := SizeOf(Buffer);
+      if not ReadFile(FStdoutRead, Buffer, BytesAvailable, BytesRead, nil) or (BytesRead = 0) then
+        Break;
+      SetLength(Chunk, BytesRead);
+      Move(Buffer[0], Chunk[0], BytesRead);
+      AppendOutputChunk(TEncoding.Default.GetString(Chunk));
+    end;
+
+    FHasExitCode := GetExitCodeProcess(FProcessInfo.hProcess, ExitCode);
+    if FHasExitCode then
+      FExitCode := ExitCode;
+    if FHasExitCode and (FExitCode <> 0) then
+    begin
+      if Trim(FCapturedOutput) <> '' then
+        AppendOutputChunk(sLineBreak);
+      AppendOutputChunk(Format('Process exited with code %d.', [FExitCode]));
+    end;
+  finally
+    FinalizeProcess;
+  end;
+end;
+
+function TInteractiveProcessSession.ProcessId: Cardinal;
+begin
+  Result := 0;
+  if FStartSucceeded then
+    Result := FProcessInfo.dwProcessId;
+end;
+
+function TInteractiveProcessSession.IsRunning: Boolean;
+begin
+  Result := FRunning;
+end;
+
+function TInteractiveProcessSession.SendInput(const Text: string): Boolean;
+var
+  Data: TBytes;
+  Written: DWORD;
+begin
+  Result := False;
+  if FStdinWrite = 0 then
+    Exit;
+  Data := TEncoding.Default.GetBytes(Text);
+  if Length(Data) = 0 then
+    Exit(True);
+  FOutputLock.Acquire;
+  try
+    Result := WriteFile(FStdinWrite, Data[0], Length(Data), Written, nil) and (Written = Length(Data));
+  finally
+    FOutputLock.Release;
+  end;
+end;
+
+function TInteractiveProcessSession.SendLine(const Text: string): Boolean;
+begin
+  Result := SendInput(Text + sLineBreak);
+end;
+
+function TInteractiveProcessSession.CloseInput: Boolean;
+begin
+  Result := True;
+  if FStdinWrite <> 0 then
+  begin
+    FOutputLock.Acquire;
+    try
+      if FStdinWrite <> 0 then
+      begin
+        Result := CloseHandle(FStdinWrite);
+        FStdinWrite := 0;
+      end;
+    finally
+      FOutputLock.Release;
+    end;
+  end;
+end;
+
+function TInteractiveProcessSession.Terminate: Boolean;
+begin
+  Result := True;
+  if FStartSucceeded and FRunning then
+    Result := TerminateProcess(FProcessInfo.hProcess, 1);
+end;
+
+function TInteractiveProcessSession.WaitForExit(const TimeoutMs: Cardinal): Boolean;
+var
+  WaitResult: TWaitResult;
+begin
+  if not FStartSucceeded then
+    Exit(True);
+  if TimeoutMs = 0 then
+    WaitResult := FCompletedEvent.WaitFor(INFINITE)
+  else
+    WaitResult := FCompletedEvent.WaitFor(TimeoutMs);
+  Result := WaitResult = wrSignaled;
+end;
+
+function TInteractiveProcessSession.CapturedOutput: string;
+begin
+  FOutputLock.Acquire;
+  try
+    Result := FCapturedOutput;
+  finally
+    FOutputLock.Release;
+  end;
+end;
+
+function TInteractiveProcessSession.ExitCode: Cardinal;
+begin
+  Result := FExitCode;
+end;
+
+function TInteractiveProcessSession.Success: Boolean;
+begin
+  Result := FHasExitCode and (FExitCode = 0);
+end;
 
 class procedure TProcessManager.RunAndCaptureOutputAsync(const ExecutablePath, Arguments,
   WorkingDirectory: string; const TimeoutMs: Cardinal; const OnComplete: TProcessResultCallback;
@@ -112,6 +461,26 @@ begin
   end
   else
     Result.ErrorMessage := SysErrorMessage(GetLastError);
+end;
+
+class function TProcessManager.StartInteractive(const ExecutablePath, Arguments,
+  WorkingDirectory: string; const OnOutput: TProcessOutputEvent;
+  out ErrorMessage: string): IInteractiveProcessSession;
+var
+  Session: TInteractiveProcessSession;
+begin
+  Result := nil;
+  Session := TInteractiveProcessSession.Create(ExecutablePath, Arguments, WorkingDirectory,
+    OnOutput, ErrorMessage);
+  try
+    if Session.FStartSucceeded then
+      Result := Session
+    else
+      Session.Free;
+  except
+    Session.Free;
+    raise;
+  end;
 end;
 
 class function TProcessManager.RunAndCaptureOutput(const ExecutablePath, Arguments,
