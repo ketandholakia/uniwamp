@@ -17,7 +17,7 @@ UniWamp is a portable Windows development stack manager. The Delphi VCL applicat
 | Service supervision | `Core.UniWamp.ServiceSupervisor` for owned-process resolution and stop behavior |
 | Diagnostics | `Core.UniWamp.Diagnostics` for log rotation, redaction, and copyable snapshots |
 | Process execution | `Core.UniWamp.ProcessManager` |
-| Local secrets | `Core.UniWamp.Secrets` for protected machine-local MariaDB root password storage |
+| Local secrets | `Core.UniWamp.Secrets` for protected machine-local MariaDB root password and connection/sync secret storage |
 | Port checks | `Core.UniWamp.PortUtils` for availability and owner-aware conflict inspection |
 | Configuration generation | `Core.UniWamp.TemplateRenderer` and files in `templates/` |
 | Staged updater | Manifest validation, SHA-256 verification, workspace staging, promotion, rollback backup, and cleanup in `Core.UniWamp.Runtime` |
@@ -47,7 +47,7 @@ UniWamp is a portable Windows development stack manager. The Delphi VCL applicat
 - `Runtime` owns service-specific orchestration and generated configuration.
 - `ServiceSupervisor` owns owned-process resolution and stop behavior for managed services.
 - `ProcessManager` owns process execution, output capture, exit status, and termination.
-- `Secrets` owns machine-local protected secret persistence that must not be written back into portable config.
+- `Secrets` owns machine-local protected secret persistence that must not be written back into portable config or treated as portable export data.
 - `PortUtils` owns port availability and owner-aware port conflict inspection.
 - `TemplateRenderer` owns rendering UniWamp templates into generated files.
 

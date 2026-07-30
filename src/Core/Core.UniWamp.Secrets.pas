@@ -17,6 +17,7 @@ function LoadSecret(const Paths: TAppPaths; const Key: string): string;
 function SaveSecret(const Paths: TAppPaths; const Key, Value: string; out ErrorMessage: string): Boolean;
 function DeleteSecret(const Paths: TAppPaths; const Key: string; out ErrorMessage: string): Boolean;
 function HasSecret(const Paths: TAppPaths; const Key: string): Boolean;
+function HasSecretInstallMismatch(const Paths: TAppPaths): Boolean;
 
 function SyncPasswordKey(const ProfileName: string): string;
 function SyncKeyPassphraseKey(const ProfileName: string): string;
@@ -76,6 +77,50 @@ begin
   else
     RootHash := THashSHA2.GetHashString(LowerCase(ExpandFileName(Paths.AppRoot)) + '|' + LowerCase(Key));
   Result := TPath.Combine(SecretDirectory, RootHash + '.dat');
+end;
+
+function SecretInstallMarkerFile: string;
+begin
+  Result := TPath.Combine(SecretDirectory, 'install.hash');
+end;
+
+function CurrentAppRootHash(const Paths: TAppPaths): string;
+begin
+  Result := THashSHA2.GetHashString(LowerCase(ExpandFileName(Paths.AppRoot)));
+end;
+
+function ReadSecretInstallHash(out InstallHash: string): Boolean;
+var
+  FileName: string;
+begin
+  Result := False;
+  InstallHash := '';
+  FileName := SecretInstallMarkerFile;
+  if not FileExists(FileName) then
+    Exit;
+  try
+    InstallHash := Trim(TFile.ReadAllText(FileName, TEncoding.UTF8));
+    Result := InstallHash <> '';
+  except
+    InstallHash := '';
+  end;
+end;
+
+function WriteSecretInstallHash(const Paths: TAppPaths; out ErrorMessage: string): Boolean;
+var
+  FileName: string;
+begin
+  Result := False;
+  ErrorMessage := '';
+  FileName := SecretInstallMarkerFile;
+  try
+    EnsureDirectory(SecretDirectory);
+    TFile.WriteAllText(FileName, CurrentAppRootHash(Paths), TEncoding.UTF8);
+    Result := True;
+  except
+    on E: Exception do
+      ErrorMessage := 'Secret install marker could not be written: ' + E.Message;
+  end;
 end;
 
 function ProtectBytes(const PlainText: string; out ProtectedBytes: TBytesArray): Boolean;
@@ -152,6 +197,7 @@ function SaveMariaDbRootPassword(const Paths: TAppPaths; const Password: string;
 var
   FileName: string;
   ProtectedBytes: TBytesArray;
+  MarkerError: string;
 begin
   Result := False;
   ErrorMessage := '';
@@ -171,6 +217,8 @@ begin
   try
     EnsureDirectory(SecretDirectory);
     TFile.WriteAllBytes(FileName, ProtectedBytes);
+    MarkerError := '';
+    WriteSecretInstallHash(Paths, MarkerError);
     Result := True;
   except
     on E: Exception do
@@ -225,6 +273,7 @@ function SaveSecret(const Paths: TAppPaths; const Key, Value: string; out ErrorM
 var
   FileName: string;
   ProtectedBytes: TBytesArray;
+  MarkerError: string;
 begin
   Result := False;
   ErrorMessage := '';
@@ -244,6 +293,8 @@ begin
   try
     EnsureDirectory(SecretDirectory);
     TFile.WriteAllBytes(FileName, ProtectedBytes);
+    MarkerError := '';
+    WriteSecretInstallHash(Paths, MarkerError);
     Result := True;
   except
     on E: Exception do
@@ -274,6 +325,16 @@ end;
 function HasSecret(const Paths: TAppPaths; const Key: string): Boolean;
 begin
   Result := LoadSecret(Paths, Key) <> '';
+end;
+
+function HasSecretInstallMismatch(const Paths: TAppPaths): Boolean;
+var
+  InstallHash: string;
+begin
+  Result := False;
+  if not ReadSecretInstallHash(InstallHash) then
+    Exit;
+  Result := not SameText(InstallHash, CurrentAppRootHash(Paths));
 end;
 
 function ConnectionPasswordKey(const ProfileName: string): string;

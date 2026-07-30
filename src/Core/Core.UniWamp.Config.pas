@@ -141,6 +141,9 @@ uses
 
 const
   CurrentConfigVersion = 3;
+  SecretPortabilityHint =
+    'Protected secrets are bound to this UniWamp installation. If you moved the app folder or copied ' +
+    'the install to another machine, re-enter the MariaDB root password and sync credentials.';
 
 function NormalizePortablePath(const PathValue: string): string;
 begin
@@ -913,6 +916,8 @@ begin
     end;
     if MariaDbRootPassword = '' then
       MariaDbRootPassword := LoadMariaDbRootPassword(Paths);
+    if (MariaDbRootPassword = '') and HasSecretInstallMismatch(Paths) and (LastMigrationMessage = '') then
+      LastMigrationMessage := SecretPortabilityHint;
     Result := Migrated;
   finally
     Root.Free;

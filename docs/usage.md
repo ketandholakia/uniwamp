@@ -49,6 +49,11 @@ deployments.
   and hooks.
 - Sync profiles can reuse a named connection profile when multiple jobs target
   the same remote host.
+- Secrets are stored outside `config\uniwamp.json` in DPAPI-protected,
+  machine-local storage under the current UniWamp installation. They are not
+  exported with the portable app folder; if you move the install or copy it to
+  another machine, re-enter the MariaDB root password and connection/sync
+  credentials.
 
 See [`Connection and Sync Profiles`](SYNC_PROFILES.md) for the data model.
 

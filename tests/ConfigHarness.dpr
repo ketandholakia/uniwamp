@@ -134,6 +134,16 @@ begin
   Result.EnvBatFile := TPath.Combine(Result.GeneratedConfigDir, 'env.bat');
 end;
 
+procedure SetLocalAppDataForTest(const RootDir: string; out OldLocalAppData: string);
+var
+  SecretDir: string;
+begin
+  OldLocalAppData := GetEnvironmentVariable('LOCALAPPDATA');
+  SetEnvironmentVariable('LOCALAPPDATA', PChar(RootDir));
+  SecretDir := TPath.Combine(RootDir, 'UniWamp\secrets');
+  TDirectory.CreateDirectory(SecretDir);
+end;
+
 procedure EnsureTestLayout(const Paths: TAppPaths);
 begin
   AssertTrue(Paths.AppRoot <> '', 'AppRoot must be initialized');
@@ -427,42 +437,48 @@ var
   RootDir: string;
   Paths: TAppPaths;
   Config: TUniWampConfig;
+  OldLocalAppData: string;
 begin
   RootDir := CreateTempRoot('current');
   try
-    Paths := BuildPaths(RootDir);
-    EnsureTestLayout(Paths);
-    Config := TUniWampConfig.Create;
+    SetLocalAppDataForTest(CreateTempRoot('current-localappdata'), OldLocalAppData);
     try
-      Config.SetDefaults(Paths);
-      Config.HttpPort := 8080;
-      Config.HttpsPort := 8443;
-      Config.DatabasePort := 3307;
-      Config.HostName := 'localhost';
-      Config.DocumentRoot := Paths.WwwDir;
-      Config.SelectedPhpVersion := 'php85';
-      Config.SelectedNodeVersion := 'node-v22';
-      Config.TerminalExePath := 'bin\cmder\cmder.exe';
-      Config.PhpProfile := 'development';
-      Config.ThemeStyleName := 'Windows';
-      Config.EnableSsl := False;
-      Config.StartAllOnLaunch := False;
-      Config.OpenDashboardAfterStart := False;
-      Config.ConfirmVHostDelete := True;
-      Config.ReplaceApacheModules([]);
-      Config.ReplacePhpVersions(['php85']);
-      Config.ReplacePhpExtensions([]);
-      Config.ReplaceNodeVersions(['node-v22']);
-      Config.ReplaceVHosts([]);
-      Config.Save(Paths);
+      Paths := BuildPaths(RootDir);
+      EnsureTestLayout(Paths);
+      Config := TUniWampConfig.Create;
+      try
+        Config.SetDefaults(Paths);
+        Config.HttpPort := 8080;
+        Config.HttpsPort := 8443;
+        Config.DatabasePort := 3307;
+        Config.HostName := 'localhost';
+        Config.DocumentRoot := Paths.WwwDir;
+        Config.SelectedPhpVersion := 'php85';
+        Config.SelectedNodeVersion := 'node-v22';
+        Config.TerminalExePath := 'bin\cmder\cmder.exe';
+        Config.PhpProfile := 'development';
+        Config.ThemeStyleName := 'Windows';
+        Config.EnableSsl := False;
+        Config.StartAllOnLaunch := False;
+        Config.OpenDashboardAfterStart := False;
+        Config.ConfirmVHostDelete := True;
+        Config.ReplaceApacheModules([]);
+        Config.ReplacePhpVersions(['php85']);
+        Config.ReplacePhpExtensions([]);
+        Config.ReplaceNodeVersions(['node-v22']);
+        Config.ReplaceVHosts([]);
+        Config.Save(Paths);
 
-      AssertTrue(not Config.LoadOrCreate(Paths), 'Current config should not report migration');
-      AssertTrue(Config.LastMigrationMessage = '', 'Current config should not set a migration message');
-      AssertConfigVersion(Paths.AppConfigFile, 3, 'Current config should remain versioned');
-      AssertIntEquals(8080, Config.HttpPort, 'Current config should preserve the HTTP port');
-      AssertEquals('Windows', Config.ThemeStyleName, 'Current config should preserve the theme style');
+        AssertTrue(not Config.LoadOrCreate(Paths), 'Current config should not report migration');
+        AssertTrue(Config.LastMigrationMessage = '', 'Current config should not set a migration message');
+        AssertConfigVersion(Paths.AppConfigFile, 3, 'Current config should remain versioned');
+        AssertIntEquals(8080, Config.HttpPort, 'Current config should preserve the HTTP port');
+        AssertEquals('Windows', Config.ThemeStyleName, 'Current config should preserve the theme style');
+      finally
+        Config.Free;
+      end;
     finally
-      Config.Free;
+      SetEnvironmentVariable('LOCALAPPDATA', PChar(OldLocalAppData));
     end;
   finally
     TDirectory.Delete(RootDir, True);
@@ -643,6 +659,75 @@ begin
     end;
   finally
     DeleteMariaDbRootPassword(Paths, ErrorMessage);
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TestMissingProtectedSecretsProduceMigrationHint;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  JsonText: string;
+  SavedText: string;
+  OldLocalAppData: string;
+  SecretDir: string;
+  MarkerFile: string;
+begin
+  RootDir := CreateTempRoot('secret-portability');
+  try
+    SetLocalAppDataForTest(RootDir, OldLocalAppData);
+    try
+      Paths := BuildPaths(RootDir);
+      EnsureTestLayout(Paths);
+      SecretDir := TPath.Combine(RootDir, 'UniWamp\secrets');
+      MarkerFile := TPath.Combine(SecretDir, 'install.hash');
+      TDirectory.CreateDirectory(SecretDir);
+      TFile.WriteAllText(MarkerFile, 'different-install-marker', TEncoding.UTF8);
+
+      JsonText :=
+        '{' +
+        '"configVersion":3,' +
+        '"httpPort":8080,' +
+        '"httpsPort":8443,' +
+        '"databasePort":3307,' +
+        '"hostName":"localhost",' +
+        '"documentRoot":"' + StringReplace(Paths.WwwDir, '\', '\\', [rfReplaceAll]) + '",' +
+        '"selectedPhpVersion":"php85",' +
+        '"selectedNodeVersion":"node-v22",' +
+        '"terminalExePath":"bin\\cmder\\cmder.exe",' +
+        '"phpProfile":"development",' +
+        '"enableSsl":false,' +
+        '"apachePid":0,' +
+        '"mariaDbPid":0,' +
+        '"apacheRunning":false,' +
+        '"mariaDbRunning":false,' +
+        '"lastApacheError":"",' +
+        '"lastMariaDbError":"",' +
+        '"lastHostsSyncStatus":"",' +
+        '"apacheEnabledModules":[],' +
+        '"phpVersions":["php85"],' +
+        '"phpEnabledExtensions":[],' +
+        '"phpSettings":{},' +
+        '"nodeVersions":["node-v22"],' +
+        '"vhosts":[]' +
+        '}';
+      WriteTextFile(Paths.AppConfigFile, JsonText);
+
+      Config := TUniWampConfig.Create;
+      try
+        AssertTrue(not Config.LoadOrCreate(Paths), 'Secret portability hint should not count as a config migration');
+        AssertContains(Config.LastMigrationMessage, 'Protected secrets are bound to this UniWamp installation',
+          'Startup message should explain the portability boundary');
+        SavedText := TFile.ReadAllText(Paths.AppConfigFile, TEncoding.UTF8);
+        AssertTrue(Pos('configVersion', SavedText) > 0, 'Config should still be rewritten normally');
+      finally
+        Config.Free;
+      end;
+    finally
+      SetEnvironmentVariable('LOCALAPPDATA', PChar(OldLocalAppData));
+    end;
+  finally
     TDirectory.Delete(RootDir, True);
   end;
 end;
@@ -1084,6 +1169,7 @@ begin
     TestInvalidPortsAndDefaults;
     TestPartiallyValidConfigMigratesOnlyInvalidValues;
     TestLegacyMariaDbPasswordMigratesToProtectedStorage;
+    TestMissingProtectedSecretsProduceMigrationHint;
     TestConnectionSecretsMigrateFromLegacySyncKeys;
     TestAkauntingRecipeWritesMysqlEnvFile;
     TestErpsaasRecipeWritesMysqlEnvFile;
