@@ -17,6 +17,7 @@ uses
   Test.UniWamp.DatabaseBackupService in 'Test.UniWamp.DatabaseBackupService.pas',
   Test.UniWamp.Secrets in 'Test.UniWamp.Secrets.pas',
   Test.UniWamp.MariaDbAuth in 'Test.UniWamp.MariaDbAuth.pas',
+  Test.UniWamp.ScriptEngine in 'Test.UniWamp.ScriptEngine.pas',
   Test.UniWamp.Diagnostics in 'Test.UniWamp.Diagnostics.pas';
 
 var

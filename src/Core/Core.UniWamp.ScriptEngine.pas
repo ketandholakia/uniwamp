@@ -10,6 +10,7 @@ uses
 
 type
   TScriptOutputEvent = TProcessOutputEvent;
+  TScriptSessionEvent = reference to procedure(const Session: IInteractiveProcessSession);
 
   TScriptPreflightResult = record
     Success: Boolean;
@@ -55,7 +56,8 @@ type
       const ProjectName: string): string;
     function SafePath(const Value: string; const Description: string): string;
     function RunStep(const Step: TScriptStep; const Item: TScriptCatalogItem;
-      const ProjectName: string; out Output: string; const OnOutput: TScriptOutputEvent = nil): Boolean;
+      const ProjectName: string; out Output: string; const OnOutput: TScriptOutputEvent = nil;
+      const OnSessionStarted: TScriptSessionEvent = nil): Boolean;
     function CopyDirectory(const SourceDirectory, DestinationDirectory: string): Boolean;
   public
     constructor Create(const Paths: TAppPaths);
@@ -67,8 +69,11 @@ type
     function ValidateRequirements(const Item: TScriptCatalogItem;
       const CreateDatabase: Boolean): TScriptPreflightResult;
     function Execute(const Item: TScriptCatalogItem; const ProjectName: string;
-      const OnOutput: TScriptOutputEvent = nil; const CreateDatabase: Boolean = True): TScriptExecutionResult;
+      const OnOutput: TScriptOutputEvent = nil; const OnSessionStarted: TScriptSessionEvent = nil;
+      const CreateDatabase: Boolean = True): TScriptExecutionResult;
   end;
+
+function FormatGeneratedAdminPasswordMessage(const DatabaseName, Username: string): string;
 
 implementation
 
@@ -86,6 +91,12 @@ uses
   System.RegularExpressions,
   System.Generics.Collections,
   System.Zip;
+
+function FormatGeneratedAdminPasswordMessage(const DatabaseName, Username: string): string;
+begin
+  Result := Format('Created database "%s" and user "%s". Generated admin password: [redacted] (save it now).',
+    [DatabaseName, Username]);
+end;
 
 constructor TScriptEngine.Create(const Paths: TAppPaths);
 begin
@@ -416,8 +427,8 @@ var
   ClientExe: string;
   Arguments: string;
   Sql: string;
+  Session: IInteractiveProcessSession;
   UserOutput: string;
-  SqlFileName: string;
   DefaultsFileName: string;
   AuthError: string;
 begin
@@ -442,10 +453,6 @@ begin
     'GRANT ALL PRIVILEGES ON `%2:s`.* TO ''%0:s''@''localhost''; ' +
     'FLUSH PRIVILEGES;', [Username, Password, DatabaseName]);
 
-  SqlFileName := TPath.Combine(FPaths.TmpDir,
-    'mariadb-create-user-' + TGuid.NewGuid.ToString.Replace('{', '').Replace('}', '') + '.sql');
-  TFile.WriteAllText(SqlFileName, Sql, TEncoding.ASCII);
-
   Arguments := '--protocol=tcp --host=127.0.0.1 --port=' + IntToStr(DatabasePort) + ' -uroot';
   DefaultsFileName := '';
   if MariaDbRootPassword <> '' then
@@ -453,20 +460,39 @@ begin
     if not CreateMariaDbDefaultsExtraFile(FPaths, MariaDbRootPassword, DefaultsFileName, AuthError) then
     begin
       Output := Output + 'MariaDB auth setup failed: ' + AuthError;
-      if TFile.Exists(SqlFileName) then
-        TFile.Delete(SqlFileName);
       Exit(False);
     end;
   end;
-  Arguments := BuildMariaDbSourceFileArgs(SqlFileName, DefaultsFileName) + ' ' + Arguments;
 
   UserOutput := '';
   try
-    Result := TProcessManager.RunAndCaptureOutput(ClientExe, Arguments, FPaths.MariaDbBinDir, UserOutput, 600000);
+    Session := TProcessManager.StartInteractive(ClientExe,
+      PrependDefaultsExtraFileArg(DefaultsFileName, Arguments), FPaths.MariaDbBinDir, nil, UserOutput);
+    if not Assigned(Session) then
+    begin
+      Output := UserOutput;
+      Exit(False);
+    end;
+    try
+      if not Session.SendLine(Sql) then
+      begin
+        Output := 'Failed to send SQL to MariaDB client.';
+        Exit(False);
+      end;
+      Session.CloseInput;
+      if not Session.WaitForExit(600000) then
+      begin
+        Session.Terminate;
+        Output := 'Timed out while creating the database user.';
+        Exit(False);
+      end;
+      Result := Session.Success;
+      UserOutput := Session.CapturedOutput;
+    finally
+      Session := nil;
+    end;
   finally
     DeleteMariaDbDefaultsExtraFile(DefaultsFileName);
-    if TFile.Exists(SqlFileName) then
-      TFile.Delete(SqlFileName);
   end;
   Output := Output + UserOutput;
   if Result then
@@ -551,7 +577,8 @@ begin
 end;
 
 function TScriptEngine.RunStep(const Step: TScriptStep;
-  const Item: TScriptCatalogItem; const ProjectName: string; out Output: string; const OnOutput: TScriptOutputEvent): Boolean;
+  const Item: TScriptCatalogItem; const ProjectName: string; out Output: string;
+  const OnOutput: TScriptOutputEvent; const OnSessionStarted: TScriptSessionEvent): Boolean;
 var
   SourcePath: string;
   DestinationPath: string;
@@ -562,6 +589,8 @@ var
   FileStream: TFileStream;
   ZipFile: TZipFile;
   ProgressHandler: TDownloadProgressHandler;
+  Session: IInteractiveProcessSession;
+  StartError: string;
 begin
   Output := '';
   Result := False;
@@ -629,8 +658,30 @@ begin
     Arguments := ExpandTokens(Step.Arguments, Item, ProjectName);
     if SameText(ExtractFileName(ExecutablePath), 'php.exe') then
       Arguments := Trim(PhpCliPrefix(ExecutablePath) + ' ' + Arguments);
-    Exit(TProcessManager.RunAndCaptureOutput(ExecutablePath,
-      Arguments, WorkingDirectory, Output, Step.TimeoutMs, OnOutput));
+    Session := TProcessManager.StartInteractive(ExecutablePath, Arguments, WorkingDirectory, OnOutput, StartError);
+    if not Assigned(Session) then
+    begin
+      Output := StartError;
+      Exit(False);
+    end;
+    try
+      if Assigned(OnSessionStarted) then
+        OnSessionStarted(Session);
+      if (Step.TimeoutMs > 0) and not Session.WaitForExit(Step.TimeoutMs) then
+      begin
+        Session.Terminate;
+        Output := Session.CapturedOutput;
+        if Trim(Output) <> '' then
+          Output := Output + sLineBreak;
+        Output := Output + Format('Timed out after %d ms.', [Step.TimeoutMs]);
+        Exit(False);
+      end;
+      Output := Session.CapturedOutput;
+      Exit(Session.Success);
+    finally
+      if Assigned(OnSessionStarted) then
+        OnSessionStarted(nil);
+    end;
   end;
   if Step.StepType = 'create_database' then
   begin
@@ -655,16 +706,15 @@ begin
       Exit(False);
     FAdminPassword := GenerateRandomPassword(16);
     if Assigned(OnOutput) then
-      OnOutput(Format('Created database "%s" and user "%s". Generated admin password: %s ' +
-        '(shown once here and nowhere else unless the catalog entry writes it to a config file - save it now).',
-        [FDbName, FDbUser, FAdminPassword]));
+      OnOutput(FormatGeneratedAdminPasswordMessage(FDbName, FDbUser));
     Exit(True);
   end;
   Output := 'Unknown script step type: ' + Step.StepType;
 end;
 
 function TScriptEngine.Execute(const Item: TScriptCatalogItem; const ProjectName: string;
-  const OnOutput: TScriptOutputEvent; const CreateDatabase: Boolean): TScriptExecutionResult;
+  const OnOutput: TScriptOutputEvent; const OnSessionStarted: TScriptSessionEvent;
+  const CreateDatabase: Boolean): TScriptExecutionResult;
 var
   I: Integer;
   StepOutput: string;
@@ -691,7 +741,7 @@ begin
             [I + 1, Item.Steps[I].StepType]));
         Continue;
       end;
-      if not RunStep(Item.Steps[I], Item, ProjectName, StepOutput, OnOutput) then
+      if not RunStep(Item.Steps[I], Item, ProjectName, StepOutput, OnOutput, OnSessionStarted) then
       begin
         Result.Message := Format('Step %d failed.', [I + 1]);
         Result.Output := StepOutput;

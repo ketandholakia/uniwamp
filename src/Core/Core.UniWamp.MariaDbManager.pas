@@ -441,8 +441,10 @@ var
   CurrentPassword: string;
   SecretError: string;
   DefaultsFileName: string;
-  PasswordSqlFileName: string;
   AuthError: string;
+  Session: IInteractiveProcessSession;
+  Sql: string;
+  StartError: string;
 begin
   if Trim(NewPassword) = '' then
   begin
@@ -470,7 +472,6 @@ begin
 
   CurrentPassword := LoadMariaDbRootPassword(FPaths);
   DefaultsFileName := '';
-  PasswordSqlFileName := '';
   if CurrentPassword <> '' then
   begin
     if not CreateMariaDbDefaultsExtraFile(FPaths, CurrentPassword, DefaultsFileName, AuthError) then
@@ -480,34 +481,54 @@ begin
       Exit;
     end;
   end;
-  if not CreateMariaDbPasswordSqlFile(FPaths, NewPassword, PasswordSqlFileName, AuthError) then
-  begin
-    DeleteMariaDbDefaultsExtraFile(DefaultsFileName);
-    Result.Success := False;
-    Result.Message := 'MariaDB password file setup failed: ' + AuthError;
-    Exit;
-  end;
 
   try
     Arguments := '--protocol=tcp --host=127.0.0.1 --port=' + FConfig.DatabasePort.ToString +
       ' --user=root';
-    Arguments := BuildMariaDbSourceFileArgs(PasswordSqlFileName, DefaultsFileName) + ' ' + Arguments;
-    if not TProcessManager.RunAndCaptureOutput(MysqlClientExePath, Arguments, FPaths.MariaDbBinDir, Output) then
+    Arguments := PrependDefaultsExtraFileArg(DefaultsFileName, Arguments);
+    Sql := 'SET PASSWORD = PASSWORD(''' + StringReplace(NewPassword, '''', '''''', [rfReplaceAll]) + ''');';
+    Session := TProcessManager.StartInteractive(MysqlClientExePath, Arguments, FPaths.MariaDbBinDir, nil, StartError);
+    if not Assigned(Session) then
     begin
       Result.Success := False;
-      if Trim(Output) <> '' then
-        Result.Message := Trim(Output)
+      if Trim(StartError) <> '' then
+        Result.Message := Trim(StartError)
       else
         Result.Message := 'Failed to start mysql client.';
       Exit;
     end;
+    if not Session.SendLine(Sql) then
+    begin
+      Session.CloseInput;
+      Session.WaitForExit(5000);
+      Result.Success := False;
+      Result.Message := 'Failed to send MariaDB password update command.';
+      Exit;
+    end;
+    Session.CloseInput;
+    if not Session.WaitForExit(5000) then
+    begin
+      Session.Terminate;
+      Result.Success := False;
+      Result.Message := 'MariaDB password update timed out.';
+      Exit;
+    end;
+    Output := Session.CapturedOutput;
   finally
     DeleteMariaDbDefaultsExtraFile(DefaultsFileName);
-    if PasswordSqlFileName <> '' then
-      DeleteMariaDbDefaultsExtraFile(PasswordSqlFileName);
   end;
 
   LowerOutput := LowerCase(Output);
+  if not Session.Success then
+  begin
+    Result.Success := False;
+    FConfig.LastMariaDbError := Trim(Output);
+    if Trim(Output) <> '' then
+      Result.Message := Trim(Output)
+    else
+      Result.Message := 'MariaDB root password could not be updated.';
+    Exit;
+  end;
   if (Pos('error', LowerOutput) > 0) or (Pos('access denied', LowerOutput) > 0) then
   begin
     Result.Success := False;

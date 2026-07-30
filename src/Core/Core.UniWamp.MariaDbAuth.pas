@@ -69,30 +69,11 @@ end;
 
 function CreateMariaDbPasswordSqlFile(const Paths: TAppPaths; const Password: string;
   out FileName, ErrorMessage: string): Boolean;
-var
-  GuidValue: TGuid;
-  SqlText: string;
 begin
   Result := False;
   FileName := '';
   ErrorMessage := '';
-  try
-    EnsureDirectory(Paths.TmpDir);
-    CreateGUID(GuidValue);
-    FileName := TPath.Combine(Paths.TmpDir,
-      'mariadb-password-' + GUIDToString(GuidValue).Replace('{', '').Replace('}', '') + '.sql');
-    SqlText := 'SET PASSWORD = PASSWORD(''' + EscapeSqlLiteral(Password) + ''');' + sLineBreak;
-    AtomicWriteTextFile(FileName, SqlText, TEncoding.ASCII);
-    Result := True;
-  except
-    on E: Exception do
-    begin
-      ErrorMessage := E.Message;
-      if (FileName <> '') and TFile.Exists(FileName) then
-        TFile.Delete(FileName);
-      FileName := '';
-    end;
-  end;
+  ErrorMessage := 'Writing a root-password SQL file is disabled; use the interactive password update path.';
 end;
 
 procedure DeleteMariaDbDefaultsExtraFile(const FileName: string);
