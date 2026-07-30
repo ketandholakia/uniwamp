@@ -13,6 +13,8 @@ type
     procedure TestDeleteVHostReportsHostsSyncFailureWithoutRemovingConfig;
     [Test]
     procedure TestDeleteVHostKeepsProjectDocumentRootIntact;
+    [Test]
+    procedure TestGenerateSslCertificateFailsExplicitlyWhenToolchainMissing;
   end;
 
 implementation
@@ -235,6 +237,43 @@ begin
         SetProcessEnvironmentVariable('UNIWAMP_HOSTS_FILE', OldHostsFile)
       else
         SetProcessEnvironmentVariable('UNIWAMP_HOSTS_FILE', '');
+    end;
+  finally
+    if TDirectory.Exists(RootDir) then
+      TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TVHostManagerTests.TestGenerateSslCertificateFailsExplicitlyWhenToolchainMissing;
+var
+  RootDir: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Manager: TVHostManager;
+  ResultInfo: TRuntimeActionResult;
+  CertFile: string;
+  KeyFile: string;
+begin
+  RootDir := CreateTempRoot('ssl-generate-missing-tools');
+  try
+    Paths := BuildPaths(RootDir);
+    Config := TUniWampConfig.Create;
+    try
+      Config.HostName := 'localhost';
+      Manager := TVHostManager.Create(Paths, Config);
+      try
+        CertFile := TPath.Combine(Paths.SslDir, 'server.crt');
+        KeyFile := TPath.Combine(Paths.SslDir, 'server.key');
+        ResultInfo := Manager.GenerateSslCertificateFor('localhost', CertFile, KeyFile);
+        Assert.IsFalse(ResultInfo.Success, 'Certificate generation should fail when both toolchains are missing.');
+        Assert.IsTrue(ResultInfo.Message.Contains('OpenSSL executable not found'), ResultInfo.Message);
+        Assert.IsFalse(TFile.Exists(CertFile), 'No certificate file should be created on failure.');
+        Assert.IsFalse(TFile.Exists(KeyFile), 'No key file should be created on failure.');
+      finally
+        Manager.Free;
+      end;
+    finally
+      Config.Free;
     end;
   finally
     if TDirectory.Exists(RootDir) then

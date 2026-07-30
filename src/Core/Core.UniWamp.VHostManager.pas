@@ -272,10 +272,25 @@ function TVHostManager.GenerateSslCertificateFor(const CommonName, CertFile,
   KeyFile: string): TRuntimeActionResult;
 var
   OpenSslExe: string;
-  StartResult: TProcessStartResult;
+  CommandOutput: string;
+  OpenSslSucceeded: Boolean;
   CertDir: string;
   MkcertOutput: string;
+  MkcertInstallOutput: string;
+  MkcertError: string;
+  OpenSslError: string;
+  procedure RemovePartialFiles;
+  begin
+    if FileExists(CertFile) then
+      TFile.Delete(CertFile);
+    if FileExists(KeyFile) then
+      TFile.Delete(KeyFile);
+  end;
 begin
+  Result.Success := False;
+  Result.Message := '';
+  MkcertError := '';
+  OpenSslError := '';
   CertDir := TPath.GetDirectoryName(CertFile);
   if CertDir <> '' then
     EnsureDirectory(CertDir);
@@ -283,56 +298,68 @@ begin
   if FileExists(FPaths.MkcertExe) then
   begin
     // Ensure the CA is installed in the trust store (prompts UAC on first run)
-    TProcessManager.RunAndCaptureOutput(FPaths.MkcertExe, '-install', FPaths.MkcertDir, MkcertOutput, 60000);
-    
-    StartResult := TProcessManager.StartDetached(
+    TProcessManager.RunAndCaptureOutput(FPaths.MkcertExe, '-install', FPaths.MkcertDir, MkcertInstallOutput, 60000);
+    if TProcessManager.RunAndCaptureOutput(
       FPaths.MkcertExe,
       '-cert-file "' + CertFile + '" -key-file "' + KeyFile + '" "' + CommonName + '"',
-      FPaths.MkcertDir);
-
-    if StartResult.Success then
+      FPaths.MkcertDir,
+      MkcertOutput,
+      30000) and FileExists(CertFile) and FileExists(KeyFile) then
     begin
-      TProcessManager.WaitForExit(StartResult.ProcessId, 30000);
-      if FileExists(CertFile) and FileExists(KeyFile) then
-      begin
-        Result.Success := True;
-        Result.Message := 'SSL certificate generated successfully via mkcert (locally trusted).';
-        Exit;
-      end;
+      Result.Success := True;
+      Result.Message := 'SSL certificate generated successfully via mkcert (locally trusted).';
+      Exit;
     end;
+    MkcertError := Trim(MkcertInstallOutput);
+    if Trim(MkcertOutput) <> '' then
+    begin
+      if MkcertError <> '' then
+        MkcertError := MkcertError + sLineBreak;
+      MkcertError := MkcertError + Trim(MkcertOutput);
+    end;
+    if MkcertError = '' then
+      MkcertError := 'mkcert certificate generation failed.';
+    RemovePartialFiles;
   end;
 
   // 2. Fallback to OpenSSL (untrusted self-signed)
   OpenSslExe := TPath.Combine(FPaths.ApacheBinDir, 'openssl.exe');
   if not FileExists(OpenSslExe) then
   begin
-    Result.Success := False;
-    Result.Message := 'OpenSSL executable not found.';
+    if MkcertError <> '' then
+      Result.Message := 'SSL certificate generation failed: ' + MkcertError + sLineBreak +
+        'OpenSSL executable not found.'
+    else
+      Result.Message := 'OpenSSL executable not found.';
     Exit;
   end;
 
-  StartResult := TProcessManager.StartDetached(
+  OpenSslSucceeded := TProcessManager.RunAndCaptureOutput(
     OpenSslExe,
     'req -x509 -nodes -days 365 -newkey rsa:2048 ' +
     '-subj "/CN=' + CommonName + '" ' +
     '-keyout "' + KeyFile + '" ' +
     '-out "' + CertFile + '"',
-    FPaths.SslDir);
-
-  Result.Success := StartResult.Success;
-  if Result.Success then
+    FPaths.SslDir,
+    CommandOutput,
+    120000);
+  if OpenSslSucceeded and FileExists(CertFile) and FileExists(KeyFile) then
   begin
-    TProcessManager.WaitForExit(StartResult.ProcessId, 120000);
-    if FileExists(CertFile) and FileExists(KeyFile) then
-      Result.Message := 'SSL certificate generated via OpenSSL (untrusted).'
-    else
-    begin
-      Result.Success := False;
-      Result.Message := 'SSL certificate generation did not produce the expected files.';
-    end;
+    Result.Success := True;
+    Result.Message := 'SSL certificate generated via OpenSSL (untrusted).';
   end
   else
-    Result.Message := StartResult.ErrorMessage;
+  begin
+    OpenSslError := Trim(CommandOutput);
+    if OpenSslError = '' then
+      OpenSslError := 'OpenSSL certificate generation failed.';
+    RemovePartialFiles;
+    if MkcertError <> '' then
+      Result.Message := 'SSL certificate generation failed: ' + MkcertError + sLineBreak +
+        OpenSslError
+    else
+      Result.Message := OpenSslError;
+  end;
 end;
 
 function TVHostManager.RefreshVHostSslCertificate(const ServerName: string): TRuntimeActionResult;
