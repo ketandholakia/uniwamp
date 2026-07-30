@@ -13,6 +13,10 @@ type
     procedure TestExtractZipSafelyRejectsTraversalEntry;
     [Test]
     procedure TestValidateZipArchiveStructureRejectsTraversalEntry;
+    [Test]
+    procedure TestValidateZipArchiveStructureRejectsDuplicateEntry;
+    [Test]
+    procedure TestValidateZipArchiveStructureRejectsOversizedEntry;
   end;
 
 implementation
@@ -51,6 +55,53 @@ begin
     if TFile.Exists(TempFile) then
       TFile.Delete(TempFile);
   end;
+end;
+
+procedure PatchBytesInFile(const FileName, OldText, NewText: string);
+var
+  Bytes: TBytes;
+  OldBytes: TBytes;
+  NewBytes: TBytes;
+  I: Integer;
+  Match: Boolean;
+begin
+  if Length(OldText) <> Length(NewText) then
+    raise Exception.Create('Patch text must be the same length.');
+  Bytes := TFile.ReadAllBytes(FileName);
+  OldBytes := TEncoding.ASCII.GetBytes(OldText);
+  NewBytes := TEncoding.ASCII.GetBytes(NewText);
+  for I := 0 to Length(Bytes) - Length(OldBytes) do
+  begin
+    Match := True;
+    for var J := 0 to High(OldBytes) do
+      if Bytes[I + J] <> OldBytes[J] then
+      begin
+        Match := False;
+        Break;
+      end;
+    if Match then
+      for var J := 0 to High(NewBytes) do
+        Bytes[I + J] := NewBytes[J];
+  end;
+  TFile.WriteAllBytes(FileName, Bytes);
+end;
+
+procedure PatchZipCentralDirectoryUncompressedSize(const FileName: string; const NewSize: Cardinal);
+var
+  Bytes: TBytes;
+  I: Integer;
+begin
+  Bytes := TFile.ReadAllBytes(FileName);
+  for I := 0 to Length(Bytes) - 4 do
+  begin
+    if (Bytes[I] = $50) and (Bytes[I + 1] = $4B) and (Bytes[I + 2] = $01) and (Bytes[I + 3] = $02) then
+    begin
+      PCardinal(@Bytes[I + 24])^ := NewSize;
+      TFile.WriteAllBytes(FileName, Bytes);
+      Exit;
+    end;
+  end;
+  raise Exception.Create('Central directory header not found.');
 end;
 
 procedure TSecurityTests.TestExtractZipSafelyRejectsTraversalEntry;
@@ -106,6 +157,86 @@ begin
       Zip.Open(ZipPath, zmRead);
       Assert.IsFalse(ValidateZipArchiveStructure(Zip, ErrorMessage), 'Traversal archive should be rejected.');
       Assert.IsTrue(ErrorMessage.Contains('traversal'), ErrorMessage);
+    finally
+      Zip.Free;
+    end;
+  finally
+    if TDirectory.Exists(RootDir) then
+      TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TSecurityTests.TestValidateZipArchiveStructureRejectsDuplicateEntry;
+var
+  RootDir: string;
+  ZipPath: string;
+  Zip: TZipFile;
+  ErrorMessage: string;
+  FileA: string;
+  FileB: string;
+begin
+  RootDir := CreateTempRoot('security-duplicate');
+  try
+    ZipPath := TPath.Combine(RootDir, 'duplicate.zip');
+    FileA := TPath.Combine(RootDir, 'payload-a.txt');
+    FileB := TPath.Combine(RootDir, 'payload-b.txt');
+    TFile.WriteAllText(FileA, 'alpha', TEncoding.UTF8);
+    TFile.WriteAllText(FileB, 'beta', TEncoding.UTF8);
+    Zip := TZipFile.Create;
+    try
+      Zip.Open(ZipPath, zmWrite);
+      Zip.Add(FileA, 'payload-a.txt');
+      Zip.Add(FileB, 'payload-b.txt');
+      Zip.Close;
+    finally
+      Zip.Free;
+    end;
+
+    PatchBytesInFile(ZipPath, 'payload-b.txt', 'payload-a.txt');
+
+    Zip := TZipFile.Create;
+    try
+      Zip.Open(ZipPath, zmRead);
+      Assert.IsFalse(ValidateZipArchiveStructure(Zip, ErrorMessage), 'Duplicate archive entry should be rejected.');
+      Assert.IsTrue(ErrorMessage.Contains('duplicate'), ErrorMessage);
+    finally
+      Zip.Free;
+    end;
+  finally
+    if TDirectory.Exists(RootDir) then
+      TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TSecurityTests.TestValidateZipArchiveStructureRejectsOversizedEntry;
+var
+  RootDir: string;
+  ZipPath: string;
+  Zip: TZipFile;
+  ErrorMessage: string;
+  FileA: string;
+begin
+  RootDir := CreateTempRoot('security-oversized');
+  try
+    ZipPath := TPath.Combine(RootDir, 'oversized.zip');
+    FileA := TPath.Combine(RootDir, 'payload.txt');
+    TFile.WriteAllText(FileA, 'alpha', TEncoding.UTF8);
+    Zip := TZipFile.Create;
+    try
+      Zip.Open(ZipPath, zmWrite);
+      Zip.Add(FileA, 'payload.txt');
+      Zip.Close;
+    finally
+      Zip.Free;
+    end;
+
+    PatchZipCentralDirectoryUncompressedSize(ZipPath, 1024 * 1024 * 257);
+
+    Zip := TZipFile.Create;
+    try
+      Zip.Open(ZipPath, zmRead);
+      Assert.IsFalse(ValidateZipArchiveStructure(Zip, ErrorMessage), 'Oversized archive entry should be rejected.');
+      Assert.IsTrue(ErrorMessage.Contains('too large'), ErrorMessage);
     finally
       Zip.Free;
     end;

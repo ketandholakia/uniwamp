@@ -260,6 +260,8 @@ begin
     ErrorMessage := 'Project restore target must stay inside the UniWamp application folder.';
     Exit;
   end;
+  if not ValidatePathHasNoReparsePoints(ResolvedPath, FPaths.AppRoot, ErrorMessage) then
+    Exit;
   Result := True;
 end;
 
@@ -565,6 +567,11 @@ begin
   if not IsPathUnderRoot(NormalizedDocumentRoot, FPaths.AppRoot) then
   begin
     Result.Message := 'Project restore target must stay inside the UniWamp application folder.';
+    Exit;
+  end;
+  if not ValidatePathHasNoReparsePoints(NormalizedDocumentRoot, FPaths.AppRoot, ErrorMessage) then
+  begin
+    Result.Message := ErrorMessage;
     Exit;
   end;
 

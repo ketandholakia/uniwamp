@@ -13,10 +13,12 @@ function ValidateServerAliases(const Value: string; out NormalizedValue, ErrorMe
 function ValidateUpdatePackageFileName(const Value: string; out ErrorMessage: string): Boolean;
 function ValidateZipArchiveStructure(const Zip: TZipFile; out ErrorMessage: string): Boolean;
 function ExtractZipSafely(const Zip: TZipFile; const TargetDir: string; out ErrorMessage: string): Boolean;
+function ValidatePathHasNoReparsePoints(const CandidatePath, RootPath: string; out ErrorMessage: string): Boolean;
 
 implementation
 
 uses
+  Winapi.Windows,
   System.Classes,
   System.IOUtils,
   Core.UniWamp.Paths;
@@ -172,10 +174,58 @@ begin
     (Pos(LowerCase(Root), LowerCase(IncludeTrailingPathDelimiter(Candidate))) = 1);
 end;
 
+function HasReparsePoint(const PathName: string): Boolean;
+var
+  Attributes: DWORD;
+begin
+  Result := False;
+  if Trim(PathName) = '' then
+    Exit;
+  Attributes := GetFileAttributes(PChar(PathName));
+  if Attributes = INVALID_FILE_ATTRIBUTES then
+    Exit;
+  Result := (Attributes and FILE_ATTRIBUTE_REPARSE_POINT) <> 0;
+end;
+
+function ValidatePathHasNoReparsePoints(const CandidatePath, RootPath: string; out ErrorMessage: string): Boolean;
+var
+  Candidate: string;
+  Root: string;
+begin
+  Result := False;
+  ErrorMessage := '';
+  Candidate := ExpandFileName(CandidatePath);
+  Root := ExpandFileName(RootPath);
+  if not IsPathUnderRoot(Candidate, Root) then
+  begin
+    ErrorMessage := 'Path escapes the target directory: ' + CandidatePath;
+    Exit;
+  end;
+  if HasReparsePoint(Root) then
+  begin
+    ErrorMessage := 'Target directory is a reparse point: ' + Root;
+    Exit;
+  end;
+  while not SameText(ExcludeTrailingPathDelimiter(Candidate), ExcludeTrailingPathDelimiter(Root)) do
+  begin
+    if HasReparsePoint(Candidate) then
+    begin
+      ErrorMessage := 'Target path passes through a reparse point: ' + Candidate;
+      Exit;
+    end;
+    Candidate := ExtractFileDir(ExcludeTrailingPathDelimiter(Candidate));
+    if Candidate = '' then
+      Break;
+  end;
+  Result := True;
+end;
+
 function ValidateZipArchiveStructure(const Zip: TZipFile; out ErrorMessage: string): Boolean;
 var
   I: Integer;
   NormalizedEntryName: string;
+  SeenEntries: TStringList;
+  EntryInfo: TZipHeader;
 begin
   Result := False;
   ErrorMessage := '';
@@ -185,11 +235,30 @@ begin
     Exit;
   end;
 
-  for I := 0 to Zip.FileCount - 1 do
-    if not IsSafeRelativeZipEntryName(Zip.FileName[I], NormalizedEntryName, ErrorMessage) then
-      Exit;
-
-  Result := True;
+  SeenEntries := TStringList.Create;
+  try
+    SeenEntries.CaseSensitive := False;
+    for I := 0 to Zip.FileCount - 1 do
+    begin
+      if not IsSafeRelativeZipEntryName(Zip.FileName[I], NormalizedEntryName, ErrorMessage) then
+        Exit;
+      if SeenEntries.IndexOf(NormalizedEntryName) >= 0 then
+      begin
+        ErrorMessage := 'Zip archive contains a duplicate entry: ' + Zip.FileName[I];
+        Exit;
+      end;
+      EntryInfo := Zip.FileInfo[I];
+      if EntryInfo.UncompressedSize > 1024 * 1024 * 256 then
+      begin
+        ErrorMessage := 'Zip archive entry is too large: ' + Zip.FileName[I];
+        Exit;
+      end;
+      SeenEntries.Add(NormalizedEntryName);
+    end;
+    Result := True;
+  finally
+    SeenEntries.Free;
+  end;
 end;
 
 function ValidateProjectName(const Value: string; out ErrorMessage: string): Boolean;
@@ -309,6 +378,8 @@ begin
       ErrorMessage := 'Zip archive entry escapes the target directory: ' + EntryName;
       Exit;
     end;
+    if not ValidatePathHasNoReparsePoints(ExtractFilePath(TargetPath), TargetDir, ErrorMessage) then
+      Exit;
 
     if ((Length(NormalizedEntryName) > 0) and CharInSet(NormalizedEntryName[Length(NormalizedEntryName)], ['\', '/'])) or
        (Length(EntryName) > 0) and CharInSet(EntryName[Length(EntryName)], ['\', '/']) then
