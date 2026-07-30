@@ -273,15 +273,11 @@ begin
     begin
       BackupDir := TPath.Combine(FPaths.UpdatesDir, 'backup\' + FormatDateTime('yyyymmddhhnnsszzz', Now));
       TDirectory.CreateDirectory(TPath.GetDirectoryName(BackupDir));
-      TDirectory.Copy(TargetDir, BackupDir);
-      TDirectory.Delete(TargetDir, True);
+      TDirectory.Move(TargetDir, BackupDir);
     end;
     if ForceFailureAfterBackup then
       raise Exception.Create('Injected promotion failure for rollback testing');
-    if TDirectory.Exists(TargetDir) then
-      TDirectory.Delete(TargetDir, True);
-    TDirectory.CreateDirectory(TPath.GetDirectoryName(TargetDir));
-    TDirectory.Copy(StagingDir, TargetDir);
+    TDirectory.Move(StagingDir, TargetDir);
     Result := True;
   except
     on E: Exception do
