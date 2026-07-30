@@ -41,6 +41,19 @@ uses
   Core.UniWamp.ProcessManager,
   Core.UniWamp.Secrets;
 
+function IsPlainFileNameValue(const Value: string): Boolean;
+var
+  NormalizedValue: string;
+begin
+  NormalizedValue := Trim(Value);
+  Result := (NormalizedValue <> '') and
+    SameText(ExtractFileName(NormalizedValue), NormalizedValue) and
+    not TPath.IsPathRooted(NormalizedValue) and
+    (Pos(PathDelim, NormalizedValue) = 0) and
+    (Pos('/', NormalizedValue) = 0) and
+    (Pos('\', NormalizedValue) = 0);
+end;
+
 constructor TDatabaseBackupService.Create(const Paths: TAppPaths; Config: TUniWampConfig);
 begin
   inherited Create;
@@ -181,6 +194,11 @@ begin
   if SqlFileName = '' then
   begin
     ErrorMessage := 'The backup info file is missing dumpFile=.';
+    Exit;
+  end;
+  if not IsPlainFileNameValue(SqlFileName) then
+  begin
+    ErrorMessage := 'The backup info file dumpFile= must be a plain file name.';
     Exit;
   end;
   if ExpectedSha256 = '' then
