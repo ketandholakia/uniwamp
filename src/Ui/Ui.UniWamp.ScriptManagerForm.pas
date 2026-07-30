@@ -24,7 +24,8 @@ uses
   Vcl.Graphics,
   Vcl.Grids,
   Vcl.ComCtrls,
-  Vcl.StdCtrls;
+  Vcl.StdCtrls,
+  Core.UniWamp.ProcessManager;
 
 const
   WM_INIT_SCRIPT_MANAGER = WM_APP + 201;
@@ -62,9 +63,17 @@ type
     FCreateDatabaseCheck: TCheckBox;
     FInstallLogFile: string;
     FUiUpdateQueueThread: TThread;
+    FRecentOutputTail: string;
+    FCurrentInteractiveSession: IInteractiveProcessSession;
+    FInteractivePromptVisible: Boolean;
+    FInteractivePanel: TPanel;
+    FInteractiveLabel: TLabel;
+    FInteractiveEdit: TEdit;
+    FInteractiveSendButton: TButton;
     procedure FormCloseQuery(Sender: TObject; var CanClose: Boolean);
     procedure Populate;
     procedure BindControls;
+    procedure BuildInteractiveControls;
     procedure PopulateCategoryFilter;
     procedure PopulateGrid;
     procedure SetGridHeader;
@@ -73,6 +82,9 @@ type
     procedure SyncAppendOutput;
     procedure SyncInstallFinished;
     procedure SetInstalling(const Value: Boolean);
+    procedure SetInteractiveSession(const Session: IInteractiveProcessSession);
+    function LooksLikeInteractivePrompt(const Text: string): Boolean;
+    procedure UpdateInteractiveControls;
     procedure UpdateStatusText;
     procedure UpdateSelectionDetails;
     procedure ShowSelectedItemDetails;
@@ -108,6 +120,8 @@ type
     procedure FilterChanged(Sender: TObject);
     procedure ClearFilterClick(Sender: TObject);
     procedure QuickFilterChanged(Sender: TObject);
+    procedure InteractiveSendClick(Sender: TObject);
+    procedure InteractiveInputKeyPress(Sender: TObject; var Key: Char);
   end;
 
 implementation
@@ -176,6 +190,7 @@ begin
   FGrid.OnSelectCell := GridSelectCell;
   FInstallButton.OnClick := InstallClick;
   FCloseButton.OnClick := CloseClick;
+  BuildInteractiveControls;
 
   FProgressBar := TProgressBar.Create(Self);
   FProgressBar.Parent := FStatusLabel.Parent;
@@ -213,6 +228,49 @@ begin
     FInstallButton := FindComponent('FInstallButton') as TButton;
   if not Assigned(FCloseButton) then
     FCloseButton := FindComponent('FCloseButton') as TButton;
+end;
+
+procedure TScriptManagerForm.BuildInteractiveControls;
+begin
+  if Assigned(FInteractivePanel) then
+    Exit;
+
+  FInteractivePanel := TPanel.Create(Self);
+  FInteractivePanel.Parent := FOutputPanel;
+  FInteractivePanel.Align := alBottom;
+  FInteractivePanel.Height := 56;
+  FInteractivePanel.BevelOuter := bvNone;
+  FInteractivePanel.Color := clWhite;
+  FInteractivePanel.ParentBackground := False;
+  FInteractivePanel.Visible := False;
+
+  FInteractiveLabel := TLabel.Create(FInteractivePanel);
+  FInteractiveLabel.Parent := FInteractivePanel;
+  FInteractiveLabel.Align := alTop;
+  FInteractiveLabel.Height := 16;
+  FInteractiveLabel.Caption := 'Interactive input';
+  FInteractiveLabel.Font.Style := [fsBold];
+  FInteractiveLabel.ParentFont := False;
+
+  FInteractiveEdit := TEdit.Create(FInteractivePanel);
+  FInteractiveEdit.Parent := FInteractivePanel;
+  FInteractiveEdit.Left := 0;
+  FInteractiveEdit.Top := 22;
+  FInteractiveEdit.Width := 860;
+  FInteractiveEdit.Height := 23;
+  FInteractiveEdit.Anchors := [akLeft, akTop, akRight];
+  FInteractiveEdit.TextHint := 'Type a response and press Send';
+  FInteractiveEdit.OnKeyPress := InteractiveInputKeyPress;
+
+  FInteractiveSendButton := TButton.Create(FInteractivePanel);
+  FInteractiveSendButton.Parent := FInteractivePanel;
+  FInteractiveSendButton.Left := 872;
+  FInteractiveSendButton.Top := 20;
+  FInteractiveSendButton.Width := 95;
+  FInteractiveSendButton.Height := 27;
+  FInteractiveSendButton.Anchors := [akTop, akRight];
+  FInteractiveSendButton.Caption := 'Send';
+  FInteractiveSendButton.OnClick := InteractiveSendClick;
 end;
 
 procedure TScriptManagerForm.WmInitScriptManager(var Message: TMessage);
@@ -478,6 +536,31 @@ begin
   UpdateSelectionDetails;
 end;
 
+procedure TScriptManagerForm.InteractiveSendClick(Sender: TObject);
+var
+  TextToSend: string;
+begin
+  if not Assigned(FCurrentInteractiveSession) or not FCurrentInteractiveSession.IsRunning then
+    Exit;
+  TextToSend := FInteractiveEdit.Text;
+  if not FCurrentInteractiveSession.SendLine(TextToSend) then
+  begin
+    MessageDlg('Failed to send input to the running installer.', mtError, [mbOK], 0);
+    Exit;
+  end;
+  FInteractiveEdit.Clear;
+  FInteractiveEdit.SetFocus;
+end;
+
+procedure TScriptManagerForm.InteractiveInputKeyPress(Sender: TObject; var Key: Char);
+begin
+  if Key = #13 then
+  begin
+    Key := #0;
+    InteractiveSendClick(Sender);
+  end;
+end;
+
 procedure TScriptManagerForm.UpdateStatusText;
 var
   ItemCount: Integer;
@@ -665,6 +748,7 @@ end;
 
 procedure TScriptManagerForm.AppendOutput(const Text: string);
 begin
+  FRecentOutputTail := Copy(FRecentOutputTail + Text, Max(1, Length(FRecentOutputTail + Text) - 511), 512);
   FPendingOutputText := Text;
   TThread.Queue(FUiUpdateQueueThread,
     procedure
@@ -687,6 +771,13 @@ procedure TScriptManagerForm.SyncAppendOutput;
 var
   ProgressStr: string;
 begin
+  if Assigned(FCurrentInteractiveSession) and FCurrentInteractiveSession.IsRunning and
+     LooksLikeInteractivePrompt(FRecentOutputTail) then
+  begin
+    FInteractivePromptVisible := True;
+    UpdateInteractiveControls;
+  end;
+
   if Assigned(FProgressBar) and (Pos('[PROGRESS]', FPendingOutputText) = 1) then
   begin
     FProgressBar.Visible := True;
@@ -706,6 +797,7 @@ end;
 procedure TScriptManagerForm.SyncInstallFinished;
 begin
   try
+    SetInteractiveSession(nil);
     if FPendingCompletionSuccess then
       FStatusLabel.Caption := FPendingCompletionMessage
     else
@@ -748,6 +840,71 @@ begin
 
   if not Value then
     UpdateSelectionDetails;
+  UpdateInteractiveControls;
+end;
+
+procedure TScriptManagerForm.SetInteractiveSession(const Session: IInteractiveProcessSession);
+begin
+  FCurrentInteractiveSession := Session;
+  if not Assigned(Session) then
+  begin
+    FInteractivePromptVisible := False;
+    FRecentOutputTail := '';
+  end;
+  UpdateInteractiveControls;
+end;
+
+function TScriptManagerForm.LooksLikeInteractivePrompt(const Text: string): Boolean;
+var
+  Normalized: string;
+begin
+  Normalized := LowerCase(Trim(Text));
+  Result := False;
+  if Normalized = '' then
+    Exit;
+
+  if ContainsText(Normalized, 'set folder permissions') and EndsText('?', Normalized) then
+    Exit(True);
+
+  if EndsText('?', Normalized) and
+     (ContainsText(Normalized, '[') or ContainsText(Normalized, 'default to') or
+      ContainsText(Normalized, 'y/n') or ContainsText(Normalized, 'yes/no')) then
+    Exit(True);
+
+  if (StartsText('enter ', Normalized) or StartsText('type ', Normalized) or
+      StartsText('continue ', Normalized) or StartsText('password', Normalized)) and
+     EndsText(':', Normalized) then
+    Exit(True);
+
+  if ContainsText(Normalized, 'press enter to continue') then
+    Exit(True);
+end;
+
+procedure TScriptManagerForm.UpdateInteractiveControls;
+var
+  CanSend: Boolean;
+begin
+  CanSend := FInstalling and Assigned(FCurrentInteractiveSession) and
+    FCurrentInteractiveSession.IsRunning and FInteractivePromptVisible;
+  if Assigned(FInteractivePanel) then
+    FInteractivePanel.Visible := CanSend;
+  if Assigned(FInteractiveEdit) then
+  begin
+    FInteractiveEdit.Enabled := CanSend;
+    if not CanSend then
+      FInteractiveEdit.Clear;
+  end;
+  if Assigned(FInteractiveSendButton) then
+    FInteractiveSendButton.Enabled := CanSend;
+  if Assigned(FInteractiveLabel) then
+  begin
+    if CanSend then
+      FInteractiveLabel.Caption := 'Interactive prompt detected. Enter a response and press Send.'
+    else if FInstalling then
+      FInteractiveLabel.Caption := 'Waiting for an interactive prompt from the installer...'
+    else
+      FInteractiveLabel.Caption := 'Interactive input';
+  end;
 end;
 
 function TScriptManagerForm.AskProjectName(const DefaultValue: string; out ProjectName: string): Boolean;
@@ -790,6 +947,7 @@ var
   CreateDatabase: Boolean;
 begin
   CreateDatabase := (not Assigned(FCreateDatabaseCheck)) or FCreateDatabaseCheck.Checked;
+  FRecentOutputTail := '';
   TDirectory.CreateDirectory(FPaths.LogsDir);
   FInstallLogFile := TPath.Combine(FPaths.LogsDir,
     Format('install-%s-%s.log', [ProjectName, FormatDateTime('yyyymmdd-hhnnss', Now)]));
@@ -826,6 +984,11 @@ begin
       FPendingCompletionMessage := '';
       FPendingCompletionOutput := '';
       FPendingCompletionSuccess := False;
+      TThread.Queue(FUiUpdateQueueThread,
+        procedure
+        begin
+          SetInteractiveSession(nil);
+        end);
       Runtime := nil;
       try
         try
@@ -868,7 +1031,16 @@ begin
               procedure(const Text: string)
               begin
                 AppendOutput(Text);
-              end, CreateDatabase);
+              end,
+              procedure(const Session: IInteractiveProcessSession)
+              begin
+                TThread.Queue(FUiUpdateQueueThread,
+                  procedure
+                  begin
+                    SetInteractiveSession(Session);
+                  end);
+              end,
+              CreateDatabase);
           finally
             Engine.Free;
           end;
@@ -899,7 +1071,17 @@ begin
               VHostEntry.SslCertFile := '';
               VHostEntry.SslKeyFile := '';
               ReloadConfig.AddOrUpdateVHost(VHostEntry);
-              ReloadConfig.Save(FPaths);
+              try
+                ReloadConfig.Save(FPaths);
+              except
+                on E: Exception do
+                begin
+                  FPendingCompletionMessage := 'Installer state save failed: ' + E.Message;
+                  FPendingCompletionOutput := E.Message;
+                  InstallAborted := True;
+                  AppendOutput('Installer state save failed: ' + E.Message);
+                end;
+              end;
               if ApacheWasRunning then
               begin
                 AppendOutput('Restarting Apache to load the new virtual host...');
@@ -955,6 +1137,11 @@ begin
       Config.Free;
       if InstallSucceeded then
         FPendingCompletionOutput := '';
+      TThread.Queue(FUiUpdateQueueThread,
+        procedure
+        begin
+          SetInteractiveSession(nil);
+        end);
       TThread.Queue(FUiUpdateQueueThread,
         procedure
         begin

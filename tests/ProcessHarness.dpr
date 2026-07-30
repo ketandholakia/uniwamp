@@ -595,7 +595,7 @@ begin
       Runtime := TUniWampRuntime.Create(Paths, Config);
       try
         ResultInfo := Runtime.AddVHost('example.test', TPath.Combine(RootDir, 'site'), '', False);
-        AssertTrue(ResultInfo.Success, 'VHost add should succeed with hosts override');
+        AssertTrue(ResultInfo.Success, ResultInfo.Message);
         HostsText := TFile.ReadAllText(HostsFile, TEncoding.ASCII);
         AssertContains(HostsText, '# BEGIN UniWamp Managed Hosts', 'Managed hosts block should be written');
         AssertContains(HostsText, '127.0.0.1 example.test', 'Managed hosts block should contain the vhost');
@@ -636,7 +636,7 @@ begin
       Runtime := TUniWampRuntime.Create(Paths, Config);
       try
         ResultInfo := Runtime.AddVHost('readonly.test', TPath.Combine(RootDir, 'readonly-site'), '', False);
-        AssertTrue(not ResultInfo.Success, 'VHost add should fail when hosts sync fails');
+        AssertTrue(not ResultInfo.Success, ResultInfo.Message);
         AssertContains(ResultInfo.Message, 'VHost save failed', 'Hosts sync failure should be reported as a rollback');
         AssertTrue(Length(Config.VHosts) = 0, 'VHost add should roll back the failed config change');
         AssertTrue(SameText(Config.LastHostsSyncStatus, 'Hosts update failed') or
