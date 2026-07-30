@@ -49,12 +49,17 @@ function New-ComponentEntry {
     [Parameter(Mandatory = $true)][string]$License,
     [Parameter(Mandatory = $true)][string]$SourcePath,
     [Parameter(Mandatory = $true)][string]$TargetPath,
-    [string]$PrimaryArtifact = ''
+    [string]$PrimaryArtifact = '',
+    [bool]$Required = $true
   )
 
   $resolvedSourcePath = Join-Path $RepoRoot $SourcePath
   if (-not (Test-Path -LiteralPath $resolvedSourcePath)) {
-    throw "Component source path does not exist: $SourcePath"
+    if ($Required) {
+      throw "Component source path does not exist: $SourcePath"
+    }
+
+    return $null
   }
 
   if ($PrimaryArtifact -eq '') {
@@ -99,8 +104,8 @@ $components = @(
   New-ComponentEntry -Name 'WP-CLI' -Version '2.12.0' -SourceUrl 'https://wp-cli.org/' -License 'MIT' -SourcePath 'runtime\tools\wp-cli' -TargetPath '{app}\runtime\tools\wp-cli' -PrimaryArtifact 'runtime\tools\wp-cli\wp-cli.phar'
   New-ComponentEntry -Name 'WinSCP' -Version '6.5.6' -SourceUrl 'https://winscp.net/' -License 'GPL-3.0-or-later' -SourcePath 'runtime\tools\winscp' -TargetPath '{app}\runtime\tools\winscp' -PrimaryArtifact 'runtime\tools\winscp\WinSCP.exe'
   New-ComponentEntry -Name 'Adminer' -Version '5.4.2' -SourceUrl 'https://www.adminer.org/' -License 'Apache-2.0 or GPL-2.0-only' -SourcePath 'home\adminer' -TargetPath '{app}\home\adminer' -PrimaryArtifact 'home\adminer\index.php'
-  New-ComponentEntry -Name 'Cmder' -Version '1.3.25.328' -SourceUrl 'https://cmder.app/' -License 'MIT' -SourcePath 'bin\cmder' -TargetPath '{app}\bin\cmder' -PrimaryArtifact 'bin\cmder\Cmder.exe'
-)
+  New-ComponentEntry -Name 'Cmder' -Version '1.3.25.328' -SourceUrl 'https://cmder.app/' -License 'MIT' -SourcePath 'bin\cmder' -TargetPath '{app}\bin\cmder' -PrimaryArtifact 'bin\cmder\Cmder.exe' -Required $false
+) | Where-Object { $_ -ne $null }
 
 $manifest = [ordered]@{
   schemaVersion = 1

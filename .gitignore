@@ -90,4 +90,7 @@ Desktop.ini
 *.crt
 *.pfx
 .env
+
+!/runtime/certs/
+!/runtime/certs/cacert.pem
 *.env
