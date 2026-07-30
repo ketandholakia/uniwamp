@@ -2060,8 +2060,8 @@ begin
   AddVHostButton.TabStop := True;
   AddVHostButton.TabOrder := 12;
   DeleteVHostButton.OnClick := DeleteVHostClick;
-  DeleteVHostButton.Hint := BuildToolPanelHint('Delete the selected project',
-    'Removes the selected project entry and its generated configuration.');
+  DeleteVHostButton.Hint := BuildToolPanelHint('Delete the selected vHost configuration',
+    'Removes the selected vHost configuration and keeps the project folder intact.');
   DeleteVHostButton.ShowHint := True;
   DeleteVHostButton.TabStop := True;
   DeleteVHostButton.TabOrder := 13;
@@ -2217,7 +2217,7 @@ begin
   SetButtonCaption(BackupProjectButton, 'Backup Project');
   SetButtonCaption(RestoreProjectButton, 'Restore Project');
   SetButtonCaption(CopyVHostUrlButton, 'Copy URL');
-  SetButtonCaption(DeleteVHostButton, 'Delete Project');
+  SetButtonCaption(DeleteVHostButton, 'Delete vHost');
   SetButtonCaption(EditPhpIniButton, 'php.ini');
   SetButtonCaption(EditHttpdConfButton, 'httpd.conf');
   SetButtonCaption(EditMariaDbIniButton, 'mariadb.ini');
@@ -2771,7 +2771,7 @@ begin
   Item := AddItem(MenuItem, '&Copy URL', CopyVHostUrlClick);
   Item.ShortCut := ShortCut(Ord('C'), [ssCtrl, ssShift]);
   AddItem(MenuItem, '-');
-  Item := AddItem(MenuItem, '&Delete Project', DeleteVHostClick);
+  Item := AddItem(MenuItem, '&Delete vHost', DeleteVHostClick);
   Item.ShortCut := ShortCut(VK_DELETE, []);
 
   MenuItem := AddItem(FMainMenu.Items, '&Tools');
@@ -3980,10 +3980,10 @@ begin
     Exit;
   if FConfig.ConfirmVHostDelete then
   begin
-    ConfirmText := Format('Delete project "%s" and remove its generated vHost config?', [ServerName]);
+    ConfirmText := Format('Delete the vHost configuration for "%s"?', [ServerName]);
     if TryGetVHostEntry(ServerName, Entry) then
       ConfirmText := ConfirmText + sLineBreak + sLineBreak +
-        'Project folder: ' + Entry.DocumentRoot + sLineBreak +
+        'Project folder will be kept: ' + Entry.DocumentRoot + sLineBreak +
         'SSL certificate/key files will also be removed if this vHost uses SSL.';
     if MessageDlg(ConfirmText, mtWarning, [mbYes, mbNo], 0) <> mrYes then
       Exit;
