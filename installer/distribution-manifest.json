@@ -1,6 +1,5 @@
 ﻿{
     "schemaVersion":  1,
-    "generatedAtUtc":  "2026-07-26T17:44:17Z",
     "repository":  "https://github.com/ketandholakia/uniwamp",
     "releaseVersion":  "v0.2.0-alpha",
     "app":  {
@@ -9,7 +8,7 @@
                 "displayVersion":  "v0.2.0-alpha",
                 "sourcePath":  "src\\tmpbuild\\bin\\UniWamp.exe",
                 "targetPath":  "{app}\\UniWamp.exe",
-                "sha256":  "9a0e9d86522b9ea4bf1a598eb780d4b52583fcc001dfac789a800daff09fd107"
+                "sha256":  "7a8d184b8be72d55e0bab6b403d238c82ee32974e97f69a976aefd921cd74a3d"
             },
     "components":  [
                        {
@@ -20,7 +19,7 @@
                            "sourcePath":  "src\\tmpbuild\\bin\\UniWamp.exe",
                            "targetPath":  "{app}\\UniWamp.exe",
                            "primaryArtifact":  "src\\tmpbuild\\bin\\UniWamp.exe",
-                           "sha256":  "9a0e9d86522b9ea4bf1a598eb780d4b52583fcc001dfac789a800daff09fd107"
+                           "sha256":  "7a8d184b8be72d55e0bab6b403d238c82ee32974e97f69a976aefd921cd74a3d"
                        },
                        {
                            "name":  "Apache HTTP Server",

@@ -104,7 +104,6 @@ $components = @(
 
 $manifest = [ordered]@{
   schemaVersion = 1
-  generatedAtUtc = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
   repository = 'https://github.com/ketandholakia/uniwamp'
   releaseVersion = 'v0.2.0-alpha'
   app = [ordered]@{
