@@ -15,6 +15,7 @@ if not defined ISCC for /f "delims=" %%I in ('where ISCC.exe 2^>nul') do if not 
 
 if not exist "%RSVARS%" goto missing_delphi
 if not exist "%ISCC%" goto missing_iscc
+if not exist "%ROOT%\installer\redist\vc_redist.x64.exe" goto missing_redist
 
 pushd "%ROOT%\src"
 call "%RSVARS%"
@@ -54,4 +55,9 @@ exit /b 1
 
 :missing_iscc
 echo Inno Setup compiler not found: %ISCC%
+exit /b 1
+
+:missing_redist
+echo Bundled VC++ redistributable not found: %ROOT%\installer\redist\vc_redist.x64.exe
+echo Download it from the official Microsoft release channel before building the installer.
 exit /b 1

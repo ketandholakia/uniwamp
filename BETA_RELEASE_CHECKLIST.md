@@ -16,6 +16,7 @@
 - `BETA-041` gives useful logs without leaking secrets.
 - `BETA-042` documents supported environments and upgrade steps.
 - `BETA-043` passes clean-machine install and upgrade validation.
+- The installer bundles Microsoft's official VC++ 2015-2022 x64 redistributable and handles the missing-runtime case automatically.
 - The beta support matrix is published in `docs/testing/BETA_SUPPORT_MATRIX.md`.
 
 ## Beta Launch Gate

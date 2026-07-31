@@ -15,7 +15,7 @@ DefaultGroupName=UniWamp
 DisableProgramGroupPage=no
 DisableDirPage=no
 AllowNoIcons=yes
-PrivilegesRequired=lowest
+PrivilegesRequired=admin
 OutputDir=Output
 OutputBaseFilename=UniWamp-{#InstallerProfileName}-Setup-{#MyAppDisplayVersion}
 SetupIconFile=..\src\UniWamp_Icon.ico
@@ -59,6 +59,7 @@ Name: "{app}\runtime\tools\lite-xl"
 Name: "{app}\scripts"
 
 [Files]
+Source: "redist\vc_redist.x64.exe"; Flags: dontcopy
 Source: "..\src\tmpbuild\bin\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\src\UniWamp_Icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\runtime\apache\*"; DestDir: "{app}\runtime\apache"; Flags: recursesubdirs createallsubdirs ignoreversion
@@ -186,11 +187,64 @@ begin
   end;
 end;
 
+function InstallRequiredApacheVisualCRuntime(): Boolean;
+var
+  ResultCode: Integer;
+  MessageText: string;
+begin
+  Result := False;
+  ExtractTemporaryFile('vc_redist.x64.exe');
+
+  if not Exec(
+    ExpandConstant('{tmp}\vc_redist.x64.exe'),
+    '/install /quiet /norestart',
+    '',
+    SW_SHOW,
+    ewWaitUntilTerminated,
+    ResultCode) then
+  begin
+    MessageText := 'Unable to launch the bundled Microsoft Visual C++ Redistributable installer.';
+    MsgBox(MessageText, mbCriticalError, MB_OK);
+    exit;
+  end;
+
+  if (ResultCode = 3010) or (ResultCode = 1641) then
+  begin
+    MessageText :=
+      'Microsoft Visual C++ Redistributable 2015-2022 (x64) was installed, but Windows requires a restart before UniWamp can continue.' + #13#10#13#10 +
+      'Restart Windows, then run the installer again.';
+    MsgBox(MessageText, mbInformation, MB_OK);
+    exit;
+  end;
+
+  if ResultCode <> 0 then
+  begin
+    MessageText :=
+      'The bundled Microsoft Visual C++ Redistributable installer exited with code ' + IntToStr(ResultCode) + '.' + #13#10#13#10 +
+      'Please install or repair vc_redist.x64 manually, then run the installer again.';
+    MsgBox(MessageText, mbCriticalError, MB_OK);
+    exit;
+  end;
+
+  Result := HasRequiredApacheVisualCRuntime();
+  if not Result then
+  begin
+    MessageText :=
+      'UniWamp could not confirm installation of Microsoft Visual C++ Redistributable 2015-2022 (x64).' + #13#10#13#10 +
+      'Please install or repair vc_redist.x64, then run the installer again.';
+    MsgBox(MessageText, mbCriticalError, MB_OK);
+  end;
+end;
+
 function InitializeSetup(): Boolean;
 var
   MessageText: string;
 begin
   Result := HasRequiredApacheVisualCRuntime();
+  if Result then
+    exit;
+
+  Result := InstallRequiredApacheVisualCRuntime();
   if Result then
     exit;
 

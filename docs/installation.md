@@ -62,6 +62,10 @@ build-installer.bat
 That script rebuilds the application, refreshes the release manifest, and
 compiles the profile-specific Inno Setup packages.
 
+The installer bundle includes Microsoft's official `vc_redist.x64.exe`
+redistributable so the setup can install the required Visual C++ runtime when
+it is missing.
+
 ## First launch
 
 1. Start `UniWamp.exe`.
