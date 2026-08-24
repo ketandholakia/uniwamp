@@ -20,7 +20,7 @@ Alias /adminer "{{ADMINER_DIR}}"
   Require ip 127.0.0.1 ::1
 </Directory>
 {{APACHE_MODULE_LINES}}
-LoadModule php_module "{{PHP_MODULE}}"
+LoadModule {{PHP_MODULE_NAME}} "{{PHP_MODULE}}"
 AddType application/x-httpd-php .php
 PHPIniDir "{{GENERATED_DIR}}"
 ErrorLog "{{LOGS_DIR}}\apache-error.log"

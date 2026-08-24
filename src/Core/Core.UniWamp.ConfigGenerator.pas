@@ -175,7 +175,14 @@ end;
 procedure TConfigurationGenerator.GenerateApacheConfig(const ApacheModuleDir, PhpModule: string);
 var
   Values: TDictionary<string, string>;
+  PhpModuleName: string;
 begin
+  // PHP 7 uses php7_module, PHP 8+ uses php_module
+  if FConfig.SelectedPhpVersion.StartsWith('php7') then
+    PhpModuleName := 'php7_module'
+  else
+    PhpModuleName := 'php_module';
+
   Values := TDictionary<string, string>.Create;
   try
     Values.Add('APACHE_DIR', FPaths.ApacheDir);
@@ -186,6 +193,7 @@ begin
     Values.Add('ADMINER_DIR', FPaths.AdminerDir);
     Values.Add('APACHE_MODULE_LINES', RenderApacheModuleLines(ApacheModuleDir));
     Values.Add('PHP_MODULE', PhpModule);
+    Values.Add('PHP_MODULE_NAME', PhpModuleName);
     Values.Add('GENERATED_DIR', FPaths.GeneratedConfigDir);
     Values.Add('LOGS_DIR', FPaths.LogsDir);
     if FConfig.EnableSsl then

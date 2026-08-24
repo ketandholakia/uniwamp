@@ -17,8 +17,8 @@ uses
   Core.UniWamp.Paths,
   Core.UniWamp.Runtime,
   Core.UniWamp.Secrets,
-  Core.UniWamp.SyncEngine,
-  Core.UniWamp.SyncTransport;
+  Core.UniWamp.SyncTypes,
+  Core.UniWamp.Types;
 
 type
   TSyncProfilesForm = class(TForm)
@@ -88,12 +88,12 @@ type
     Label25: TLabel;
     FExcludesMemo: TMemo;
     FValidationLabel: TLabel;
+    FSyncVariantCombo: TComboBox;
+    LabelSyncVariant: TLabel;
+    FDefaultExcludesButton: TButton;
     FooterPanel: TPanel;
     FSaveButton: TButton;
     FCloseButton: TButton;
-    FTestButton: TButton;
-    FPreviewButton: TButton;
-    FTestPathButton: TButton;
     procedure ProfileSelectionChanged(Sender: TObject);
     procedure EditorChanged(Sender: TObject);
     procedure ProtocolChanged(Sender: TObject);
@@ -102,10 +102,9 @@ type
     procedure DeleteProfileClicked(Sender: TObject);
     procedure ImportProfilesClicked(Sender: TObject);
     procedure ExportProfilesClicked(Sender: TObject);
-    procedure TestProfileClicked(Sender: TObject);
-    procedure TestTargetPathClicked(Sender: TObject);
     procedure PreviewProfileClicked(Sender: TObject);
     procedure BrowsePrivateKeyClicked(Sender: TObject);
+    procedure InsertDefaultExcludesClicked(Sender: TObject);
     procedure SaveClicked(Sender: TObject);
     procedure CloseClicked(Sender: TObject);
   private
@@ -136,7 +135,6 @@ type
       RemotePath, ErrorMessage: string): Boolean;
     function BuildCredentialsFromEditor(const Profile: TSyncProfile): TSyncCredentials;
     procedure ApplySelectedConnectionProfile;
-    function DescribePlan(const Plan: TSyncPlan): string;
     function SyncProfileToJson(const Profile: TSyncProfile): TJSONObject;
     function TryReadSyncProfilesFromJson(const FileName: string; out Profiles: TArray<TSyncProfile>;
       out ErrorMessage: string): Boolean;
@@ -162,7 +160,9 @@ implementation
 uses
   System.IOUtils,
   System.UITypes,
-  Vcl.Dialogs;
+  Vcl.Dialogs,
+  Core.UniWamp.Interfaces,
+  Core.UniWamp.ServiceLocator;
 
 constructor TSyncProfilesForm.Create(AOwner: TComponent);
   procedure PopulateProtocolAndDirection;
@@ -189,6 +189,40 @@ constructor TSyncProfilesForm.Create(AOwner: TComponent);
     end;
   end;
 
+  procedure CreateFreeFileSyncControls;
+  begin
+    LabelSyncVariant := TLabel.Create(Self);
+    LabelSyncVariant.Parent := RightInner;
+    LabelSyncVariant.Left := 20;
+    LabelSyncVariant.Top := 570;
+    LabelSyncVariant.Caption := 'Variant (FFS only)';
+    LabelSyncVariant.Font.Name := 'Segoe UI';
+    LabelSyncVariant.Font.Size := 9;
+    LabelSyncVariant.Font.Style := [fsBold];
+
+    FSyncVariantCombo := TComboBox.Create(Self);
+    FSyncVariantCombo.Parent := RightInner;
+    FSyncVariantCombo.Left := 20;
+    FSyncVariantCombo.Top := 595;
+    FSyncVariantCombo.Width := 160;
+    FSyncVariantCombo.Style := csDropDownList;
+    FSyncVariantCombo.Items.Add('Update (Left -> Right)');
+    FSyncVariantCombo.Items.Add('Mirror (Left -> Right, Delete)');
+    FSyncVariantCombo.Items.Add('Two-Way');
+    FSyncVariantCombo.ItemIndex := 0;
+
+    FDefaultExcludesButton := TButton.Create(Self);
+    FDefaultExcludesButton.Parent := RightInner;
+    FDefaultExcludesButton.Left := 188;
+    FDefaultExcludesButton.Top := 593;
+    FDefaultExcludesButton.Width := 135;
+    FDefaultExcludesButton.Height := 28;
+    FDefaultExcludesButton.Caption := 'Insert defaults';
+    FDefaultExcludesButton.Font.Name := 'Segoe UI';
+    FDefaultExcludesButton.Font.Size := 9;
+    FDefaultExcludesButton.OnClick := InsertDefaultExcludesClicked;
+  end;
+
 begin
   inherited Create(AOwner);
   FPaths := Default(TAppPaths);
@@ -199,6 +233,7 @@ begin
   FLoadedProfileName := '';
 
   PopulateProtocolAndDirection;
+  CreateFreeFileSyncControls;
 
   UpdateProtocolState;
   ClearEditor;
@@ -403,6 +438,13 @@ begin
     Excludes.Free;
   end;
 
+  if FSyncVariantCombo.ItemIndex = 1 then
+    Profile.SyncVariant := 'mirror'
+  else if FSyncVariantCombo.ItemIndex = 2 then
+    Profile.SyncVariant := 'twoway'
+  else
+    Profile.SyncVariant := 'update';
+
   Result := True;
 end;
 
@@ -592,31 +634,6 @@ begin
     Result.Password := Trim(FPasswordEdit.Text);
     Result.KeyPassphrase := Trim(FKeyPassphraseEdit.Text);
   end;
-end;
-
-function TSyncProfilesForm.DescribePlan(const Plan: TSyncPlan): string;
-var
-  Uploads: Integer;
-  Downloads: Integer;
-  Deletes: Integer;
-  Dirs: Integer;
-  Item: TSyncPlanItem;
-begin
-  Uploads := 0;
-  Downloads := 0;
-  Deletes := 0;
-  Dirs := 0;
-  for Item in Plan do
-    case Item.Kind of
-      spiUpload: Inc(Uploads);
-      spiDownload: Inc(Downloads);
-      spiDeleteRemote, spiDeleteLocal: Inc(Deletes);
-      spiCreateRemoteDir: Inc(Dirs);
-    end;
-  if Length(Plan) = 0 then
-    Exit('Nothing to sync - remote and local are already in sync.');
-  Result := Format('%d file(s) to upload, %d to download, %d to delete, %d remote director(y/ies) to create.',
-    [Uploads, Downloads, Deletes, Dirs]);
 end;
 
 function TSyncProfilesForm.SyncProfileToJson(const Profile: TSyncProfile): TJSONObject;
@@ -827,95 +844,83 @@ end;
 
 procedure TSyncProfilesForm.LoadProfileIntoEditor(const Profile: TSyncProfile);
 var
-  ExcludeValue: string;
-  Effective: TSyncProfile;
+  I: Integer;
 begin
-  Effective := Profile;
-  if Trim(Effective.Protocol) = '' then
-    Effective.Protocol := 'sftp';
-  if not ((Effective.Protocol = 'ftp') or (Effective.Protocol = 'ftps') or (Effective.Protocol = 'sftp')) then
-    Effective.Protocol := 'sftp';
-  if Trim(Effective.Direction) = '' then
-    Effective.Direction := 'upload';
-  if not ((Effective.Direction = 'upload') or (Effective.Direction = 'download')) then
-    Effective.Direction := 'upload';
-  if Effective.Port <= 0 then
-  begin
-    if SameText(Effective.Protocol, 'sftp') then
-      Effective.Port := 22
-    else
-      Effective.Port := 21;
-  end;
-
   FLoading := True;
   try
-    FNameEdit.Text := Effective.Name;
+    FNameEdit.Text := Profile.Name;
     if Assigned(FConnectionProfileCombo) and (FConnectionProfileCombo.Items.Count > 0) then
     begin
-      if Trim(Effective.ConnectionProfileName) <> '' then
-        FConnectionProfileCombo.ItemIndex := FConnectionProfileCombo.Items.IndexOf(Effective.ConnectionProfileName)
-      else if (Trim(Effective.Name) <> '') and (FConnectionProfileCombo.Items.IndexOf(Effective.Name) > 0) then
-        FConnectionProfileCombo.ItemIndex := FConnectionProfileCombo.Items.IndexOf(Effective.Name)
+      if Trim(Profile.ConnectionProfileName) <> '' then
+        FConnectionProfileCombo.ItemIndex := FConnectionProfileCombo.Items.IndexOf(Profile.ConnectionProfileName)
+      else if (Trim(Profile.Name) <> '') and (FConnectionProfileCombo.Items.IndexOf(Profile.Name) > 0) then
+        FConnectionProfileCombo.ItemIndex := FConnectionProfileCombo.Items.IndexOf(Profile.Name)
       else
         FConnectionProfileCombo.ItemIndex := 0;
       if FConnectionProfileCombo.ItemIndex < 0 then
         FConnectionProfileCombo.ItemIndex := 0;
     end;
-    FProtocolCombo.ItemIndex := FProtocolCombo.Items.IndexOf(Effective.Protocol);
+    FProtocolCombo.ItemIndex := FProtocolCombo.Items.IndexOf(Profile.Protocol);
     if FProtocolCombo.ItemIndex < 0 then
       FProtocolCombo.ItemIndex := 2;
-    FDirectionCombo.ItemIndex := FDirectionCombo.Items.IndexOf(Effective.Direction);
+    FDirectionCombo.ItemIndex := FDirectionCombo.Items.IndexOf(Profile.Direction);
     if FDirectionCombo.ItemIndex < 0 then
       FDirectionCombo.ItemIndex := 0;
-    FHostEdit.Text := Effective.Host;
-    if Effective.Port > 0 then
-      FPortEdit.Text := Effective.Port.ToString
+    FHostEdit.Text := Profile.Host;
+    if Profile.Port > 0 then
+      FPortEdit.Text := Profile.Port.ToString
     else
       FPortEdit.Clear;
-    FUsernameEdit.Text := Effective.Username;
-    if Trim(Effective.ConnectionProfileName) <> '' then
+    FUsernameEdit.Text := Profile.Username;
+    if Trim(Profile.ConnectionProfileName) <> '' then
     begin
-      FPasswordEdit.Text := LoadConnectionPassword(FPaths, Effective.ConnectionProfileName);
-      FKeyPassphraseEdit.Text := LoadConnectionKeyPassphrase(FPaths, Effective.ConnectionProfileName);
+      FPasswordEdit.Text := LoadConnectionPassword(FPaths, Profile.ConnectionProfileName);
+      FKeyPassphraseEdit.Text := LoadConnectionKeyPassphrase(FPaths, Profile.ConnectionProfileName);
     end
     else
     begin
-      FPasswordEdit.Text := LoadSecret(FPaths, SyncPasswordKey(Effective.Name));
-      FKeyPassphraseEdit.Text := LoadSecret(FPaths, SyncKeyPassphraseKey(Effective.Name));
+      FPasswordEdit.Text := LoadSecret(FPaths, SyncPasswordKey(Profile.Name));
+      FKeyPassphraseEdit.Text := LoadSecret(FPaths, SyncKeyPassphraseKey(Profile.Name));
     end;
-    FPrivateKeyEdit.Text := Effective.PrivateKeyFile;
-    FHostKeyEdit.Text := Effective.SshHostKeyFingerprint;
-    FTlsCertEdit.Text := Effective.TlsCertificateFingerprint;
-    FPassiveCheck.Checked := Effective.PassiveMode;
-    FIgnoreCertCheck.Checked := Effective.IgnoreCertErrors;
+    FPrivateKeyEdit.Text := Profile.PrivateKeyFile;
+    FHostKeyEdit.Text := Profile.SshHostKeyFingerprint;
+    FTlsCertEdit.Text := Profile.TlsCertificateFingerprint;
+    FPassiveCheck.Checked := Profile.PassiveMode;
+    FIgnoreCertCheck.Checked := Profile.IgnoreCertErrors;
     if Assigned(FVHostCombo) and (FVHostCombo.Items.Count > 0) then
     begin
-      if Trim(Effective.DefaultTestVHost) <> '' then
-        FVHostCombo.ItemIndex := FVHostCombo.Items.IndexOf(Effective.DefaultTestVHost)
+      if Trim(Profile.DefaultTestVHost) <> '' then
+        FVHostCombo.ItemIndex := FVHostCombo.Items.IndexOf(Profile.DefaultTestVHost)
       else
         FVHostCombo.ItemIndex := 0;
       if FVHostCombo.ItemIndex < 0 then
         FVHostCombo.ItemIndex := 0;
     end;
-    FRemotePathEdit.Text := Effective.RemotePath;
-    FLocalPathEdit.Text := Effective.LocalPath;
-    FWorkingDirEdit.Text := Effective.WorkingDirectory;
-    FPreCommandEdit.Text := Effective.PreSyncCommand;
-    FPostCommandEdit.Text := Effective.PostSyncCommand;
-    FDeleteCheck.Checked := Effective.DeleteEnabled;
-    FDryRunCheck.Checked := Effective.DryRunByDefault;
+    FRemotePathEdit.Text := Profile.RemotePath;
+    FLocalPathEdit.Text := Profile.LocalPath;
+    FWorkingDirEdit.Text := Profile.WorkingDirectory;
+    FPreCommandEdit.Text := Profile.PreSyncCommand;
+    FPostCommandEdit.Text := Profile.PostSyncCommand;
+    FDeleteCheck.Checked := Profile.DeleteEnabled;
+    FDryRunCheck.Checked := Profile.DryRunByDefault;
     FExcludesMemo.Lines.BeginUpdate;
     try
-      FExcludesMemo.Clear;
-      for ExcludeValue in Effective.Excludes do
-        FExcludesMemo.Lines.Add(ExcludeValue);
+      FExcludesMemo.Lines.Clear;
+      for I := Low(Profile.Excludes) to High(Profile.Excludes) do
+        FExcludesMemo.Lines.Add(Profile.Excludes[I]);
+      if SameText(Profile.SyncVariant, 'mirror') then
+        FSyncVariantCombo.ItemIndex := 1
+      else if SameText(Profile.SyncVariant, 'twoway') then
+        FSyncVariantCombo.ItemIndex := 2
+      else
+        FSyncVariantCombo.ItemIndex := 0;
     finally
       FExcludesMemo.Lines.EndUpdate;
     end;
   finally
     FLoading := False;
   end;
-  FLoadedProfileName := Effective.Name;
+  FLoadedProfileName := Profile.Name;
   UpdateConnectionProfileState;
   UpdateProtocolState;
   UpdateValidationMessage;
@@ -1234,202 +1239,45 @@ begin
   end;
 end;
 
-procedure TSyncProfilesForm.TestProfileClicked(Sender: TObject);
-var
-  Profile: TSyncProfile;
-  ResolvedProfile: TSyncProfile;
-  Credentials: TSyncCredentials;
-  Transport: ISyncTransport;
-  ErrorMessage: string;
-  Output: string;
-  ResultOk: Boolean;
-  TestPath: string;
-begin
-  if not ReadProfileFromEditor(Profile, ErrorMessage) then
-  begin
-    UpdateValidationMessage;
-    MessageDlg(ErrorMessage, mtError, [mbOK], 0);
-    Exit;
-  end;
-
-  ResolvedProfile := BuildResolvedProfile(Profile);
-  Credentials := BuildCredentialsFromEditor(Profile);
-  TestPath := '/';
-
-  Screen.Cursor := crHourGlass;
-  try
-    try
-      Transport := CreateSyncTransport(Credentials);
-      try
-        Transport.Connect;
-        ResultOk := Transport.RemoteDirectoryExists(TestPath);
-      finally
-        Transport.Disconnect;
-      end;
-    except
-      on E: ESyncTransportError do
-      begin
-        SetStatus(clRed, E.Message);
-        MessageDlg(E.Message, mtError, [mbOK], 0);
-        Exit;
-      end;
-      on E: Exception do
-      begin
-        Output := 'Sync failed: ' + E.Message;
-        SetStatus(clRed, Output);
-        MessageDlg(Output, mtError, [mbOK], 0);
-        Exit;
-      end;
-    end;
-  finally
-    Screen.Cursor := crDefault;
-  end;
-
-  if ResultOk then
-  begin
-    SetStatus(TColor($002E7D32), 'Connection test succeeded for ' + ResolvedProfile.Host + '.');
-    MessageDlg('Connection test succeeded for ' + ResolvedProfile.Host + '.', mtInformation, [mbOK], 0);
-  end
-  else
-  begin
-    Output := 'Connection test failed.';
-    SetStatus(clRed, Output);
-    MessageDlg(Output, mtError, [mbOK], 0);
-  end;
-end;
-
-procedure TSyncProfilesForm.TestTargetPathClicked(Sender: TObject);
-var
-  Profile: TSyncProfile;
-  ResolvedProfile: TSyncProfile;
-  Credentials: TSyncCredentials;
-  Transport: ISyncTransport;
-  LocalPath: string;
-  WorkingDirectory: string;
-  RemotePath: string;
-  ErrorMessage: string;
-  Output: string;
-  ResultOk: Boolean;
-begin
-  if not ReadProfileFromEditor(Profile, ErrorMessage) then
-  begin
-    UpdateValidationMessage;
-    MessageDlg(ErrorMessage, mtError, [mbOK], 0);
-    Exit;
-  end;
-
-  if not ResolveExecutionPaths(Profile, LocalPath, WorkingDirectory, RemotePath, ErrorMessage) then
-  begin
-    SetStatus(clRed, ErrorMessage);
-    MessageDlg(ErrorMessage, mtError, [mbOK], 0);
-    Exit;
-  end;
-
-  ResolvedProfile := BuildResolvedProfile(Profile);
-  Credentials := BuildCredentialsFromEditor(Profile);
-
-  Screen.Cursor := crHourGlass;
-  try
-    try
-      Transport := CreateSyncTransport(Credentials);
-      try
-        Transport.Connect;
-        ResultOk := Transport.RemoteDirectoryExists(RemotePath);
-      finally
-        Transport.Disconnect;
-      end;
-    except
-      on E: ESyncTransportError do
-      begin
-        SetStatus(clRed, E.Message);
-        MessageDlg(E.Message, mtError, [mbOK], 0);
-        Exit;
-      end;
-      on E: Exception do
-      begin
-        Output := 'Sync failed: ' + E.Message;
-        SetStatus(clRed, Output);
-        MessageDlg(Output, mtError, [mbOK], 0);
-        Exit;
-      end;
-    end;
-  finally
-    Screen.Cursor := crDefault;
-  end;
-
-  if ResultOk then
-  begin
-    SetStatus(TColor($002E7D32), 'Target path test succeeded for "' + RemotePath + '".');
-    MessageDlg('Target path test succeeded for "' + RemotePath + '".', mtInformation, [mbOK], 0);
-  end
-  else
-  begin
-    Output := 'Target path test failed.';
-    SetStatus(clRed, Output);
-    MessageDlg(Output, mtError, [mbOK], 0);
-  end;
-end;
-
 procedure TSyncProfilesForm.PreviewProfileClicked(Sender: TObject);
 var
   Profile: TSyncProfile;
-  Credentials: TSyncCredentials;
-  Transport: ISyncTransport;
-  LocalPath: string;
-  WorkingDirectory: string;
-  RemotePath: string;
-  ErrorMessage: string;
-  Plan: TSyncPlan;
-  CommandText: string;
+  SyncService: ISyncService;
+  Res: TRuntimeActionResult;
 begin
-  if not ReadProfileFromEditor(Profile, ErrorMessage) then
+  if not SaveCurrentEditor then
+    Exit;
+
+  if FCurrentProfileIndex < 0 then
+    Exit;
+  Profile := FProfiles[FCurrentProfileIndex];
+
+  SyncService := TServiceLocator.Instance.GetService<ISyncService>;
+  if not Assigned(SyncService) then
   begin
-    UpdateValidationMessage;
-    MessageDlg(ErrorMessage, mtError, [mbOK], 0);
+    MessageDlg('Sync service is not available.', mtError, [mbOK], 0);
     Exit;
   end;
 
-  if not ResolveExecutionPaths(Profile, LocalPath, WorkingDirectory, RemotePath, ErrorMessage) then
-  begin
-    SetStatus(clRed, ErrorMessage);
-    MessageDlg(ErrorMessage, mtError, [mbOK], 0);
-    Exit;
-  end;
-
-  Credentials := BuildCredentialsFromEditor(Profile);
+  var CommandLine: string;
   Screen.Cursor := crHourGlass;
   try
-    try
-      Transport := CreateSyncTransport(Credentials);
-      try
-        Transport.Connect;
-        Plan := TSyncEngine.BuildPlan(Transport, LocalPath, RemotePath, Profile.Direction,
-          Profile.Excludes, Profile.DeleteEnabled);
-        CommandText := DescribePlan(Plan);
-      finally
-        Transport.Disconnect;
-      end;
-    except
-      on E: ESyncTransportError do
-      begin
-        SetStatus(clRed, E.Message);
-        MessageDlg(E.Message, mtError, [mbOK], 0);
-        Exit;
-      end;
-      on E: Exception do
-      begin
-        CommandText := 'Sync failed: ' + E.Message;
-        SetStatus(clRed, CommandText);
-        MessageDlg(CommandText, mtError, [mbOK], 0);
-        Exit;
-      end;
-    end;
+    Res := SyncService.BuildCommandPreview(Profile.Name, True, CommandLine);
   finally
     Screen.Cursor := crDefault;
   end;
 
-  SetStatus(clGrayText, 'Preview generated for "' + ProfileDisplayName(Profile) + '".');
-  MessageDlg(CommandText, mtInformation, [mbOK], 0);
+  if not Res.Success then
+  begin
+    SetStatus(clRed, Res.Message);
+    MessageDlg(Res.Message, mtError, [mbOK], 0);
+  end
+  else
+  begin
+    SetStatus(TColor($002E7D32), 'Preview generated for "' + ProfileDisplayName(Profile) + '".');
+    if Trim(Res.Message) <> '' then
+      MessageDlg(Res.Message, mtInformation, [mbOK], 0);
+  end;
 end;
 
 procedure TSyncProfilesForm.BrowsePrivateKeyClicked(Sender: TObject);
@@ -1445,6 +1293,40 @@ begin
       FPrivateKeyEdit.Text := Dialog.FileName;
   finally
     Dialog.Free;
+  end;
+end;
+
+procedure TSyncProfilesForm.InsertDefaultExcludesClicked(Sender: TObject);
+const
+  DefaultPatterns: array[0..3] of string = (
+    '*\vendor\',
+    '*\node_modules\',
+    '*.git',
+    '*\storage\'
+  );
+var
+  Existing: TList<string>;
+  Pattern: string;
+begin
+  if not Assigned(FExcludesMemo) then
+    Exit;
+
+  Existing := TList<string>.Create;
+  try
+    for Pattern in FExcludesMemo.Lines do
+      if Trim(Pattern) <> '' then
+        Existing.Add(LowerCase(Trim(Pattern)));
+
+    FExcludesMemo.Lines.BeginUpdate;
+    try
+      for Pattern in DefaultPatterns do
+        if Existing.IndexOf(LowerCase(Pattern)) < 0 then
+          FExcludesMemo.Lines.Add(Pattern);
+    finally
+      FExcludesMemo.Lines.EndUpdate;
+    end;
+  finally
+    Existing.Free;
   end;
 end;
 

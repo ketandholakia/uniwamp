@@ -230,21 +230,7 @@ object SyncProfilesForm: TSyncProfilesForm
             TabOrder = 3
             OnClick = ExportProfilesClicked
           end
-          object FTestButton: TButton
-            Left = 15
-            Top = 162
-            Width = 207
-            Height = 28
-            Caption = 'Test connection'
-            Font.Charset = DEFAULT_CHARSET
-            Font.Color = clWindowText
-            Font.Height = -12
-            Font.Name = 'Segoe UI'
-            Font.Style = []
-            ParentFont = False
-            TabOrder = 4
-            OnClick = TestProfileClicked
-          end
+
           object FPreviewButton: TButton
             Left = 15
             Top = 127
@@ -260,21 +246,7 @@ object SyncProfilesForm: TSyncProfilesForm
             TabOrder = 5
             OnClick = PreviewProfileClicked
           end
-          object FTestPathButton: TButton
-            Left = 15
-            Top = 90
-            Width = 208
-            Height = 28
-            Caption = 'Test path'
-            Font.Charset = DEFAULT_CHARSET
-            Font.Color = clWindowText
-            Font.Height = -12
-            Font.Name = 'Segoe UI'
-            Font.Style = []
-            ParentFont = False
-            TabOrder = 6
-            OnClick = TestTargetPathClicked
-          end
+
         end
       end
     end
@@ -976,6 +948,32 @@ object SyncProfilesForm: TSyncProfilesForm
             TabOrder = 23
             WordWrap = False
             OnChange = EditorChanged
+          end
+          object LabelExcludes: TLabel
+            Left = 672
+            Top = 295
+            Width = 93
+            Height = 15
+            Caption = 'Exclude patterns'
+            Font.Charset = DEFAULT_CHARSET
+            Font.Color = clWindowText
+            Font.Height = -12
+            Font.Name = 'Segoe UI'
+            Font.Style = [fsBold]
+            ParentFont = False
+          end
+          object LabelExcludesHint: TLabel
+            Left = 672
+            Top = 606
+            Width = 203
+            Height = 30
+            Caption = 'One pattern per line, for example' + #13#10 + '*\vendor\'
+            Font.Charset = DEFAULT_CHARSET
+            Font.Color = clGrayText
+            Font.Height = -11
+            Font.Name = 'Segoe UI'
+            Font.Style = []
+            ParentFont = False
           end
         end
       end

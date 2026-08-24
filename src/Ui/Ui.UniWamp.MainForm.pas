@@ -42,7 +42,7 @@ uses
   Core.UniWamp.VHostManager,
   Core.UniWamp.ProjectBackupService,
   Core.UniWamp.DatabaseBackupService,
-  Core.UniWamp.SyncService,
+  Core.UniWamp.FreeFileSyncService,
   Core.UniWamp.ConfigGenerator,
   Core.UniWamp.HostsFileService,
   Core.UniWamp.Interfaces,
@@ -195,7 +195,6 @@ type
     YarnButton: TPanel;
     PnpmButton: TPanel;
     EditorButton: TPanel;
-    WinScpButton: TPanel;
     UpdateButton: TPanel;
   published
     HeaderPanel: TPanel;
@@ -402,7 +401,6 @@ type
     procedure LaunchYarnClick(Sender: TObject);
     procedure LaunchPnpmClick(Sender: TObject);
     procedure LaunchEditorClick(Sender: TObject);
-    procedure LaunchWinScpClick(Sender: TObject);
     procedure StageUpdateClick(Sender: TObject);
     procedure GenerateSslClick(Sender: TObject);
     procedure OpenApacheLogClick(Sender: TObject);
@@ -417,7 +415,6 @@ type
     procedure OpenVHostClick(Sender: TObject);
     procedure OpenVHostFolderClick(Sender: TObject);
     procedure OpenVHostTerminalClick(Sender: TObject);
-    procedure OpenVHostWinScpClick(Sender: TObject);
     procedure BackupProjectClick(Sender: TObject);
     procedure RestoreProjectClick(Sender: TObject);
     procedure BackupDatabaseClick(Sender: TObject);
@@ -1347,7 +1344,7 @@ begin
   TServiceLocator.Instance.RegisterService<IVHostManager>(TVHostManager.Create(FPaths, FConfig));
   TServiceLocator.Instance.RegisterService<IProjectBackupService>(TProjectBackupService.Create(FPaths, FConfig));
   TServiceLocator.Instance.RegisterService<IDatabaseBackupService>(TDatabaseBackupService.Create(FPaths, FConfig));
-  TServiceLocator.Instance.RegisterService<ISyncService>(TSyncService.Create(FPaths, FConfig));
+  TServiceLocator.Instance.RegisterService<ISyncService>(TFreeFileSyncService.Create(FPaths, FConfig));
 
   FMainPhpVersionItems := TList<TMenuItem>.Create;
   FMainPhpProfileItems := TList<TMenuItem>.Create;
@@ -1860,25 +1857,6 @@ begin
   EditorButton.Hint := BuildToolPanelHint('Launch the preferred text editor',
     'Opens the repository root in bundled Lite XL, then EDITOR, then Notepad.');
   EditorButton.ShowHint := True;
-  WinScpButton := TPanel.Create(Self);
-  WinScpButton.Parent := pnltools;
-  WinScpButton.SetBounds(644, 73, 86, 24);
-  WinScpButton.Cursor := crHandPoint;
-  WinScpButton.BevelOuter := bvNone;
-  WinScpButton.Caption := 'WinSCP';
-  WinScpButton.Color := 16053492;
-  WinScpButton.Font.Charset := DEFAULT_CHARSET;
-  WinScpButton.Font.Color := clWindowText;
-  WinScpButton.Font.Height := -11;
-  WinScpButton.Font.Name := 'Segoe UI';
-  WinScpButton.Font.Style := [fsBold];
-  WinScpButton.ParentBackground := False;
-  WinScpButton.ParentFont := False;
-  WinScpButton.TabOrder := 18;
-  WinScpButton.OnClick := LaunchWinScpClick;
-  WinScpButton.Hint := BuildToolPanelHint('Launch portable WinSCP',
-    'Opens bundled WinSCP using runtime\\tools\\winscp\\WinSCP.ini so it stays portable and does not use the installed profile store.');
-  WinScpButton.ShowHint := True;
   UpdateButton := TPanel.Create(Self);
   UpdateButton.Parent := pnltools;
   UpdateButton.SetBounds(736, 73, 92, 24);
@@ -2153,7 +2131,6 @@ begin
   ClearPanelIcon(YarnButton);
   ClearPanelIcon(PnpmButton);
   ClearPanelIcon(EditorButton);
-  ClearPanelIcon(WinScpButton);
   ClearPanelIcon(UpdateButton);
   ClearPanelIcon(CopyDiagnosticReportButton);
   ClearPanelIcon(CopyActivityLogButton);
@@ -2194,7 +2171,6 @@ begin
   SetButtonCaption(YarnButton, 'yarn');
   SetButtonCaption(PnpmButton, 'pnpm');
   SetButtonCaption(EditorButton, 'Editor');
-  SetButtonCaption(WinScpButton, 'WinSCP');
   SetButtonCaption(UpdateButton, 'Update');
   SetButtonCaption(SaveConfigButton, 'Save Config');
   SetButtonCaption(GenerateSslButton, 'Generate SSL');
@@ -2247,7 +2223,6 @@ begin
   ClearPanelIcon(YarnButton);
   ClearPanelIcon(PnpmButton);
   ClearPanelIcon(EditorButton);
-  ClearPanelIcon(WinScpButton);
   ClearPanelIcon(UpdateButton);
   SetButtonCaption(GenerateSslButton, 'Generate SSL');
   SetButtonCaption(Panel8, 'Web Dashboard');
@@ -2274,7 +2249,6 @@ begin
   SetButtonCaption(YarnButton, 'yarn');
   SetButtonCaption(PnpmButton, 'pnpm');
   SetButtonCaption(EditorButton, 'Editor');
-  SetButtonCaption(WinScpButton, 'WinSCP');
   SetButtonCaption(UpdateButton, 'Update');
   BuildMenus;
   Menu := FMainMenu;
@@ -2595,7 +2569,7 @@ begin
   end;
 
   if GroupHasVisibleButtons([SaveConfigButton, CopyDiagnosticReportButton, CopyActivityLogButton,
-    OpenHostsFileButton, BackupDatabaseButton, RestoreDatabaseButton, WinScpButton, UpdateButton]) then
+    OpenHostsFileButton, BackupDatabaseButton, RestoreDatabaseButton, UpdateButton]) then
   begin
     PlaceLabel(ToolGroupMaintenanceLabel);
     PlaceButton(SaveConfigButton);
@@ -2604,7 +2578,6 @@ begin
     PlaceButton(OpenHostsFileButton);
     PlaceButton(BackupDatabaseButton);
     PlaceButton(RestoreDatabaseButton);
-    PlaceButton(WinScpButton);
     PlaceButton(UpdateButton);
   end;
 end;
@@ -2763,7 +2736,6 @@ begin
   Item.ShortCut := ShortCut(Ord('R'), [ssCtrl]);
   Item := AddItem(MenuItem, 'Open &Terminal', OpenVHostTerminalClick);
   Item.ShortCut := ShortCut(Ord('T'), [ssCtrl, ssShift]);
-  Item := AddItem(MenuItem, 'Open in &WinSCP', OpenVHostWinScpClick);
   Item := AddItem(MenuItem, '&Backup Project', BackupProjectClick);
   Item.ShortCut := ShortCut(Ord('B'), [ssCtrl, ssShift]);
   AddItem(MenuItem, '&Restore Project', RestoreProjectClick);
@@ -2784,7 +2756,6 @@ begin
   AddItem(MenuItem, '-');
   Item := AddItem(MenuItem, '&Terminal', LaunchTerminalClick);
   Item.ShortCut := ShortCut(Ord('T'), [ssCtrl]);
-  Item := AddItem(MenuItem, '&WinSCP', LaunchWinScpClick);
   Item := AddItem(MenuItem, '&Copy Diagnostic Report', CopyDiagnosticReportClick);
   Item.ShortCut := ShortCut(Ord('R'), [ssCtrl, ssShift]);
   Item := AddItem(MenuItem, 'Copy &Activity Log', CopyActivityLogClick);
@@ -2840,7 +2811,6 @@ begin
   FTrayAutoStartItem.AutoCheck := True;
   Item := AddItem(FTrayMenu.Items, '&Terminal', LaunchTerminalClick);
   Item.ShortCut := ShortCut(Ord('T'), [ssCtrl]);
-  Item := AddItem(FTrayMenu.Items, '&WinSCP', LaunchWinScpClick);
   AddItem(FTrayMenu.Items, '-');
   FTrayStartAllItem := AddItem(FTrayMenu.Items, 'Start &All', StartButtonClick);
   ApplyMenuIcon(FTrayStartAllItem, 'play_arrow');
@@ -2881,7 +2851,6 @@ begin
   FVHostSyncDownloadMenu := AddItem(FVHostPopupMenu.Items, 'Download');
   ApplyMenuIcon(FVHostSyncDownloadMenu, 'folder_open');
   AddItem(FVHostPopupMenu.Items, '-');
-  AddItem(FVHostPopupMenu.Items, 'Open in WinSCP', OpenVHostWinScpClick);
   Menu := FMainMenu;
 
   FTrayIcon := TTrayIcon.Create(Self);
@@ -5222,14 +5191,6 @@ begin
   AppendStatus(ResultInfo.Message);
 end;
 
-procedure TMainForm.LaunchWinScpClick(Sender: TObject);
-var
-  ResultInfo: TRuntimeActionResult;
-begin
-  ResultInfo := FRuntime.LaunchWinScp;
-  AppendStatus(ResultInfo.Message);
-end;
-
 procedure TMainForm.StageUpdateClick(Sender: TObject);
 var
   StagingDir: string;
@@ -5529,24 +5490,6 @@ begin
   end;
   ResultInfo := FRuntime.LaunchTerminalInWorkingDir(Entry.DocumentRoot);
   AppendStatus('VHost terminal: ' + ResultInfo.Message);
-end;
-
-procedure TMainForm.OpenVHostWinScpClick(Sender: TObject);
-var
-  ServerName: string;
-  Entry: TVHostEntry;
-  ResultInfo: TRuntimeActionResult;
-begin
-  ServerName := SelectedVHostServerName;
-  if ServerName = '' then
-    Exit;
-  if not TryGetVHostEntry(ServerName, Entry) then
-  begin
-    AppendStatus('Selected vHost not found.');
-    Exit;
-  end;
-  ResultInfo := FRuntime.LaunchWinScpInWorkingDir(Entry.DocumentRoot);
-  AppendStatus('VHost WinSCP: ' + ResultInfo.Message);
 end;
 
 procedure TMainForm.BackupProjectClick(Sender: TObject);

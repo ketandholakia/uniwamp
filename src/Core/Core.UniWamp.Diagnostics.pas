@@ -6,6 +6,7 @@ uses
   System.SysUtils;
 
 procedure AppendRotatedLogLine(const FileName, Text: string; const MaxLines: Integer = 500);
+procedure AppendTextToLogFile(const FileName, Text: string);
 function RedactSensitiveText(const Text: string): string;
 function ChooseActivityLogClipboardText(const LogFileText, MemoText: string): string;
 
@@ -13,7 +14,29 @@ implementation
 
 uses
   System.Classes,
-  System.IOUtils;
+  System.IOUtils,
+  Core.UniWamp.Paths;
+
+procedure AppendTextToLogFile(const FileName, Text: string);
+var
+  DirectoryName: string;
+begin
+  if Trim(Text) = '' then
+    Exit;
+
+  DirectoryName := TPath.GetDirectoryName(FileName);
+  if DirectoryName <> '' then
+    EnsureDirectory(DirectoryName);
+
+  try
+    TFile.AppendAllText(
+      FileName,
+      FormatDateTime('hh:nn:ss', Now) + '  ' + Text + sLineBreak,
+      TEncoding.UTF8);
+  except
+    // Ignore file lock or I/O errors to prevent crashing the caller
+  end;
+end;
 
 function RedactValueAfterKey(const Text, Key: string): string;
 var

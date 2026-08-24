@@ -59,6 +59,9 @@ type
     DeleteEnabled: Boolean;
     DryRunByDefault: Boolean;
     Excludes: TArray<string>;
+    // FreeFileSync integration (optional; empty = use built-in transport)
+    SyncTool: string;     // '' (built-in) | 'freefilesync'
+    SyncVariant: string;  // 'update' | 'mirror' | 'twoway'  (FreeFileSync only)
   end;
   // NOTE: Password and (for sftp) the private-key passphrase are never stored
   // in this record or in uniwamp.json. They are persisted separately, DPAPI-encrypted,
@@ -295,6 +298,8 @@ begin
   Result.RemotePath := Trim(Profile.RemotePath);
   Result.LocalPath := Trim(Profile.LocalPath);
   Result.WorkingDirectory := Trim(Profile.WorkingDirectory);
+  Result.SyncTool := LowerCase(Trim(Profile.SyncTool));
+  Result.SyncVariant := LowerCase(Trim(Profile.SyncVariant));
   if Result.Port <= 0 then
   begin
     if Result.Protocol = 'sftp' then
@@ -631,6 +636,8 @@ begin
         SyncProfile.WorkingDirectory := ReadStringOrDefault(Obj, 'workingDirectory', '');
         SyncProfile.DeleteEnabled := ReadBooleanOrDefault(Obj, 'deleteEnabled', False);
         SyncProfile.DryRunByDefault := ReadBooleanOrDefault(Obj, 'dryRunByDefault', True);
+        SyncProfile.SyncTool := ReadStringOrDefault(Obj, 'syncTool', '');
+        SyncProfile.SyncVariant := ReadStringOrDefault(Obj, 'syncVariant', '');
         SetLength(SyncProfile.Excludes, 0);
         ExcludesArray := ReadArrayOrNil(Obj, 'excludes');
         if Assigned(ExcludesArray) then
@@ -1030,6 +1037,8 @@ begin
       Obj.AddPair('workingDirectory', SyncProfile.WorkingDirectory);
       Obj.AddPair('deleteEnabled', TJSONBool.Create(SyncProfile.DeleteEnabled));
       Obj.AddPair('dryRunByDefault', TJSONBool.Create(SyncProfile.DryRunByDefault));
+      Obj.AddPair('syncTool', SyncProfile.SyncTool);
+      Obj.AddPair('syncVariant', SyncProfile.SyncVariant);
       ExcludesArray := TJSONArray.Create;
       for ExcludePattern in SyncProfile.Excludes do
         ExcludesArray.Add(ExcludePattern);

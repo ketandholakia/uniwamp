@@ -34,7 +34,6 @@ type
     ['{6E3C7A89-0B24-4D49-9154-C1BA92BB87D5}']
     function BuildCommandPreview(const ProfileName: string; UseDryRun: Boolean;
       out CommandLine: string): TRuntimeActionResult;
-    function ExecuteProfile(const ProfileName: string; UseDryRun: Boolean): TRuntimeActionResult;
     function BuildCommandPreviewForVHost(const ProfileName, ServerName: string; UseDryRun: Boolean;
       out CommandLine: string): TRuntimeActionResult;
     function ExecuteProfileForVHost(const ProfileName, ServerName: string; UseDryRun: Boolean): TRuntimeActionResult;
@@ -64,8 +63,6 @@ type
     function StartMariaDb: TRuntimeActionResult;
     function StopMariaDb: TRuntimeActionResult;
     function RestartMariaDb: TRuntimeActionResult;
-    function LaunchWinScp: TRuntimeActionResult;
-    function LaunchWinScpInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function BuildDiagnosticReport: string;
   end;
 
