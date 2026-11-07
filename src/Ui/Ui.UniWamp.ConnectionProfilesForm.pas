@@ -16,7 +16,7 @@ uses
   Core.UniWamp.Config,
   Core.UniWamp.Paths,
   Core.UniWamp.Secrets,
-  Core.UniWamp.SyncTransport;
+  Core.UniWamp.SyncTypes;
 
 type
   TConnectionProfilesForm = class(TForm)
@@ -46,7 +46,6 @@ type
     FPassiveCheck: TCheckBox;
     FIgnoreCertCheck: TCheckBox;
     FValidationLabel: TLabel;
-    FTestButton: TButton;
     FSaveButton: TButton;
     FCancelButton: TButton;
     procedure LoadSettings;
@@ -78,7 +77,6 @@ type
     procedure DeleteProfileClicked(Sender: TObject);
     procedure ImportProfilesClicked(Sender: TObject);
     procedure ExportProfilesClicked(Sender: TObject);
-    procedure TestProfileClicked(Sender: TObject);
     procedure BrowsePrivateKeyClicked(Sender: TObject);
     procedure SaveClicked(Sender: TObject);
     procedure CancelClicked(Sender: TObject);
@@ -346,8 +344,6 @@ begin
   FValidationLabel.Font.Color := clGrayText;
   FValidationLabel.Font.Style := [];
 
-  FTestButton := AddButton(RightInner, 18, 496, 128, 28, 'Test connection');
-
   FooterPanel := TPanel.Create(Self);
   FooterPanel.Parent := Self;
   FooterPanel.Align := alBottom;
@@ -383,7 +379,6 @@ begin
   FDeleteButton.OnClick := DeleteProfileClicked;
   FImportButton.OnClick := ImportProfilesClicked;
   FExportButton.OnClick := ExportProfilesClicked;
-  FTestButton.OnClick := TestProfileClicked;
   FSaveButton.OnClick := SaveClicked;
   FCancelButton.OnClick := CancelClicked;
 
@@ -895,63 +890,6 @@ begin
   end;
 end;
 
-procedure TConnectionProfilesForm.TestProfileClicked(Sender: TObject);
-var
-  Profile: TConnectionProfile;
-  Credentials: TSyncCredentials;
-  Transport: ISyncTransport;
-  ErrorMessage: string;
-begin
-  if not ReadProfileFromEditor(Profile, ErrorMessage) then
-  begin
-    UpdateValidationMessage;
-    MessageDlg(ErrorMessage, mtError, [mbOK], 0);
-    Exit;
-  end;
-  Credentials.Protocol := Profile.Protocol;
-  Credentials.Host := Profile.Host;
-  Credentials.Port := Profile.Port;
-  Credentials.Username := Profile.Username;
-  Credentials.Password := Trim(FPasswordEdit.Text);
-  Credentials.PrivateKeyFile := Profile.PrivateKeyFile;
-  Credentials.KeyPassphrase := Trim(FKeyPassphraseEdit.Text);
-  Credentials.SshHostKeyFingerprint := Trim(FHostKeyEdit.Text);
-  Credentials.TlsCertificateFingerprint := Trim(FTlsCertEdit.Text);
-  Credentials.PassiveMode := Profile.PassiveMode;
-  Credentials.IgnoreCertErrors := Profile.IgnoreCertErrors;
-
-  try
-    Transport := CreateSyncTransport(Credentials);
-    try
-      Transport.Connect;
-      if Transport.RemoteDirectoryExists('/') then
-      begin
-        SetStatus(TColor($002E7D32), 'Connection test succeeded for ' + Profile.Host + '.');
-        MessageDlg('Connection test succeeded for ' + Profile.Host + '.', mtInformation, [mbOK], 0);
-        Exit;
-      end;
-    finally
-      Transport.Disconnect;
-    end;
-  except
-    on E: ESyncTransportError do
-    begin
-      SetStatus(clRed, E.Message);
-      MessageDlg(E.Message, mtError, [mbOK], 0);
-      Exit;
-    end;
-    on E: Exception do
-    begin
-      ErrorMessage := 'Connection test failed: ' + E.Message;
-      SetStatus(clRed, ErrorMessage);
-      MessageDlg(ErrorMessage, mtError, [mbOK], 0);
-      Exit;
-    end;
-  end;
-  ErrorMessage := 'Connected, but could not verify the remote root directory.';
-  SetStatus(clRed, ErrorMessage);
-  MessageDlg(ErrorMessage, mtError, [mbOK], 0);
-end;
 
 procedure TConnectionProfilesForm.BrowsePrivateKeyClicked(Sender: TObject);
 var

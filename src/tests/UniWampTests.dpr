@@ -8,8 +8,6 @@ uses
   DUnitX.TestFramework,
   Test.UniWamp.ProcessManager in 'Test.UniWamp.ProcessManager.pas',
   Test.UniWamp.ConfigGenerator in 'Test.UniWamp.ConfigGenerator.pas',
-  Test.UniWamp.FtpTransport in 'Test.UniWamp.FtpTransport.pas',
-  Test.UniWamp.SyncEngine in 'Test.UniWamp.SyncEngine.pas',
   Test.UniWamp.Security in 'Test.UniWamp.Security.pas',
   Test.UniWamp.PackageManager in 'Test.UniWamp.PackageManager.pas',
   Test.UniWamp.VHostManager in 'Test.UniWamp.VHostManager.pas',

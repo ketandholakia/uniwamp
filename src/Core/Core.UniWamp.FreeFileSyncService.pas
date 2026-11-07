@@ -40,6 +40,7 @@ type
     function BuildCommandPreviewForVHost(const ProfileName, ServerName: string; UseDryRun: Boolean;
       out CommandLine: string): TRuntimeActionResult;
     function ExecuteProfileForVHost(const ProfileName, ServerName: string; UseDryRun: Boolean): TRuntimeActionResult;
+    function ExecuteVHostSync(const ServerName, DirectionName: string; UseDryRun: Boolean): TRuntimeActionResult;
   end;
 
 implementation
@@ -49,7 +50,8 @@ uses
   Winapi.ShellAPI,
   System.Classes,
   System.IOUtils,
-  Core.UniWamp.Secrets;
+  Core.UniWamp.Secrets,
+  Core.UniWamp.ProcessManager;
 
 { TFreeFileSyncService }
 
@@ -222,7 +224,16 @@ var
   RemotePath: string;
 begin
   Result.Credentials := BuildCredentials(Profile);
-  Result.Password := LoadConnectionPassword(FPaths, Profile.Name);
+  if Trim(Profile.ConnectionProfileName) <> '' then
+  begin
+    Result.Password := LoadConnectionPassword(FPaths, Profile.ConnectionProfileName);
+    Result.Credentials.KeyPassphrase := LoadConnectionKeyPassphrase(FPaths, Profile.ConnectionProfileName);
+  end
+  else
+  begin
+    Result.Password := LoadConnectionPassword(FPaths, Profile.Name);
+    Result.Credentials.KeyPassphrase := LoadConnectionKeyPassphrase(FPaths, Profile.Name);
+  end;
   RemotePath := Profile.RemotePath;
   if Entry.ServerName <> '' then
     RemotePath := ApplyVHostTokens(RemotePath, Entry);
@@ -370,28 +381,74 @@ begin
     end;
   end;
 
-  // Execute FreeFileSync in batch mode
-  // FreeFileSync.exe "batch_file.ffs_batch" executes the sync unattended
-  Result.Success := ShellExecute(0, 'open', PChar(FreeFileSyncExe),
-    PChar('"' + BatchFilePath + '"'), PChar(ExtractFileDir(BatchFilePath)), SW_HIDE) > 32;
+  // Execute FreeFileSync in batch mode and wait for its actual result.
+  // This prevents the UI from reporting success while the remote transfer is
+  // still running or has already failed.
+  var Output: string;
+  Result.Success := TProcessManager.RunAndCaptureOutput(
+    FreeFileSyncExe,
+    '"' + BatchFilePath + '"',
+    ExtractFileDir(BatchFilePath),
+    Output,
+    0);
 
   if Result.Success then
   begin
-    // Wait for the process to complete and get exit code
-    // Note: FreeFileSync batch mode returns 0 on success, non-zero on error
-    // For simplicity, we'll check if the log file was created
-    if FileExists(LogFilePath) then
-    begin
-      Result.Message := 'Sync completed. Log: ' + LogFilePath;
-    end
-    else
-    begin
-      Result.Message := 'Sync may have completed. No log file generated.';
-    end;
+    Result.Message := 'Sync completed. Log: ' + LogFilePath;
   end
   else
   begin
-    Result.Message := 'Failed to launch FreeFileSync for execution.';
+    Result.Message := 'FreeFileSync reported a synchronization failure. Log: ' + LogFilePath;
+  end;
+end;
+
+function TFreeFileSyncService.ExecuteVHostSync(const ServerName, DirectionName: string;
+  UseDryRun: Boolean): TRuntimeActionResult;
+var
+  Entry: TVHostEntry;
+  Profile: TSyncProfile;
+  TemporaryName: string;
+begin
+  if not TryGetVHostEntry(ServerName, Entry) then
+  begin
+    Result.Success := False;
+    Result.Message := 'Project not found: ' + ServerName;
+    Exit;
+  end;
+  if Trim(Entry.SyncHost) = '' then
+  begin
+    Result.Success := False;
+    Result.Message := 'Sync is not configured for vHost: ' + ServerName;
+    Exit;
+  end;
+  if not SameText(DirectionName, 'upload') and not SameText(DirectionName, 'download') then
+  begin
+    Result.Success := False;
+    Result.Message := 'Unsupported sync direction: ' + DirectionName;
+    Exit;
+  end;
+
+  Profile := Default(TSyncProfile);
+  TemporaryName := '__vhost_sync_' + LowerCase(ServerName);
+  Profile.Name := TemporaryName;
+  Profile.Protocol := Entry.SyncProtocol;
+  Profile.Direction := LowerCase(DirectionName);
+  Profile.Host := Entry.SyncHost;
+  Profile.Port := Entry.SyncPort;
+  Profile.Username := Entry.SyncUsername;
+  Profile.PrivateKeyFile := Entry.SyncPrivateKeyFile;
+  Profile.RemotePath := Entry.SyncRemotePath;
+  Profile.LocalPath := Entry.DocumentRoot;
+  Profile.DeleteEnabled := Entry.SyncDeleteEnabled;
+  Profile.SyncTool := 'freefilesync';
+  Profile.SyncVariant := Entry.SyncVariant;
+  Profile.DryRunByDefault := UseDryRun;
+  Profile.Excludes := Entry.SyncExcludes;
+  FConfig.AddOrUpdateSyncProfile(Profile);
+  try
+    Result := ExecuteProfileForVHost(TemporaryName, ServerName, UseDryRun);
+  finally
+    FConfig.DeleteSyncProfile(TemporaryName);
   end;
 end;
 

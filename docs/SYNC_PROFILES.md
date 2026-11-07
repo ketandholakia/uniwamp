@@ -54,6 +54,7 @@ A sync profile can either:
 ## Notes
 
 - FTP and FTPS use password credentials.
-- SFTP can use a password, an unencrypted private key, or a private key passphrase where supported by the transport.
+- Sync jobs are executed through FreeFileSync; the installed FreeFileSync build determines available protocol and authentication options.
+- WinSCP and PuTTY PSFTP are bundled for manual FTP/SFTP workflows and are not the scripted sync engine.
 - Sync profiles are meant for repeated jobs, not one-off ad hoc transfers.
 - The app validates local sync paths so downloads and uploads stay inside the chosen root.

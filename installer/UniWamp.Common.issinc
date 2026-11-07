@@ -63,7 +63,7 @@ Source: "redist\vc_redist.x64.exe"; Flags: dontcopy
 Source: "..\src\tmpbuild\bin\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\src\UniWamp_Icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\runtime\apache\*"; DestDir: "{app}\runtime\apache"; Flags: recursesubdirs createallsubdirs ignoreversion
-Source: "..\runtime\mariadb\*"; DestDir: "{app}\runtime\mariadb"; Excludes: "data\*"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\runtime\mariadb\*"; DestDir: "{app}\runtime\mariadb"; Excludes: "data\*,data.bak-*"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\templates\*"; DestDir: "{app}\templates"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\home\*"; DestDir: "{app}\home"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\bin\cmder\*"; DestDir: "{app}\bin\cmder"; Excludes: "config\*"; Flags: recursesubdirs createallsubdirs ignoreversion

@@ -184,7 +184,10 @@ begin
     end
     else
     begin
-      SB.AppendLine('            <Left Create="right" Update="right" Delete="none"/>');
+      if Spec.DeleteEnabled then
+        SB.AppendLine('            <Left Create="right" Update="right" Delete="right"/>')
+      else
+        SB.AppendLine('            <Left Create="right" Update="right" Delete="none"/>');
       SB.AppendLine('            <Right Create="none" Update="none" Delete="none"/>');
     end;
     SB.AppendLine('        </Changes>');
@@ -283,7 +286,10 @@ begin
     end
     else
     begin
-      SB.AppendLine('            <Left Create="right" Update="right" Delete="none"/>');
+      if Spec.DeleteEnabled then
+        SB.AppendLine('            <Left Create="right" Update="right" Delete="right"/>')
+      else
+        SB.AppendLine('            <Left Create="right" Update="right" Delete="none"/>');
       SB.AppendLine('            <Right Create="none" Update="none" Delete="none"/>');
     end;
     SB.AppendLine('        </Changes>');

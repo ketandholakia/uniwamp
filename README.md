@@ -31,8 +31,8 @@ Known beta limitations:
 - Manages enabled PHP extensions for the active PHP runtime
 - Generates Apache, PHP, and MariaDB config files from UniWamp templates
 - Manages local virtual hosts
-- Manages native FTP, FTPS, and SFTP sync connection profiles and sync profiles
-- Bundles WinSCP portable in `runtime\tools\winscp` for manual FTP/SFTP transfers and scripted sync sessions
+- Manages FTP, FTPS, and SFTP connection profiles and project sync profiles through FreeFileSync
+- Bundles WinSCP portable for manual FTP/SFTP transfers; scripted sync requires a FreeFileSync executable
 - The virtual-host grid provides browser, folder, code editor, terminal, delete, and SSL actions per row
 - Launches the local site, Adminer, logs, terminals, and local developer tools
 - Optionally generates a self-signed SSL certificate
@@ -120,7 +120,7 @@ The main Tools menu and tool panel also expose:
 - `Terminal` to launch the configured terminal executable
 - `Repo Terminal` to open a terminal at the UniWamp root for Git and maintenance work
 - `Composer` launches the bundled `runtime\tools\composer\composer.phar` through the selected PHP runtime or `php.exe` on PATH; `WP-CLI` launches the bundled `runtime\tools\wp-cli\wp-cli.phar` the same way; `npm`, `pnpm`, and `yarn` prefer the selected Node.js runtime's bundled commands or corepack shims before falling back to PATH; `Git`, `Node`, `Mailpit`, `Redis`, `Memcached`, and `Editor` launchers use the corresponding executables when available on PATH; the editor button prefers bundled Lite XL from `runtime\tools\lite-xl\lite-xl.exe`
-- `WinSCP` is bundled in `runtime\tools\winscp` for manual FTP/SFTP file transfers and scripted sync sessions; UniWamp launches it with `runtime\tools\winscp\WinSCP.ini` so it stays portable
+- `WinSCP` is bundled in `runtime\tools\winscp` for manual FTP/SFTP file transfers; UniWamp launches it with `runtime\tools\winscp\WinSCP.ini` so it stays portable
 - `Update` to stage a manifest-driven package into `tmp\updates`
 - The second tool row keeps the repository-oriented launchers and update action grouped together for faster maintenance work
 - `Copy Report` to copy a diagnostic snapshot with paths, versions, ports, service state, and recent errors
@@ -160,10 +160,9 @@ Profile model:
 
 Sync note:
 
-- SFTP supports password authentication, `ssh-agent`, and unencrypted private keys.
-- Password-auth SFTP uses bundled `PuTTY PSFTP` when `runtime\tools\putty\psftp.exe` is available.
-- If `psftp.exe` is missing, UniWamp attempts to download the current 64-bit PuTTY `psftp.exe` from the official PuTTY site into `runtime\tools\putty`.
-- Encrypted private-key passphrases are not supported in unattended sync runs.
+- Sync jobs are generated as FreeFileSync GUI or batch jobs; the selected FreeFileSync build determines protocol and authentication support.
+- WinSCP and PuTTY PSFTP remain bundled for manual FTP/SFTP workflows.
+- Encrypted private-key passphrases are not supported in unattended batch runs.
 
 Generated config files are written to:
 
@@ -246,7 +245,7 @@ Profile scope:
 - Php84: Apache, MariaDB, PHP 84, plus bundled Composer, WP-CLI, and the Node.js runtime
 - Php85: Apache, MariaDB, PHP 85, plus bundled Composer, WP-CLI, and the Node.js runtime
 - Full: Apache, MariaDB, PHP 82/83/84/85, bundled Composer, WP-CLI, the Node.js runtime, and the bundled developer tools
-- All installer profiles also include bundled PuTTY PSFTP for password-auth SFTP syncs.
+- All installer profiles also include bundled PuTTY PSFTP for manual password-auth SFTP workflows.
 
 Each profile-specific script includes the same shared payload rules from `installer/UniWamp.Common.issinc`.
 

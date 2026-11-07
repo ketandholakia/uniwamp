@@ -320,7 +320,7 @@ begin
     Exit(True);
   FOutputLock.Acquire;
   try
-    Result := WriteFile(FStdinWrite, Data[0], Length(Data), Written, nil) and (Written = Length(Data));
+    Result := WriteFile(FStdinWrite, Data[0], Length(Data), Written, nil) and (Written = DWORD(Length(Data)));
   finally
     FOutputLock.Release;
   end;

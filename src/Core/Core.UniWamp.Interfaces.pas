@@ -10,6 +10,8 @@ type
   IVHostManager = interface
     ['{F4A5E6B7-8C9D-0E1F-2A3B-4C5D6E7F8A9B}']
     function AddVHost(const ServerName, DocumentRoot, ServerAliases: string; EnableSsl: Boolean): TRuntimeActionResult;
+    function UpdateVHost(const OldServerName, NewServerName, DocumentRoot,
+      ServerAliases: string; EnableSsl: Boolean): TRuntimeActionResult;
     function DeleteVHost(const ServerName: string): TRuntimeActionResult;
     function GenerateSslCertificate: TRuntimeActionResult;
     function GenerateSslCertificateFor(const CommonName, CertFile, KeyFile: string): TRuntimeActionResult;
@@ -37,6 +39,7 @@ type
     function BuildCommandPreviewForVHost(const ProfileName, ServerName: string; UseDryRun: Boolean;
       out CommandLine: string): TRuntimeActionResult;
     function ExecuteProfileForVHost(const ProfileName, ServerName: string; UseDryRun: Boolean): TRuntimeActionResult;
+    function ExecuteVHostSync(const ServerName, DirectionName: string; UseDryRun: Boolean): TRuntimeActionResult;
   end;
 
   IHostsFileService = interface

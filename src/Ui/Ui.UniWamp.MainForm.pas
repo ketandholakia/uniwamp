@@ -1,4 +1,4 @@
-unit Ui.UniWamp.MainForm;
+﻿unit Ui.UniWamp.MainForm;
 
 interface
 
@@ -30,6 +30,7 @@ uses
   Ui.UniWamp.AppSettingsForm,
   Ui.UniWamp.ConnectionProfilesForm,
   Ui.UniWamp.SyncProfilesForm,
+  Ui.UniWamp.VHostSyncDialog,
   Ui.UniWamp.ScriptManagerForm,
   Core.UniWamp.Config,
   Core.UniWamp.Diagnostics,
@@ -143,6 +144,7 @@ type
     GenerateSslButton: TPanel;
     Panel6: TPanel;
     AddVHostButton: TPanel;
+    EditVHostButton: TPanel;
     OpenVHostButton: TPanel;
     OpenVHostFolderButton: TPanel;
     OpenVHostTerminalButton: TPanel;
@@ -266,9 +268,6 @@ type
     FUpdateManifestDialog: TOpenDialog;
     FProjectBackupManifestDialog: TOpenDialog;
     FDatabaseBackupInfoDialog: TOpenDialog;
-    FSyncUploadButton: TPanel;
-    FSyncDownloadButton: TPanel;
-    FRerunSyncButton: TPanel;
     FHeaderCards: array[0..2] of THeaderStatusCard;
     FProgressSpinner: TProgressBar;
     FIsBusy: Boolean;
@@ -324,6 +323,7 @@ type
     procedure LaunchDashboardIfHealthy;
     function IsAutoStartEnabled: Boolean;
     procedure SetAutoStartEnabled(const Enabled: Boolean);
+    procedure CheckAndFixAutoStartPath;
     procedure StartAllOnLaunchClick(Sender: TObject);
     procedure StatusRefreshTimer(Sender: TObject);
     procedure AutoStartClick(Sender: TObject);
@@ -342,7 +342,6 @@ type
     function SelectedVHostServerName: string;
     procedure DeleteVHostByName(const ServerName: string);
     procedure PopulateVHostSyncMenu(const ServerName: string);
-    procedure UpdateSyncButtonCaptions;
     function HasSyncProfilesForDirection(const DirectionName: string): Boolean;
     procedure AppendSyncHistory(const ServerName, DirectionName, ProfileName: string;
       const UseDryRun, Success: Boolean; const MessageText: string);
@@ -353,15 +352,15 @@ type
       UseDryRun: Boolean);
     procedure ShowSyncPopupForDirection(const ServerName, DirectionFilter: string; SourceButton: TPanel);
     procedure SyncProfileMenuClick(Sender: TObject);
-    procedure SyncUploadButtonClick(Sender: TObject);
-    procedure SyncDownloadButtonClick(Sender: TObject);
-    procedure RerunLastSyncButtonClick(Sender: TObject);
     function TryResolveDefaultSyncProfileForDirection(const DirectionName: string; out ProfileName: string): Boolean;
     procedure OpenVHostFolder(const ServerName: string);
     procedure OpenVHostEditor(const ServerName: string);
     procedure OpenVHostUrl(const ServerName: string);
     procedure VHostGridDrawCell(Sender: TObject; ACol, ARow: Integer; CellRect: TRect; State: TGridDrawState);
     procedure VHostGridMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+    procedure VHostGridMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer);
+    procedure VHostSyncSetupClick(const ServerName: string);
+    procedure VHostSyncActionClick(const ServerName, DirectionName: string; const DryRun: Boolean);
     procedure VHostGridKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure ApacheStartClick(Sender: TObject);
     procedure ApacheStopClick(Sender: TObject);
@@ -411,6 +410,7 @@ type
     procedure ClearActivityLogClick(Sender: TObject);
     procedure OpenActivityClick(Sender: TObject);
     procedure AddVHostClick(Sender: TObject);
+    procedure EditVHostClick(Sender: TObject);
     procedure DeleteVHostClick(Sender: TObject);
     procedure OpenVHostClick(Sender: TObject);
     procedure OpenVHostFolderClick(Sender: TObject);
@@ -907,6 +907,11 @@ begin
     Result := 'copy';
     Exit;
   end;
+  if (Key = Ord('E')) and (ssCtrl in Shift) then
+  begin
+    Result := 'edit';
+    Exit;
+  end;
   if Key = VK_DELETE then
   begin
     Result := 'delete';
@@ -1361,7 +1366,6 @@ begin
   end;
   if FConfig.LastMigrationMessage <> '' then
     AppendStatus(FConfig.LastMigrationMessage);
-  LayoutToolSidebar;
   FStatusRefreshTimer := TTimer.Create(Self);
   FStatusRefreshTimer.Interval := 4000;
   FStatusRefreshTimer.OnTimer := StatusRefreshTimer;
@@ -1370,6 +1374,7 @@ end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
 begin
+  CheckAndFixAutoStartPath;
   DoubleBuffered := True;
   KeyPreview := True;
   Color := AppBackgroundColor;
@@ -1499,53 +1504,6 @@ begin
   Label11.Caption := '';
   Label11.Height := 34;
   Label11.Alignment := taLeftJustify;
-  FSyncUploadButton := TPanel.Create(Self);
-  FSyncUploadButton.Parent := Label11;
-  FSyncUploadButton.BevelOuter := bvNone;
-  FSyncUploadButton.Color := ButtonNeutralColor;
-  FSyncUploadButton.Font.Name := 'Segoe UI';
-  FSyncUploadButton.Font.Size := 9;
-  FSyncUploadButton.Font.Style := [fsBold];
-  FSyncUploadButton.ParentBackground := False;
-  FSyncUploadButton.ParentFont := False;
-  FSyncUploadButton.Cursor := crHandPoint;
-  FSyncUploadButton.ShowHint := True;
-  FSyncUploadButton.Hint := BuildToolPanelHint('Sync upload',
-    'Open upload sync actions for the selected project.');
-  FSyncUploadButton.OnClick := SyncUploadButtonClick;
-  SetButtonCaption(FSyncUploadButton, 'Sync Upload');
-
-  FSyncDownloadButton := TPanel.Create(Self);
-  FSyncDownloadButton.Parent := Label11;
-  FSyncDownloadButton.BevelOuter := bvNone;
-  FSyncDownloadButton.Color := ButtonNeutralColor;
-  FSyncDownloadButton.Font.Name := 'Segoe UI';
-  FSyncDownloadButton.Font.Size := 9;
-  FSyncDownloadButton.Font.Style := [fsBold];
-  FSyncDownloadButton.ParentBackground := False;
-  FSyncDownloadButton.ParentFont := False;
-  FSyncDownloadButton.Cursor := crHandPoint;
-  FSyncDownloadButton.ShowHint := True;
-  FSyncDownloadButton.Hint := BuildToolPanelHint('Sync download',
-    'Open download sync actions for the selected project.');
-  FSyncDownloadButton.OnClick := SyncDownloadButtonClick;
-  SetButtonCaption(FSyncDownloadButton, 'Sync Download');
-  FRerunSyncButton := TPanel.Create(Self);
-  FRerunSyncButton.Parent := Label11;
-  FRerunSyncButton.BevelOuter := bvNone;
-  FRerunSyncButton.Color := ButtonNeutralColor;
-  FRerunSyncButton.Font.Name := 'Segoe UI';
-  FRerunSyncButton.Font.Size := 9;
-  FRerunSyncButton.Font.Style := [fsBold];
-  FRerunSyncButton.ParentBackground := False;
-  FRerunSyncButton.ParentFont := False;
-  FRerunSyncButton.Cursor := crHandPoint;
-  FRerunSyncButton.ShowHint := True;
-  FRerunSyncButton.Hint := BuildToolPanelHint('Rerun last sync',
-    'Reruns the most recent recorded sync for the selected project.');
-  FRerunSyncButton.OnClick := RerunLastSyncButtonClick;
-  SetButtonCaption(FRerunSyncButton, 'Rerun Sync');
-  UpdateSyncButtonCaptions;
   ToolGroupWebLabel := TPanel.Create(Self);
   ToolGroupWebLabel.Parent := pnltools;
   ToolGroupWebLabel.BevelOuter := bvNone;
@@ -2038,6 +1996,12 @@ begin
   AddVHostButton.ShowHint := True;
   AddVHostButton.TabStop := True;
   AddVHostButton.TabOrder := 12;
+  EditVHostButton.OnClick := EditVHostClick;
+  EditVHostButton.Hint := BuildToolPanelHint('Edit the selected vHost',
+    'Opens the vHost editor to change server name, document root, aliases, or SSL for the selected project.');
+  EditVHostButton.ShowHint := True;
+  EditVHostButton.TabStop := True;
+  EditVHostButton.TabOrder := 13;
   DeleteVHostButton.OnClick := DeleteVHostClick;
   DeleteVHostButton.Hint := BuildToolPanelHint('Delete the selected vHost configuration',
     'Removes the selected vHost configuration and keeps the project folder intact.');
@@ -2143,6 +2107,7 @@ begin
   ClearPanelIcon(SaveConfigButton);
   ApplyPanelIcon(exitbutton, 'logout');
   ApplyPanelIcon(AddVHostButton, 'add');
+  ApplyPanelIcon(EditVHostButton, 'edit');
   ApplyPanelIcon(OpenVHostButton, 'open_in_new');
   ApplyPanelIcon(OpenVHostFolderButton, 'folder_open');
   ClearPanelIcon(OpenVHostTerminalButton);
@@ -2188,6 +2153,7 @@ begin
   SetButtonCaption(OpenPhpSettingsButton, 'PHP Settings');
   SetButtonCaption(OpenApacheModulesButton, 'Apache Modules');
   SetButtonCaption(AddVHostButton, 'Add');
+  SetButtonCaption(EditVHostButton, 'Edit');
   SetButtonCaption(OpenVHostButton, 'Open Selected');
   SetButtonCaption(OpenVHostFolderButton, 'Open Folder');
   SetButtonCaption(OpenVHostTerminalButton, 'Terminal');
@@ -2258,6 +2224,8 @@ begin
   VHostGrid.Options := VHostGrid.Options + [goRowSelect];
   VHostGrid.OnDrawCell := VHostGridDrawCell;
   VHostGrid.OnMouseUp := VHostGridMouseUp;
+  VHostGrid.OnMouseMove := VHostGridMouseMove;
+  VHostGrid.ShowHint := True;
   VHostGrid.OnKeyDown := VHostGridKeyDown;
   VHostGrid.OnEnter := VHostGridEnter;
   VHostGrid.OnExit := VHostGridExit;
@@ -2280,7 +2248,7 @@ begin
   VHostGrid.ColWidths[1] := 262;
   VHostGrid.ColWidths[2] := 132;
   VHostGrid.ColWidths[3] := 152;
-  VHostGrid.ColWidths[4] := 206;
+  VHostGrid.ColWidths[4] := 520;
   LoadStateIntoUi;
   LayoutDashboard;
   RefreshStatus;
@@ -2364,7 +2332,7 @@ begin
   VHostGrid.ColWidths[0] := 110;
   VHostGrid.ColWidths[2] := 132;
   VHostGrid.ColWidths[3] := 152;
-  VHostGrid.ColWidths[4] := 206;
+  VHostGrid.ColWidths[4] := 520;
   AvailableGridColumns := GridWidth - VHostGrid.ColWidths[0] - VHostGrid.ColWidths[2] - VHostGrid.ColWidths[3] - VHostGrid.ColWidths[4];
   if AvailableGridColumns < 250 then
     AvailableGridColumns := 250;
@@ -2401,21 +2369,6 @@ begin
       FVHostFilterLabel.Top := (Label11.Height - FVHostFilterLabel.Height) div 2;
       FVHostFilterLabel.Left := Max(FVHostHeaderTitle.Left + FVHostHeaderTitle.Width + 18,
         FVHostFilterEdit.Left - FVHostFilterLabel.Width - 8);
-    end;
-    if Assigned(FSyncDownloadButton) then
-    begin
-      FSyncDownloadButton.SetBounds(FVHostFilterLabel.Left - FSyncDownloadButton.Width - 10, 4, FSyncDownloadButton.Width, 26);
-      StylePanelButton(FSyncDownloadButton, FSyncDownloadButton.Enabled, ButtonNeutralColor, ButtonNeutralColor);
-    end;
-    if Assigned(FSyncUploadButton) then
-    begin
-      FSyncUploadButton.SetBounds(FSyncDownloadButton.Left - FSyncUploadButton.Width - 10, 4, FSyncUploadButton.Width, 26);
-      StylePanelButton(FSyncUploadButton, FSyncUploadButton.Enabled, ButtonNeutralColor, ButtonNeutralColor);
-    end;
-    if Assigned(FRerunSyncButton) then
-    begin
-      FRerunSyncButton.SetBounds(FSyncUploadButton.Left - FRerunSyncButton.Width - 10, 4, FRerunSyncButton.Width, 26);
-      StylePanelButton(FRerunSyncButton, FRerunSyncButton.Enabled, ButtonNeutralColor, ButtonNeutralColor);
     end;
   end;
 
@@ -2730,6 +2683,8 @@ begin
   ApplyMenuIcon(MenuItem, 'language');
   Item := AddItem(MenuItem, '&Add VHost', AddVHostClick);
   Item.ShortCut := ShortCut(Ord('N'), [ssCtrl]);
+  Item := AddItem(MenuItem, '&Edit Selected', EditVHostClick);
+  Item.ShortCut := ShortCut(Ord('E'), [ssCtrl]);
   Item := AddItem(MenuItem, '&Open Selected', OpenVHostClick);
   Item.ShortCut := ShortCut(Ord('O'), [ssCtrl]);
   Item := AddItem(MenuItem, 'Open &Folder', OpenVHostFolderClick);
@@ -3067,6 +3022,7 @@ begin
   AppendStatus(StatusText);
   // Disable common action buttons
   AddVHostButton.Enabled := False;
+  EditVHostButton.Enabled := False;
   GenerateSslButton.Enabled := False;
   StartAllButton.Enabled := False;
   StopAllButton.Enabled := False;
@@ -3521,50 +3477,35 @@ end;
 procedure TMainForm.UpdateVHostActionState;
 var
   HasSelection: Boolean;
-  HasUploadProfiles: Boolean;
-  HasDownloadProfiles: Boolean;
 begin
-  if not Assigned(AddVHostButton) or not Assigned(OpenVHostButton) or not Assigned(OpenVHostFolderButton) or
+  if not Assigned(AddVHostButton) or not Assigned(EditVHostButton) or not Assigned(OpenVHostButton) or not Assigned(OpenVHostFolderButton) or
      not Assigned(BackupProjectButton) or not Assigned(RestoreProjectButton) or not Assigned(CopyVHostUrlButton) or
      not Assigned(DeleteVHostButton) or not Assigned(BackupDatabaseButton) or not Assigned(RestoreDatabaseButton) or
      not Assigned(VHostGrid) then
     Exit;
 
   HasSelection := SelectedVHostServerName <> '';
-  HasUploadProfiles := HasSyncProfilesForDirection('upload');
-  HasDownloadProfiles := HasSyncProfilesForDirection('download');
   AddVHostButton.Enabled := True;
+  EditVHostButton.Enabled := HasSelection;
   OpenVHostButton.Enabled := FConfig.ApacheRunning and HasSelection;
   OpenVHostFolderButton.Enabled := HasSelection;
   BackupProjectButton.Enabled := HasSelection;
   RestoreProjectButton.Enabled := True;
   CopyVHostUrlButton.Enabled := HasSelection;
   DeleteVHostButton.Enabled := HasSelection;
-  if Assigned(FSyncUploadButton) then
-    FSyncUploadButton.Enabled := HasSelection and HasUploadProfiles;
-  if Assigned(FSyncDownloadButton) then
-    FSyncDownloadButton.Enabled := HasSelection and HasDownloadProfiles;
-  if Assigned(FRerunSyncButton) then
-    FRerunSyncButton.Enabled := HasSelection;
   BackupDatabaseButton.Enabled := FConfig.MariaDbRunning;
   RestoreDatabaseButton.Enabled := FConfig.MariaDbRunning;
 
   StylePanelButton(AddVHostButton, True, ButtonSuccessStrongColor, ButtonPositiveColor, clWhite);
+  StylePanelButton(EditVHostButton, EditVHostButton.Enabled, ButtonAccentColor, ButtonNeutralColor);
   StylePanelButton(OpenVHostButton, OpenVHostButton.Enabled, ButtonAccentColor, ButtonNeutralColor);
   StylePanelButton(OpenVHostFolderButton, OpenVHostFolderButton.Enabled, ButtonNeutralColor, ButtonNeutralColor);
   StylePanelButton(BackupProjectButton, BackupProjectButton.Enabled, ButtonNeutralColor, ButtonNeutralColor);
   StylePanelButton(RestoreProjectButton, RestoreProjectButton.Enabled, ButtonNeutralColor, ButtonNeutralColor);
   StylePanelButton(CopyVHostUrlButton, CopyVHostUrlButton.Enabled, ButtonNeutralColor, ButtonNeutralColor);
   StylePanelButton(DeleteVHostButton, DeleteVHostButton.Enabled, ButtonDangerStrongColor, ButtonNeutralColor, clWhite);
-  if Assigned(FSyncUploadButton) then
-    StylePanelButton(FSyncUploadButton, FSyncUploadButton.Enabled, ButtonAccentColor, ButtonNeutralColor);
-  if Assigned(FSyncDownloadButton) then
-    StylePanelButton(FSyncDownloadButton, FSyncDownloadButton.Enabled, ButtonAccentColor, ButtonNeutralColor);
-  if Assigned(FRerunSyncButton) then
-    StylePanelButton(FRerunSyncButton, FRerunSyncButton.Enabled, ButtonAccentColor, ButtonNeutralColor);
   StylePanelButton(BackupDatabaseButton, BackupDatabaseButton.Enabled, ButtonSuccessStrongColor, ButtonPositiveColor, clWhite);
   StylePanelButton(RestoreDatabaseButton, RestoreDatabaseButton.Enabled, ButtonNeutralColor, ButtonNeutralColor);
-  UpdateSyncButtonCaptions;
   VHostGrid.Invalidate;
 end;
 
@@ -3772,6 +3713,32 @@ begin
     Registry.Free;
   end;
 end;
+
+procedure TMainForm.CheckAndFixAutoStartPath;
+var
+  Registry: TRegistry;
+  CurrentCmd, ExpectedCmd: string;
+begin
+  Registry := TRegistry.Create(KEY_READ or KEY_WRITE);
+  try
+    Registry.RootKey := HKEY_CURRENT_USER;
+    if Registry.OpenKey('Software\Microsoft\Windows\CurrentVersion\Run', False) then
+    try
+      if Registry.ValueExists('UniWamp') then
+      begin
+        CurrentCmd := Registry.ReadString('UniWamp');
+        ExpectedCmd := '"' + Application.ExeName + '"';
+        if CurrentCmd <> ExpectedCmd then
+          Registry.WriteString('UniWamp', ExpectedCmd);
+      end;
+    finally
+      Registry.CloseKey;
+    end;
+  finally
+    Registry.Free;
+  end;
+end;
+
 
 procedure TMainForm.SetAutoStartEnabled(const Enabled: Boolean);
 var
@@ -4080,7 +4047,6 @@ begin
   else
     FConfig.LastSyncDownloadProfile := ProfileName;
   PersistPinnedSyncProfile(ServerName, DirectionName, ProfileName);
-  UpdateSyncButtonCaptions;
 
   ShowBusyState('Running sync profile "' + ProfileName + '"...');
   try
@@ -4310,162 +4276,6 @@ begin
   end;
 end;
 
-procedure TMainForm.UpdateSyncButtonCaptions;
-var
-  UploadCaption: string;
-  DownloadCaption: string;
-  UploadProfileText: string;
-  DownloadProfileText: string;
-  Entry: TVHostEntry;
-  TempProfileName: string;
-  TextWidth: Integer;
-begin
-  UploadProfileText := '';
-  DownloadProfileText := '';
-  if TryGetVHostEntry(SelectedVHostServerName, Entry) then
-  begin
-    UploadProfileText := Trim(Entry.PinnedSyncUploadProfile);
-    DownloadProfileText := Trim(Entry.PinnedSyncDownloadProfile);
-  end;
-  
-  if UploadProfileText = '' then
-  begin
-    if TryResolveDefaultSyncProfileForDirection('upload', TempProfileName) then
-      UploadProfileText := TempProfileName;
-  end;
-  
-  if DownloadProfileText = '' then
-  begin
-    if TryResolveDefaultSyncProfileForDirection('download', TempProfileName) then
-      DownloadProfileText := TempProfileName;
-  end;
-  
-  if Assigned(FSyncUploadButton) then
-  begin
-    UploadCaption := 'Sync Upload';
-    if UploadProfileText <> '' then
-      UploadCaption := 'Upload: ' + UploadProfileText;
-    SetButtonCaption(FSyncUploadButton, UploadCaption);
-    
-    Self.Canvas.Font.Assign(FSyncUploadButton.Font);
-    TextWidth := Self.Canvas.TextWidth(UploadCaption);
-    FSyncUploadButton.Width := Max(108, TextWidth + 30);
-    
-    if UploadProfileText <> '' then
-      FSyncUploadButton.Hint := BuildToolPanelHint('Sync upload',
-        'Open upload sync actions for the selected project. Profile: ' + UploadProfileText)
-    else
-      FSyncUploadButton.Hint := BuildToolPanelHint('Sync upload',
-        'Open upload sync actions for the selected project. Profile: (none)');
-  end;
-  
-  if Assigned(FSyncDownloadButton) then
-  begin
-    DownloadCaption := 'Sync Download';
-    if DownloadProfileText <> '' then
-      DownloadCaption := 'Download: ' + DownloadProfileText;
-    SetButtonCaption(FSyncDownloadButton, DownloadCaption);
-    
-    Self.Canvas.Font.Assign(FSyncDownloadButton.Font);
-    TextWidth := Self.Canvas.TextWidth(DownloadCaption);
-    FSyncDownloadButton.Width := Max(112, TextWidth + 30);
-    
-    if DownloadProfileText <> '' then
-      FSyncDownloadButton.Hint := BuildToolPanelHint('Sync download',
-        'Open download sync actions for the selected project. Profile: ' + DownloadProfileText)
-    else
-      FSyncDownloadButton.Hint := BuildToolPanelHint('Sync download',
-        'Open download sync actions for the selected project. Profile: (none)');
-  end;
-  
-  LayoutDashboard;
-end;
-
-procedure TMainForm.SyncUploadButtonClick(Sender: TObject);
-var
-  ServerName: string;
-  Entry: TVHostEntry;
-  ProfileName: string;
-begin
-  ServerName := SelectedVHostServerName;
-  if ServerName = '' then
-    Exit;
-  if not HasSyncProfilesForDirection('upload') then
-  begin
-    AppendStatus('No upload sync profiles are configured.');
-    Exit;
-  end;
-  if TryGetVHostEntry(ServerName, Entry) and (Trim(Entry.PinnedSyncUploadProfile) <> '') then
-  begin
-    ExecuteSyncProfile(ServerName, Entry.PinnedSyncUploadProfile, 'upload', False);
-    Exit;
-  end;
-  if TryResolveDefaultSyncProfileForDirection('upload', ProfileName) then
-  begin
-    ExecuteSyncProfile(ServerName, ProfileName, 'upload', False);
-    Exit;
-  end;
-  ShowSyncPopupForDirection(ServerName, 'upload', FSyncUploadButton);
-end;
-
-procedure TMainForm.SyncDownloadButtonClick(Sender: TObject);
-var
-  ServerName: string;
-  Entry: TVHostEntry;
-  ProfileName: string;
-begin
-  ServerName := SelectedVHostServerName;
-  if ServerName = '' then
-    Exit;
-  if not HasSyncProfilesForDirection('download') then
-  begin
-    AppendStatus('No download sync profiles are configured.');
-    Exit;
-  end;
-  if TryGetVHostEntry(ServerName, Entry) and (Trim(Entry.PinnedSyncDownloadProfile) <> '') then
-  begin
-    ExecuteSyncProfile(ServerName, Entry.PinnedSyncDownloadProfile, 'download', False);
-    Exit;
-  end;
-  if TryResolveDefaultSyncProfileForDirection('download', ProfileName) then
-  begin
-    ExecuteSyncProfile(ServerName, ProfileName, 'download', False);
-    Exit;
-  end;
-  ShowSyncPopupForDirection(ServerName, 'download', FSyncDownloadButton);
-end;
-
-procedure TMainForm.RerunLastSyncButtonClick(Sender: TObject);
-var
-  ServerName: string;
-  DirectionName: string;
-  ProfileName: string;
-  UseDryRun: Boolean;
-  PromptText: string;
-  ModeText: string;
-begin
-  ServerName := SelectedVHostServerName;
-  if ServerName = '' then
-    Exit;
-  if not TryReadLastSyncHistoryEntry(ServerName, DirectionName, ProfileName, UseDryRun) then
-  begin
-    AppendStatus('No sync history found for project "' + ServerName + '".');
-    Exit;
-  end;
-
-  if UseDryRun then
-    ModeText := 'Dry run'
-  else
-    ModeText := 'Run';
-  PromptText := Format('Rerun the last sync for "%s"?' + sLineBreak + sLineBreak +
-    'Direction: %s' + sLineBreak + 'Profile: %s' + sLineBreak + 'Mode: %s',
-    [ServerName, DirectionName, ProfileName, ModeText]);
-  if MessageDlg(PromptText, mtConfirmation, [mbYes, mbNo], 0) <> mrYes then
-    Exit;
-
-  ExecuteSyncProfile(ServerName, ProfileName, DirectionName, UseDryRun);
-end;
-
 procedure TMainForm.VHostGridDrawCell(Sender: TObject; ACol, ARow: Integer; CellRect: TRect; State: TGridDrawState);
 const
   ActionGap = 4;
@@ -4475,6 +4285,8 @@ const
   TerminalWidth = 36;
   DeleteWidth = 36;
   SslWidth = 36;
+  SetupWidth = 36;
+  SyncWidth = 36;
 var
   Grid: TStringGrid;
   CellText: string;
@@ -4580,6 +4392,30 @@ begin
     DrawIconInRect(Grid.Canvas, 'lock', ButtonRect, 16)
   else
     DrawIconInRect(Grid.Canvas, 'lock_open', ButtonRect, 16);
+
+  Inc(ActionLeft, SslWidth + ActionGap);
+  ButtonRect := System.Types.Rect(ActionLeft, CellRect.Top + 4, ActionLeft + SetupWidth, CellRect.Bottom - 4);
+  Grid.Canvas.Brush.Color := ButtonAccentColor;
+  Grid.Canvas.RoundRect(ButtonRect.Left, ButtonRect.Top, ButtonRect.Right, ButtonRect.Bottom, 8, 8);
+  DrawIconInRect(Grid.Canvas, 'settings', ButtonRect, 16);
+
+  Inc(ActionLeft, SetupWidth + ActionGap);
+  ButtonRect := System.Types.Rect(ActionLeft, CellRect.Top + 4, ActionLeft + SyncWidth, CellRect.Bottom - 4);
+  Grid.Canvas.Brush.Color := ButtonPositiveColor;
+  Grid.Canvas.RoundRect(ButtonRect.Left, ButtonRect.Top, ButtonRect.Right, ButtonRect.Bottom, 8, 8);
+  DrawIconInRect(Grid.Canvas, 'open_in_new', ButtonRect, 16);
+
+  Inc(ActionLeft, SyncWidth + ActionGap);
+  ButtonRect := System.Types.Rect(ActionLeft, CellRect.Top + 4, ActionLeft + SyncWidth, CellRect.Bottom - 4);
+  Grid.Canvas.Brush.Color := ButtonAccentColor;
+  Grid.Canvas.RoundRect(ButtonRect.Left, ButtonRect.Top, ButtonRect.Right, ButtonRect.Bottom, 8, 8);
+  DrawIconInRect(Grid.Canvas, 'folder_open', ButtonRect, 16);
+
+  Inc(ActionLeft, SyncWidth + ActionGap);
+  ButtonRect := System.Types.Rect(ActionLeft, CellRect.Top + 4, ActionLeft + SyncWidth, CellRect.Bottom - 4);
+  Grid.Canvas.Brush.Color := ButtonNeutralColor;
+  Grid.Canvas.RoundRect(ButtonRect.Left, ButtonRect.Top, ButtonRect.Right, ButtonRect.Bottom, 8, 8);
+  DrawIconInRect(Grid.Canvas, 'refresh', ButtonRect, 16);
 end;
 
 procedure TMainForm.VHostGridMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
@@ -4591,6 +4427,8 @@ const
   TerminalWidth = 36;
   DeleteWidth = 36;
   SslWidth = 36;
+  SetupWidth = 36;
+  SyncWidth = 36;
 var
   Grid: TStringGrid;
   GridCoord: TGridCoord;
@@ -4603,13 +4441,27 @@ var
   TerminalLeft: Integer;
   DeleteLeft: Integer;
   SslLeft: Integer;
+  SetupLeft: Integer;
+  UploadLeft: Integer;
+  DownloadLeft: Integer;
+  CompareLeft: Integer;
   VHostEntry: TVHostEntry;
 begin
   Grid := Sender as TStringGrid;
   GridCoord := Grid.MouseCoord(X, Y);
   if (GridCoord.X < 0) or (GridCoord.Y < 0) or (GridCoord.X >= Grid.ColCount) or (GridCoord.Y >= Grid.RowCount) then
     Exit;
-  if (GridCoord.Y <= 0) or (GridCoord.X <> 4) then
+  if GridCoord.Y <= 0 then
+    Exit;
+  // Double-click on any data column opens the editor
+  if (ssDouble in Shift) and (GridCoord.X < 4) then
+  begin
+    Grid.Row := GridCoord.Y;
+    UpdateVHostActionState;
+    EditVHostClick(Sender);
+    Exit;
+  end;
+  if GridCoord.X <> 4 then
     Exit;
 
   Grid.Row := GridCoord.Y;
@@ -4633,6 +4485,10 @@ begin
   TerminalLeft := EditorLeft + EditorWidth + ActionGap;
   DeleteLeft := TerminalLeft + TerminalWidth + ActionGap;
   SslLeft := DeleteLeft + DeleteWidth + ActionGap;
+  SetupLeft := SslLeft + SslWidth + ActionGap;
+  UploadLeft := SetupLeft + SetupWidth + ActionGap;
+  DownloadLeft := UploadLeft + SyncWidth + ActionGap;
+  CompareLeft := DownloadLeft + SyncWidth + ActionGap;
   if not TryGetVHostEntry(ServerName, VHostEntry) then
     Exit;
 
@@ -4651,8 +4507,80 @@ begin
     DeleteVHostByName(ServerName)
   else if VHostEntry.EnableSsl and (RelativeX >= SslLeft) and (RelativeX < (SslLeft + SslWidth)) then
     RefreshVHostSslClick(Sender)
+  else if (RelativeX >= SetupLeft) and (RelativeX < (SetupLeft + SetupWidth)) then
+    VHostSyncSetupClick(ServerName)
+  else if (RelativeX >= UploadLeft) and (RelativeX < (UploadLeft + SyncWidth)) then
+    VHostSyncActionClick(ServerName, 'upload', False)
+  else if (RelativeX >= DownloadLeft) and (RelativeX < (DownloadLeft + SyncWidth)) then
+    VHostSyncActionClick(ServerName, 'download', False)
+  else if (RelativeX >= CompareLeft) and (RelativeX < (CompareLeft + SyncWidth)) then
+    VHostSyncActionClick(ServerName, 'upload', True)
   else
     Exit;
+end;
+
+procedure TMainForm.VHostGridMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer);
+const
+  ActionGap = 4;
+  ButtonWidth = 36;
+  ActionStart = 6;
+var
+  Grid: TStringGrid;
+  Coord: TGridCoord;
+  CellRect: TRect;
+  RelativeX: Integer;
+  ButtonIndex: Integer;
+begin
+  Grid := Sender as TStringGrid;
+  Coord := Grid.MouseCoord(X, Y);
+  Grid.Hint := '';
+  if (Coord.X <> 4) or (Coord.Y <= 0) or (Coord.Y >= Grid.RowCount) then
+    Exit;
+  CellRect := Grid.CellRect(Coord.X, Coord.Y);
+  RelativeX := X - CellRect.Left;
+  ButtonIndex := (RelativeX - ActionStart) div (ButtonWidth + ActionGap);
+  if (RelativeX < ActionStart) or (ButtonIndex < 0) or (ButtonIndex > 9) or
+     (RelativeX >= ActionStart + (ButtonIndex * (ButtonWidth + ActionGap)) + ButtonWidth) then
+    Exit;
+  case ButtonIndex of
+    0: Grid.Hint := 'Open vHost URL';
+    1: Grid.Hint := 'Open vHost folder';
+    2: Grid.Hint := 'Open vHost in editor';
+    3: Grid.Hint := 'Open vHost terminal';
+    4: Grid.Hint := 'Delete vHost';
+    5: Grid.Hint := 'Refresh SSL certificate';
+    6: Grid.Hint := 'Sync Setup: configure this vHost';
+    7: Grid.Hint := 'Upload: sync this vHost to the remote host';
+    8: Grid.Hint := 'Download: sync the remote host to this vHost';
+    9: Grid.Hint := 'Compare: preview sync changes without applying them';
+  end;
+end;
+
+procedure TMainForm.VHostSyncSetupClick(const ServerName: string);
+var
+  Entry: TVHostEntry;
+  UpdatedEntry: TVHostEntry;
+begin
+  if not TryGetVHostEntry(ServerName, Entry) then
+    Exit;
+  if not TVHostSyncDialog.Execute(Self, Entry, UpdatedEntry) then
+    Exit;
+  FConfig.AddOrUpdateVHost(UpdatedEntry);
+  FConfig.Save(FPaths);
+  AppendStatus('Sync settings saved for vHost: ' + ServerName);
+  RefreshStatus;
+  LoadStateIntoUi;
+end;
+
+procedure TMainForm.VHostSyncActionClick(const ServerName, DirectionName: string;
+  const DryRun: Boolean);
+var
+  SyncService: ISyncService;
+  ResultInfo: TRuntimeActionResult;
+begin
+  SyncService := TServiceLocator.Instance.GetService<ISyncService>;
+  ResultInfo := SyncService.ExecuteVHostSync(ServerName, DirectionName, DryRun);
+  AppendStatus(ResultInfo.Message);
 end;
 
 procedure TMainForm.VHostGridKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
@@ -4671,6 +4599,8 @@ begin
     OpenVHostTerminalClick(Sender)
   else if ActionName = 'copy' then
     CopyVHostUrlClick(Sender)
+  else if ActionName = 'edit' then
+    EditVHostClick(Sender)
   else if ActionName = 'delete' then
     DeleteVHostClick(Sender);
   Key := 0;
@@ -5381,13 +5311,74 @@ begin
   ShowSyncHistoryViewer(TPath.Combine(FPaths.LogsDir, 'sync-history.log'));
 end;
 
+procedure TMainForm.EditVHostClick(Sender: TObject);
+var
+  ServerName: string;
+  OldEntry: TVHostEntry;
+  DialogResult: TVHostDialogResult;
+begin
+  if FIsBusy then Exit;
+
+  ServerName := SelectedVHostServerName;
+  if ServerName = '' then
+    Exit;
+
+  if not TryGetVHostEntry(ServerName, OldEntry) then
+  begin
+    AppendStatus('Selected vHost not found.');
+    Exit;
+  end;
+
+  DialogResult := TVHostDialog.Execute(Self, FPaths.VHostsDir, 'Edit Virtual Host',
+    OldEntry.ServerName, OldEntry.DocumentRoot, OldEntry.ServerAliases, OldEntry.EnableSsl);
+  if not DialogResult.Accepted then
+    Exit;
+
+  ShowBusyState('Updating Virtual Host, please wait...');
+
+  StartBackgroundThread(
+    procedure
+    var
+      ResultInfo: TRuntimeActionResult;
+      RestartInfo: TRuntimeActionResult;
+      VHostManager: IVHostManager;
+      ApacheWasRunning: Boolean;
+    begin
+      VHostManager := TServiceLocator.Instance.GetService<IVHostManager>;
+      ApacheWasRunning := FConfig.ApacheRunning;
+
+      ResultInfo := VHostManager.UpdateVHost(
+        ServerName,
+        DialogResult.ServerName,
+        DialogResult.DocumentRoot,
+        DialogResult.ServerAliases,
+        DialogResult.EnableSsl);
+
+      if ResultInfo.Success and ApacheWasRunning then
+        RestartInfo := FRuntime.RestartApache;
+
+      QueueUiUpdate(
+        procedure
+        begin
+          HideBusyState();
+          AppendStatus(ResultInfo.Message);
+          if ResultInfo.Success and ApacheWasRunning then
+            AppendStatus('Apache reload after VHost edit: ' + RestartInfo.Message);
+
+          FConfig.Save(FPaths);
+          RefreshStatus;
+          LoadStateIntoUi;
+        end);
+    end);
+end;
 procedure TMainForm.AddVHostClick(Sender: TObject);
 var
   DialogResult: TVHostDialogResult;
 begin
   if FIsBusy then Exit;
 
-  DialogResult := TVHostDialog.Execute(Self, FPaths.VHostsDir, '', '', '', EnableSslCheck.Checked);
+  DialogResult := TVHostDialog.Execute(Self, FPaths.VHostsDir, 'Add Virtual Host', '', '', '',
+    EnableSslCheck.Checked);
   if not DialogResult.Accepted then
     Exit;
 
@@ -5561,7 +5552,7 @@ begin
     ManifestJsonValue.Free;
   end;
 
-  DialogResult := TVHostDialog.Execute(Self, FPaths.VHostsDir, DefaultServerName,
+  DialogResult := TVHostDialog.Execute(Self, FPaths.VHostsDir, 'Restore Project', DefaultServerName,
     DefaultDocumentRoot, DefaultAliases, DefaultEnableSsl);
   if not DialogResult.Accepted then
     Exit;

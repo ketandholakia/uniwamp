@@ -127,12 +127,7 @@ type
     function ValidateProfiles(out ErrorMessage: string): Boolean;
     function ProfileDisplayName(const Profile: TSyncProfile): string;
     function TryGetSelectedVHost(out Entry: TVHostEntry): Boolean;
-    procedure GetSyncContext(out ServerName, DocumentRoot, ProjectRoot: string);
-    function ApplyVHostTokens(const Value, ServerName, DocumentRoot, ProjectRoot: string): string;
     function ResolvePortablePath(const PathValue: string): string;
-    function BuildResolvedProfile(const Profile: TSyncProfile): TSyncProfile;
-    function ResolveExecutionPaths(const Profile: TSyncProfile; out LocalPath, WorkingDirectory,
-      RemotePath, ErrorMessage: string): Boolean;
     function BuildCredentialsFromEditor(const Profile: TSyncProfile): TSyncCredentials;
     procedure ApplySelectedConnectionProfile;
     function SyncProfileToJson(const Profile: TSyncProfile): TJSONObject;
@@ -490,102 +485,11 @@ begin
     end;
 end;
 
-procedure TSyncProfilesForm.GetSyncContext(out ServerName, DocumentRoot, ProjectRoot: string);
-var
-  Entry: TVHostEntry;
-begin
-  if TryGetSelectedVHost(Entry) then
-  begin
-    ServerName := Entry.ServerName;
-    DocumentRoot := Entry.DocumentRoot;
-    ProjectRoot := ExcludeTrailingPathDelimiter(Entry.DocumentRoot);
-    if SameText(ExtractFileName(ProjectRoot), 'public') then
-      ProjectRoot := ExtractFileDir(ProjectRoot);
-  end
-  else
-  begin
-    ServerName := FConfig.HostName;
-    DocumentRoot := FConfig.DocumentRoot;
-    ProjectRoot := FPaths.WwwDir;
-  end;
-end;
-
-function TSyncProfilesForm.ApplyVHostTokens(const Value, ServerName, DocumentRoot,
-  ProjectRoot: string): string;
-begin
-  Result := StringReplace(Value, '{serverName}', ServerName, [rfReplaceAll, rfIgnoreCase]);
-  Result := StringReplace(Result, '{documentRoot}', DocumentRoot, [rfReplaceAll, rfIgnoreCase]);
-  Result := StringReplace(Result, '{projectRoot}', ProjectRoot, [rfReplaceAll, rfIgnoreCase]);
-end;
-
 function TSyncProfilesForm.ResolvePortablePath(const PathValue: string): string;
 begin
   Result := Trim(StringReplace(PathValue, '/', '\', [rfReplaceAll]));
   if (Result <> '') and not TPath.IsPathRooted(Result) then
     Result := ExpandFileName(TPath.Combine(FPaths.AppRoot, Result));
-end;
-
-function TSyncProfilesForm.BuildResolvedProfile(const Profile: TSyncProfile): TSyncProfile;
-var
-  ServerName: string;
-  DocumentRoot: string;
-  ProjectRoot: string;
-begin
-  Result := Profile;
-  GetSyncContext(ServerName, DocumentRoot, ProjectRoot);
-  Result.LocalPath := ApplyVHostTokens(Result.LocalPath, ServerName, DocumentRoot, ProjectRoot);
-  Result.WorkingDirectory := ApplyVHostTokens(Result.WorkingDirectory, ServerName, DocumentRoot, ProjectRoot);
-  Result.RemotePath := ApplyVHostTokens(Result.RemotePath, ServerName, DocumentRoot, ProjectRoot);
-  Result.PrivateKeyFile := ResolvePortablePath(Result.PrivateKeyFile);
-end;
-
-function TSyncProfilesForm.ResolveExecutionPaths(const Profile: TSyncProfile; out LocalPath,
-  WorkingDirectory, RemotePath, ErrorMessage: string): Boolean;
-var
-  ResolvedProfile: TSyncProfile;
-begin
-  Result := False;
-  ErrorMessage := '';
-
-  ResolvedProfile := BuildResolvedProfile(Profile);
-  LocalPath := ResolvePortablePath(ResolvedProfile.LocalPath);
-  if LocalPath = '' then
-  begin
-    ErrorMessage := 'Sync profile local path is invalid.';
-    Exit;
-  end;
-
-  if SameText(Profile.Direction, 'upload') then
-  begin
-    if not TDirectory.Exists(LocalPath) then
-    begin
-      ErrorMessage := 'Local sync source not found: ' + LocalPath;
-      Exit;
-    end;
-  end
-  else if SameText(Profile.Direction, 'download') then
-  begin
-    if not TDirectory.Exists(LocalPath) then
-      TDirectory.CreateDirectory(LocalPath);
-  end
-  else
-  begin
-    ErrorMessage := 'Unsupported sync direction: ' + Profile.Direction;
-    Exit;
-  end;
-
-  WorkingDirectory := ResolvePortablePath(ResolvedProfile.WorkingDirectory);
-  if WorkingDirectory = '' then
-    WorkingDirectory := FPaths.AppRoot;
-
-  RemotePath := Trim(ResolvedProfile.RemotePath);
-  if RemotePath = '' then
-  begin
-    ErrorMessage := 'Sync profile remote path is invalid.';
-    Exit;
-  end;
-
-  Result := True;
 end;
 
 function TSyncProfilesForm.BuildCredentialsFromEditor(const Profile: TSyncProfile): TSyncCredentials;

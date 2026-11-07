@@ -14,8 +14,15 @@
 !/tmp/.gitkeep
 /backups/
 
+# ============================================================
+# UniWamp Generated / Transient State
+# ============================================================
+/config/generated/
+/config/uniwamp.json
+
 # Third-party dashboard template artifacts
 /tailadmin-free-tailwind-dashboard-template-main/node_modules/
+
 /tailadmin-free-tailwind-dashboard-template-main/build/
 /installer/Output/
 /site/

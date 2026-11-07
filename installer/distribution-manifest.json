@@ -8,7 +8,7 @@
                 "displayVersion":  "v0.2.0-alpha",
                 "sourcePath":  "src\\tmpbuild\\bin\\UniWamp.exe",
                 "targetPath":  "{app}\\UniWamp.exe",
-                "sha256":  "7a8d184b8be72d55e0bab6b403d238c82ee32974e97f69a976aefd921cd74a3d"
+                "sha256":  "f22895bd0acb0f1286e2574e6dc3b3b52bae2afcb19251812bcbbeeb2e3d2e84"
             },
     "components":  [
                        {
@@ -19,7 +19,7 @@
                            "sourcePath":  "src\\tmpbuild\\bin\\UniWamp.exe",
                            "targetPath":  "{app}\\UniWamp.exe",
                            "primaryArtifact":  "src\\tmpbuild\\bin\\UniWamp.exe",
-                           "sha256":  "7a8d184b8be72d55e0bab6b403d238c82ee32974e97f69a976aefd921cd74a3d"
+                           "sha256":  "f22895bd0acb0f1286e2574e6dc3b3b52bae2afcb19251812bcbbeeb2e3d2e84"
                        },
                        {
                            "name":  "Apache HTTP Server",
@@ -179,7 +179,7 @@
                            "sourcePath":  "home\\adminer",
                            "targetPath":  "{app}\\home\\adminer",
                            "primaryArtifact":  "home\\adminer\\index.php",
-                           "sha256":  "5b761efe7049bf586119256324fd417b49e5bb9243b40d9734fe86655e4402fd"
+                           "sha256":  "c820771612aedd70b26b8f75f442cc9fc118f8225d0166cc6c5909a89f314805"
                        },
                        {
                            "name":  "Cmder",

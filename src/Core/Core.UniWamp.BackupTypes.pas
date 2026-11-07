@@ -9,11 +9,6 @@ uses
 type
   TBackupKind = (bkProject, bkDatabase);
 
-  TBackupFileEntry = record
-    RelativePath: string;
-    Sha256: string;
-  end;
-
   TProjectBackupManifest = record
     BackupKind: string;
     CreatedAtUtc: string;

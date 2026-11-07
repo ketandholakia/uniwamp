@@ -22,7 +22,7 @@ type
     MailpitDir: string;
     RedisDir: string;
     MemcachedDir: string;
-    WinScpDir: string;
+    FreeFileSyncDir: string;  // runtime\tools\freefilesync
     ApacheDir: string;
     ApacheBinDir: string;
     ApacheConfDir: string;
@@ -98,7 +98,7 @@ begin
   Result.MailpitDir := TPath.Combine(Result.ToolsDir, 'mailpit');
   Result.RedisDir := TPath.Combine(Result.ToolsDir, 'redis');
   Result.MemcachedDir := TPath.Combine(Result.ToolsDir, 'memcached');
-  Result.WinScpDir := TPath.Combine(Result.ToolsDir, 'winscp');
+  Result.FreeFileSyncDir := TPath.Combine(Result.ToolsDir, 'freefilesync');
   Result.ApacheDir := TPath.Combine(Result.RuntimeDir, 'apache');
   Result.ApacheBinDir := TPath.Combine(Result.ApacheDir, 'bin');
   Result.ApacheConfDir := TPath.Combine(Result.ApacheDir, 'conf');
@@ -159,7 +159,7 @@ begin
   EnsureDirectory(Paths.MailpitDir);
   EnsureDirectory(Paths.RedisDir);
   EnsureDirectory(Paths.MemcachedDir);
-  EnsureDirectory(Paths.WinScpDir);
+  EnsureDirectory(Paths.FreeFileSyncDir);
   EnsureDirectory(Paths.ApacheDir);
   EnsureDirectory(Paths.ApacheBinDir);
   EnsureDirectory(Paths.ApacheConfDir);

@@ -17,6 +17,17 @@ type
     SslKeyFile: string;
     PinnedSyncUploadProfile: string;
     PinnedSyncDownloadProfile: string;
+    // vHost-owned sync configuration. Credentials are stored separately via DPAPI.
+    SyncProtocol: string;
+    SyncHost: string;
+    SyncPort: Integer;
+    SyncUsername: string;
+    SyncPrivateKeyFile: string;
+    SyncRemotePath: string;
+    SyncDirection: string;
+    SyncDeleteEnabled: Boolean;
+    SyncVariant: string;
+    SyncExcludes: TArray<string>;
   end;
 
   TPhpRuntime = record
@@ -192,9 +203,6 @@ end;
 function TryExtractLegacyRoot(const PathValue, AnchorName: string; out LegacyRoot: string): Boolean;
 var
   PathText: string;
-  LowerPathText: string;
-  AnchorToken: string;
-  AnchorPos: Integer;
 begin
   Result := False;
   LegacyRoot := '';
@@ -202,20 +210,16 @@ begin
     Exit;
 
   PathText := ExcludeTrailingPathDelimiter(NormalizePortablePath(PathValue));
+  // Only the canonical UniWamp layout is accepted: the value must END with the
+  // anchor folder (for example <root>\www). Matching an arbitrary interior
+  // "\www\", "\bin\" or "\ssl\" segment is unsafe because an external project
+  // folder can legitimately contain a directory with that name, which would
+  // otherwise be misread as the previous UniWamp root.
   if SameText(ExtractFileName(PathText), AnchorName) then
   begin
     LegacyRoot := ExtractFileDir(PathText);
-    Exit(LegacyRoot <> '');
+    Result := LegacyRoot <> '';
   end;
-
-  LowerPathText := LowerCase(PathText);
-  AnchorToken := '\' + LowerCase(AnchorName) + '\';
-  AnchorPos := Pos(AnchorToken, LowerPathText);
-  if AnchorPos <= 0 then
-    Exit;
-
-  LegacyRoot := Copy(PathText, 1, AnchorPos - 1);
-  Result := LegacyRoot <> '';
 end;
 
 function ReadStringOrDefault(const Json: TJSONObject; const Name, DefaultValue: string): string;
@@ -601,6 +605,23 @@ begin
         Entry.SslKeyFile := ReadStringOrDefault(Obj, 'sslKeyFile', '');
         Entry.PinnedSyncUploadProfile := ReadStringOrDefault(Obj, 'pinnedSyncUploadProfile', '');
         Entry.PinnedSyncDownloadProfile := ReadStringOrDefault(Obj, 'pinnedSyncDownloadProfile', '');
+        Entry.SyncProtocol := ReadStringOrDefault(Obj, 'syncProtocol', 'sftp');
+        Entry.SyncHost := ReadStringOrDefault(Obj, 'syncHost', '');
+        Entry.SyncPort := StrToIntDef(ReadStringOrDefault(Obj, 'syncPort', '0'), 0);
+        Entry.SyncUsername := ReadStringOrDefault(Obj, 'syncUsername', '');
+        Entry.SyncPrivateKeyFile := ReadStringOrDefault(Obj, 'syncPrivateKeyFile', '');
+        Entry.SyncRemotePath := ReadStringOrDefault(Obj, 'syncRemotePath', '');
+        Entry.SyncDirection := ReadStringOrDefault(Obj, 'syncDirection', 'upload');
+        Entry.SyncDeleteEnabled := ReadBooleanOrDefault(Obj, 'syncDeleteEnabled', False);
+        Entry.SyncVariant := ReadStringOrDefault(Obj, 'syncVariant', 'update');
+        SetLength(Entry.SyncExcludes, 0);
+        ExcludesArray := ReadArrayOrNil(Obj, 'syncExcludes');
+        if Assigned(ExcludesArray) then
+        begin
+          SetLength(Entry.SyncExcludes, ExcludesArray.Count);
+          for J := 0 to ExcludesArray.Count - 1 do
+            Entry.SyncExcludes[J] := ExcludesArray.Items[J].Value;
+        end;
         if Entry.ServerName <> '' then
           FVHosts.Add(Entry);
       end;
@@ -794,29 +815,16 @@ begin
 
     OldAppRoot := '';
     LegacyRootFound := False;
+    // Portability safety: infer the previous install root only from UniWamp's
+    // own canonical document-root shape (<root>\www). Never infer it from vhost,
+    // SSL or sync paths, because those may legitimately point at external
+    // projects whose folder names must not be treated as a prior UniWamp root.
+    // Preferring no migration over a possibly wrong migration keeps external
+    // paths untouched.
     if TryExtractLegacyRoot(DocumentRoot, 'www', OldAppRoot) and
       not SameText(ExcludeTrailingPathDelimiter(NormalizePortablePath(OldAppRoot)),
         ExcludeTrailingPathDelimiter(NormalizePortablePath(Paths.AppRoot))) then
-      LegacyRootFound := True
-    else if TryExtractLegacyRoot(TerminalExePath, 'bin', OldAppRoot) and
-      not SameText(ExcludeTrailingPathDelimiter(NormalizePortablePath(OldAppRoot)),
-        ExcludeTrailingPathDelimiter(NormalizePortablePath(Paths.AppRoot))) then
-      LegacyRootFound := True
-    else
-    begin
-      for I := 0 to FVHosts.Count - 1 do
-      begin
-        Entry := FVHosts[I];
-        if TryExtractLegacyRoot(Entry.DocumentRoot, 'www', OldAppRoot) or
-           TryExtractLegacyRoot(Entry.SslCertFile, 'ssl', OldAppRoot) or
-           TryExtractLegacyRoot(Entry.SslKeyFile, 'ssl', OldAppRoot) then
-        begin
-          LegacyRootFound := True;
-          Break;
-        end;
-        OldAppRoot := '';
-      end;
-    end;
+      LegacyRootFound := True;
 
     if LegacyRootFound and (OldAppRoot <> '') and
       not SameText(ExcludeTrailingPathDelimiter(NormalizePortablePath(OldAppRoot)),
@@ -1009,6 +1017,19 @@ begin
       Obj.AddPair('sslKeyFile', Entry.SslKeyFile);
       Obj.AddPair('pinnedSyncUploadProfile', Entry.PinnedSyncUploadProfile);
       Obj.AddPair('pinnedSyncDownloadProfile', Entry.PinnedSyncDownloadProfile);
+      Obj.AddPair('syncProtocol', Entry.SyncProtocol);
+      Obj.AddPair('syncHost', Entry.SyncHost);
+      Obj.AddPair('syncPort', TJSONNumber.Create(Entry.SyncPort));
+      Obj.AddPair('syncUsername', Entry.SyncUsername);
+      Obj.AddPair('syncPrivateKeyFile', Entry.SyncPrivateKeyFile);
+      Obj.AddPair('syncRemotePath', Entry.SyncRemotePath);
+      Obj.AddPair('syncDirection', Entry.SyncDirection);
+      Obj.AddPair('syncDeleteEnabled', TJSONBool.Create(Entry.SyncDeleteEnabled));
+      Obj.AddPair('syncVariant', Entry.SyncVariant);
+      ExcludesArray := TJSONArray.Create;
+      for ExcludePattern in Entry.SyncExcludes do
+        ExcludesArray.Add(ExcludePattern);
+      Obj.AddPair('syncExcludes', ExcludesArray);
       VHostArray.Add(Obj);
     end;
     Root.AddPair('vhosts', VHostArray);

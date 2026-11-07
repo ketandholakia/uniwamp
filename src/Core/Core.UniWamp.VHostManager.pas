@@ -1,4 +1,4 @@
-unit Core.UniWamp.VHostManager;
+﻿unit Core.UniWamp.VHostManager;
 
 interface
 
@@ -31,6 +31,8 @@ type
   public
     constructor Create(const Paths: TAppPaths; Config: TUniWampConfig);
     function AddVHost(const ServerName, DocumentRoot, ServerAliases: string; EnableSsl: Boolean): TRuntimeActionResult;
+    function UpdateVHost(const OldServerName, NewServerName, DocumentRoot,
+      ServerAliases: string; EnableSsl: Boolean): TRuntimeActionResult;
     function DeleteVHost(const ServerName: string): TRuntimeActionResult;
     function GenerateSslCertificate: TRuntimeActionResult;
     function GenerateSslCertificateFor(const CommonName, CertFile, KeyFile: string): TRuntimeActionResult;
@@ -195,6 +197,156 @@ begin
   Result.Message := 'VHost save failed: ' + HostsError;
 end;
 
+function TVHostManager.UpdateVHost(const OldServerName, NewServerName, DocumentRoot,
+  ServerAliases: string; EnableSsl: Boolean): TRuntimeActionResult;
+var
+  OldEntry: TVHostEntry;
+  NewEntry: TVHostEntry;
+  Found: Boolean;
+  VHost: TVHostEntry;
+  NormalizedNewServerName: string;
+  NormalizedDocumentRoot: string;
+  NormalizedAliases: string;
+  ErrorMessage: string;
+  OldManagedSslDir: string;
+  NewManagedSslDir: string;
+  HostsError: string;
+  ConfigGenerator: TConfigurationGenerator;
+  HostsFileService: THostsFileService;
+  ServerNameChanged: Boolean;
+  SslWasEnabled: Boolean;
+begin
+  // Validate new fields
+  if not ValidateServerName(NewServerName, NormalizedNewServerName, ErrorMessage) then
+  begin
+    Result.Success := False;
+    Result.Message := ErrorMessage;
+    Exit;
+  end;
+
+  if not ValidateDocumentRoot(DocumentRoot, NormalizedDocumentRoot, ErrorMessage) then
+  begin
+    Result.Success := False;
+    Result.Message := ErrorMessage;
+    Exit;
+  end;
+
+  if not ValidateServerAliases(ServerAliases, NormalizedAliases, ErrorMessage) then
+  begin
+    Result.Success := False;
+    Result.Message := ErrorMessage;
+    Exit;
+  end;
+
+  // Find the old entry
+  Found := False;
+  OldEntry := Default(TVHostEntry);
+  for VHost in FConfig.VHosts do
+    if SameText(VHost.ServerName, OldServerName) then
+    begin
+      OldEntry := VHost;
+      Found := True;
+      Break;
+    end;
+
+  if not Found then
+  begin
+    Result.Success := False;
+    Result.Message := 'VHost not found: ' + OldServerName;
+    Exit;
+  end;
+
+  ServerNameChanged := not SameText(OldServerName, NormalizedNewServerName);
+  SslWasEnabled := OldEntry.EnableSsl;
+
+  // Guard: new name must not already exist (unless it is the same entry)
+  if ServerNameChanged then
+    for VHost in FConfig.VHosts do
+      if SameText(VHost.ServerName, NormalizedNewServerName) then
+      begin
+        Result.Success := False;
+        Result.Message := 'A vHost with the server name "' + NormalizedNewServerName + '" already exists.';
+        Exit;
+      end;
+
+  EnsureDirectory(NormalizedDocumentRoot);
+
+  // Build new entry - preserve pinned sync profiles from old entry
+  NewEntry := Default(TVHostEntry);
+  NewEntry.ServerName := NormalizedNewServerName;
+  NewEntry.ServerAliases := NormalizedAliases;
+  NewEntry.DocumentRoot := NormalizedDocumentRoot;
+  NewEntry.EnableSsl := EnableSsl;
+  NewEntry.PinnedSyncUploadProfile := OldEntry.PinnedSyncUploadProfile;
+  NewEntry.PinnedSyncDownloadProfile := OldEntry.PinnedSyncDownloadProfile;
+
+  OldManagedSslDir := BuildManagedSslDir(OldServerName);
+  NewManagedSslDir := BuildManagedSslDir(NormalizedNewServerName);
+
+  if EnableSsl then
+  begin
+    NewEntry.SslCertFile := TPath.Combine(NewManagedSslDir, 'server.crt');
+    NewEntry.SslKeyFile := TPath.Combine(NewManagedSslDir, 'server.key');
+    // Re-generate cert if SSL is being enabled, or if the server name changed
+    if not SslWasEnabled or ServerNameChanged or
+       not FileExists(NewEntry.SslCertFile) or not FileExists(NewEntry.SslKeyFile) then
+    begin
+      Result := GenerateSslCertificateFor(NormalizedNewServerName, NewEntry.SslCertFile, NewEntry.SslKeyFile);
+      if not Result.Success then
+        Exit;
+    end
+    else
+    begin
+      // Keep existing cert paths if SSL stays on and name did not change
+      NewEntry.SslCertFile := OldEntry.SslCertFile;
+      NewEntry.SslKeyFile := OldEntry.SslKeyFile;
+    end;
+  end;
+
+  // Remove old entry, insert new
+  FConfig.DeleteVHost(OldServerName);
+  FConfig.AddOrUpdateVHost(NewEntry);
+
+  ConfigGenerator := TConfigurationGenerator.Create(FPaths, FConfig);
+  try
+    ConfigGenerator.GenerateVHostConfig;
+  finally
+    ConfigGenerator.Free;
+  end;
+
+  HostsFileService := THostsFileService.Create(FPaths, FConfig);
+  try
+    if not HostsFileService.SyncHostsFile(HostsError) then
+    begin
+      // Roll back config change
+      FConfig.DeleteVHost(NormalizedNewServerName);
+      FConfig.AddOrUpdateVHost(OldEntry);
+      ConfigGenerator := TConfigurationGenerator.Create(FPaths, FConfig);
+      try
+        ConfigGenerator.GenerateVHostConfig;
+      finally
+        ConfigGenerator.Free;
+      end;
+      Result.Success := False;
+      Result.Message := 'VHost update failed (hosts file): ' + HostsError;
+      Exit;
+    end;
+  finally
+    HostsFileService.Free;
+  end;
+
+  // Clean up old SSL cert files if SSL was disabled or server name changed
+  if SslWasEnabled and (not EnableSsl or ServerNameChanged) then
+  begin
+    DeleteManagedSslFileIfOwned(OldEntry.SslCertFile, OldManagedSslDir);
+    DeleteManagedSslFileIfOwned(OldEntry.SslKeyFile, OldManagedSslDir);
+    if TDirectory.Exists(OldManagedSslDir) and TDirectory.IsEmpty(OldManagedSslDir) then
+      TDirectory.Delete(OldManagedSslDir);
+  end;
+
+  Result.Success := True;
+  Result.Message := 'VHost updated: ' + NormalizedNewServerName;
+end;
 function TVHostManager.DeleteVHost(const ServerName: string): TRuntimeActionResult;
 var
   Entry: TVHostEntry;

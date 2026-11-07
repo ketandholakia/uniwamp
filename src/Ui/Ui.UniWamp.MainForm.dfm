@@ -946,8 +946,26 @@ object MainForm: TMainForm
             ParentFont = False
             TabOrder = 0
           end
-          object OpenVHostButton: TPanel
+          object EditVHostButton: TPanel
             Left = 115
+            Top = 14
+            Width = 90
+            Height = 32
+            Cursor = crHandPoint
+            BevelOuter = bvNone
+            Caption = 'Edit'
+            Color = 16053492
+            Font.Charset = DEFAULT_CHARSET
+            Font.Color = clWindowText
+            Font.Height = -11
+            Font.Name = 'Segoe UI'
+            Font.Style = [fsBold]
+            ParentBackground = False
+            ParentFont = False
+            TabOrder = 1
+          end
+          object OpenVHostButton: TPanel
+            Left = 213
             Top = 14
             Width = 110
             Height = 32
@@ -962,10 +980,10 @@ object MainForm: TMainForm
             Font.Style = [fsBold]
             ParentBackground = False
             ParentFont = False
-            TabOrder = 1
+            TabOrder = 2
           end
           object OpenVHostFolderButton: TPanel
-            Left = 233
+            Left = 331
             Top = 14
             Width = 96
             Height = 32
@@ -980,10 +998,10 @@ object MainForm: TMainForm
             Font.Style = [fsBold]
             ParentBackground = False
             ParentFont = False
-            TabOrder = 2
+            TabOrder = 3
           end
           object OpenVHostTerminalButton: TPanel
-            Left = 337
+            Left = 435
             Top = 14
             Width = 88
             Height = 32

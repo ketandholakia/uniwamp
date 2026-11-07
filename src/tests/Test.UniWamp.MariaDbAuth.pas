@@ -20,8 +20,6 @@ type
     [Test]
     procedure TestCreateMariaDbDefaultsExtraFile_WritesPasswordAndDeletesCleanly;
     [Test]
-    procedure TestCreateMariaDbPasswordSqlFile_IsDisabledExplicitly;
-    [Test]
     procedure TestPrependDefaultsExtraFileArg_PrefixesArguments;
   end;
 
@@ -65,17 +63,6 @@ begin
 
   DeleteMariaDbDefaultsExtraFile(FileName);
   Assert.IsFalse(FileExists(FileName), 'Defaults file should be deleted after cleanup.');
-end;
-
-procedure TMariaDbAuthTests.TestCreateMariaDbPasswordSqlFile_IsDisabledExplicitly;
-var
-  FileName: string;
-  ErrorMessage: string;
-begin
-  Assert.IsFalse(CreateMariaDbPasswordSqlFile(FPaths, 'p@ss\''word', FileName, ErrorMessage));
-  Assert.AreEqual('', FileName, 'Disabled helper should not return a file name.');
-  Assert.Contains(ErrorMessage, 'interactive password update path',
-    'Disabled helper should direct callers to the interactive path.');
 end;
 
 procedure TMariaDbAuthTests.TestPrependDefaultsExtraFileArg_PrefixesArguments;

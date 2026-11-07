@@ -40,6 +40,8 @@ type
     procedure ClearApacheState;
     procedure FailApacheStart(const ErrorMessage: string);
     function HasRequiredApacheVisualCRuntime(out ErrorMessage: string): Boolean;
+    function HasAppLocalApacheVisualCRuntime(out ErrorMessage: string): Boolean;
+    class function ReadPeMachineType(const FileName: string; out Machine: Word): Boolean;
     function PushPhpRuntimeToPath(const PhpDir: string; out OldPath: string): Boolean;
     procedure RestorePath(const OldPath: string);
     function ValidateApachePorts(out ErrorMessage: string): Boolean;
@@ -68,28 +70,8 @@ uses
   Core.UniWamp.TemplateRenderer,
   Core.UniWamp.ConfigGenerator,
   Core.UniWamp.AtomicFile,
-  Core.UniWamp.PortUtils;
-
-procedure AppendTextToLogFile(const FileName, Text: string);
-var
-  DirectoryName: string;
-begin
-  if Trim(Text) = '' then
-    Exit;
-
-  DirectoryName := TPath.GetDirectoryName(FileName);
-  if DirectoryName <> '' then
-    EnsureDirectory(DirectoryName);
-
-  try
-    TFile.AppendAllText(
-      FileName,
-      FormatDateTime('hh:nn:ss', Now) + '  ' + Text + sLineBreak,
-      TEncoding.UTF8);
-  except
-    // Ignore file lock or I/O errors to prevent crashing the caller
-  end;
-end;
+  Core.UniWamp.PortUtils,
+  Core.UniWamp.Diagnostics;
 
 constructor TApacheManager.Create(const Paths: TAppPaths; Config: TUniWampConfig;
   const SelectedPhpDir: TApacheStringFunc; const SelectedPhpExe: TApacheStringFunc;
@@ -176,6 +158,118 @@ begin
   FConfig.LastApacheError := ErrorMessage;
 end;
 
+class function TApacheManager.ReadPeMachineType(const FileName: string; out Machine: Word): Boolean;
+const
+  MzSignature = $5A4D;      // 'MZ'
+  PeSignature = $00004550;  // 'PE'#0#0
+var
+  Stream: TFileStream;
+  DosMagic: Word;
+  PeOffset: Integer;
+  Signature: Cardinal;
+  MachineWord: Word;
+begin
+  Result := False;
+  Machine := 0;
+  if not FileExists(FileName) then
+    Exit;
+  try
+    Stream := TFileStream.Create(FileName, fmOpenRead or fmShareDenyNone);
+    try
+      if Stream.Size < 64 then
+        Exit;
+      Stream.ReadBuffer(DosMagic, SizeOf(DosMagic));
+      if DosMagic <> MzSignature then
+        Exit;
+      Stream.Position := $3C;
+      Stream.ReadBuffer(PeOffset, SizeOf(PeOffset));
+      if (PeOffset <= 0) or (Int64(PeOffset) + 6 > Stream.Size) then
+        Exit;
+      Stream.Position := PeOffset;
+      Stream.ReadBuffer(Signature, SizeOf(Signature));
+      if Signature <> PeSignature then
+        Exit;
+      Stream.ReadBuffer(MachineWord, SizeOf(MachineWord));
+      Machine := MachineWord;
+      Result := True;
+    finally
+      Stream.Free;
+    end;
+  except
+    Machine := 0;
+    Result := False;
+  end;
+end;
+
+function PeMachineName(const Machine: Word): string;
+begin
+  case Machine of
+    $014C: Result := 'x86';
+    $8664: Result := 'x64';
+    $AA64: Result := 'arm64';
+    $01C0: Result := 'arm';
+  else
+    Result := Format('0x%.4x', [Machine]);
+  end;
+end;
+
+function TApacheManager.HasAppLocalApacheVisualCRuntime(out ErrorMessage: string): Boolean;
+const
+  // VC++ 2015-2022 runtime files the shipped x64 Apache build needs. httpd.exe,
+  // libhttpd.dll and every shipped Apache module import VCRUNTIME140.dll
+  // directly; VCRUNTIME140_1.dll and MSVCP140.dll belong to the same runtime set
+  // and are required when C++-based components (for example PHP's intl
+  // extension) load inside the Apache process.
+  RequiredRuntimeDlls: array[0..2] of string = (
+    'vcruntime140.dll',
+    'vcruntime140_1.dll',
+    'msvcp140.dll'
+  );
+var
+  I: Integer;
+  DllPath: string;
+  ApacheMachine: Word;
+  DllMachine: Word;
+begin
+  Result := False;
+  ErrorMessage := '';
+
+  // Only authoritative when the Apache binary itself is present and readable, so
+  // the app-local runtime can be validated against its actual architecture. When
+  // Apache is missing this returns False without an error and the caller keeps
+  // the previous machine-wide behavior.
+  if not FileExists(ApacheExe) then
+    Exit;
+  if not ReadPeMachineType(ApacheExe, ApacheMachine) then
+    Exit; // Unreadable Apache binary: fall back to the machine-wide runtime check.
+
+  for I := Low(RequiredRuntimeDlls) to High(RequiredRuntimeDlls) do
+  begin
+    DllPath := TPath.Combine(FPaths.ApacheBinDir, RequiredRuntimeDlls[I]);
+    if not FileExists(DllPath) then
+    begin
+      ErrorMessage := 'App-local VC++ runtime is incomplete: ' + RequiredRuntimeDlls[I] +
+        ' is missing from ' + FPaths.ApacheBinDir + '.';
+      Exit;
+    end;
+    if not ReadPeMachineType(DllPath, DllMachine) then
+    begin
+      ErrorMessage := 'App-local VC++ runtime file could not be read: ' + DllPath + '.';
+      Exit;
+    end;
+    if DllMachine <> ApacheMachine then
+    begin
+      ErrorMessage := Format(
+        'App-local VC++ runtime architecture mismatch: %s is %s but Apache (%s) is %s.',
+        [RequiredRuntimeDlls[I], PeMachineName(DllMachine), ExtractFileName(ApacheExe),
+         PeMachineName(ApacheMachine)]);
+      Exit;
+    end;
+  end;
+
+  Result := True;
+end;
+
 function TApacheManager.HasRequiredApacheVisualCRuntime(out ErrorMessage: string): Boolean;
 var
   Registry: TRegistry;
@@ -183,6 +277,7 @@ var
   SystemRoot: string;
   RuntimeDll: string;
   VersionText: string;
+  AppLocalError: string;
 begin
   ErrorMessage := '';
   VersionText := '';
@@ -192,6 +287,13 @@ begin
     ErrorMessage := 'Microsoft Visual C++ Redistributable 2015-2022 (x64) is required for Apache 2.4.68 (Apache Lounge VS18). Install or repair the latest vc_redist.x64, then restart UniWamp.';
     Exit(False);
   end;
+
+  // Portable path first: when the VC++ runtime ships beside Apache and matches
+  // the Apache binary architecture, no machine-wide redistributable is required
+  // and no registry lookup is performed.
+  AppLocalError := '';
+  if HasAppLocalApacheVisualCRuntime(AppLocalError) then
+    Exit(True);
 
   Registry := TRegistry.Create(KEY_READ or KEY_WOW64_64KEY);
   try
@@ -222,6 +324,8 @@ begin
   end;
 
   ErrorMessage := 'Microsoft Visual C++ Redistributable 2015-2022 (x64) is required for Apache 2.4.68 (Apache Lounge VS18). Install or repair the latest vc_redist.x64, then restart UniWamp.';
+  if AppLocalError <> '' then
+    ErrorMessage := ErrorMessage + ' ' + AppLocalError;
   if VersionText <> '' then
     ErrorMessage := ErrorMessage + ' Detected registry version: ' + VersionText + '.';
   Result := False;

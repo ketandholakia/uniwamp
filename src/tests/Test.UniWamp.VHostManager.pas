@@ -63,7 +63,6 @@ begin
   Result.MailpitDir := TPath.Combine(Result.ToolsDir, 'mailpit');
   Result.RedisDir := TPath.Combine(Result.ToolsDir, 'redis');
   Result.MemcachedDir := TPath.Combine(Result.ToolsDir, 'memcached');
-  Result.WinScpDir := TPath.Combine(Result.ToolsDir, 'winscp');
   Result.ApacheDir := TPath.Combine(Result.RuntimeDir, 'apache');
   Result.ApacheBinDir := TPath.Combine(Result.ApacheDir, 'bin');
   Result.ApacheConfDir := TPath.Combine(Result.ApacheDir, 'conf');
@@ -101,7 +100,6 @@ begin
   EnsureDirectory(Result.MailpitDir);
   EnsureDirectory(Result.RedisDir);
   EnsureDirectory(Result.MemcachedDir);
-  EnsureDirectory(Result.WinScpDir);
   EnsureDirectory(Result.ApacheDir);
   EnsureDirectory(Result.ApacheBinDir);
   EnsureDirectory(Result.ApacheConfDir);

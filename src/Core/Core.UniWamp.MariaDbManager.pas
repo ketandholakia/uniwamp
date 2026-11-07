@@ -52,28 +52,8 @@ uses
   Core.UniWamp.ConfigGenerator,
   Core.UniWamp.MariaDbAuth,
   Core.UniWamp.Secrets,
-  Core.UniWamp.PortUtils;
-
-procedure AppendTextToLogFile(const FileName, Text: string);
-var
-  DirectoryName: string;
-begin
-  if Trim(Text) = '' then
-    Exit;
-
-  DirectoryName := TPath.GetDirectoryName(FileName);
-  if DirectoryName <> '' then
-    EnsureDirectory(DirectoryName);
-
-  try
-    TFile.AppendAllText(
-      FileName,
-      FormatDateTime('hh:nn:ss', Now) + '  ' + Text + sLineBreak,
-      TEncoding.UTF8);
-  except
-    // Ignore file lock or I/O errors to prevent crashing the caller
-  end;
-end;
+  Core.UniWamp.PortUtils,
+  Core.UniWamp.Diagnostics;
 
 constructor TMariaDbManager.Create(const Paths: TAppPaths; Config: TUniWampConfig);
 begin

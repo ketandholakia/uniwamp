@@ -8,8 +8,6 @@ uses
 
 function CreateMariaDbDefaultsExtraFile(const Paths: TAppPaths; const Password: string;
   out FileName, ErrorMessage: string): Boolean;
-function CreateMariaDbPasswordSqlFile(const Paths: TAppPaths; const Password: string;
-  out FileName, ErrorMessage: string): Boolean;
 procedure DeleteMariaDbDefaultsExtraFile(const FileName: string);
 function PrependDefaultsExtraFileArg(const DefaultsFileName, Arguments: string): string;
 function BuildMariaDbSourceFileArgs(const SqlFileName, DefaultsFileName: string): string;
@@ -65,15 +63,6 @@ begin
       FileName := '';
     end;
   end;
-end;
-
-function CreateMariaDbPasswordSqlFile(const Paths: TAppPaths; const Password: string;
-  out FileName, ErrorMessage: string): Boolean;
-begin
-  Result := False;
-  FileName := '';
-  ErrorMessage := '';
-  ErrorMessage := 'Writing a root-password SQL file is disabled; use the interactive password update path.';
 end;
 
 procedure DeleteMariaDbDefaultsExtraFile(const FileName: string);

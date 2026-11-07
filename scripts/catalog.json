@@ -56,7 +56,7 @@
         {
           "type": "run",
           "executable": "${php}",
-          "arguments": "${tools}/composer/composer.phar create-project automad/automad ${www}/${projectName} 1.10.9",
+          "arguments": "${tools}/composer/composer.phar create-project --no-interaction automad/automad ${www}/${projectName} 1.10.9",
           "workingDirectory": "${www}",
           "timeoutMs": 600000
         }
@@ -109,7 +109,7 @@
         {
           "type": "run",
           "executable": "${php}",
-          "arguments": "${tools}/composer/composer.phar create-project bagisto/bagisto ${www}/${projectName}",
+          "arguments": "${tools}/composer/composer.phar create-project --no-interaction bagisto/bagisto ${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 900000
         }
@@ -163,7 +163,7 @@
         {
           "type": "run",
           "executable": "${php}",
-          "arguments": "${tools}/composer/composer.phar create-project codeigniter4/appstarter ${www}/${projectName}",
+          "arguments": "${tools}/composer/composer.phar create-project --no-interaction codeigniter4/appstarter ${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 600000
         }
@@ -181,7 +181,7 @@
         {
           "type": "run",
           "executable": "${php}",
-          "arguments": "${tools}/composer/composer.phar create-project concretecms/composer ${www}/${projectName}",
+          "arguments": "${tools}/composer/composer.phar create-project --no-interaction concretecms/composer ${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 600000
         }
@@ -199,7 +199,7 @@
         {
           "type": "run",
           "executable": "${php}",
-          "arguments": "${tools}/composer/composer.phar create-project contao/managed-edition ${www}/${projectName}",
+          "arguments": "${tools}/composer/composer.phar create-project --no-interaction contao/managed-edition ${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 600000
         }
@@ -219,7 +219,7 @@
         {
           "type": "run",
           "executable": "${php}",
-          "arguments": "${tools}/composer/composer.phar create-project drupal/recommended-project ${www}/${projectName}",
+          "arguments": "${tools}/composer/composer.phar create-project --no-interaction drupal/recommended-project ${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 600000
         },
@@ -317,7 +317,7 @@
         {
           "type": "run",
           "executable": "${php}",
-          "arguments": "${tools}/composer/composer.phar create-project getgrav/grav ${www}/${projectName}",
+          "arguments": "${tools}/composer/composer.phar create-project --no-interaction getgrav/grav ${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 600000
         }
@@ -422,7 +422,7 @@
         {
           "type": "run",
           "executable": "${php}",
-          "arguments": "${tools}/composer/composer.phar create-project joomla/joomla-cms ${www}/${projectName}",
+          "arguments": "${tools}/composer/composer.phar create-project --no-interaction joomla/joomla-cms ${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 600000
         }
@@ -440,7 +440,7 @@
         {
           "type": "run",
           "executable": "${php}",
-          "arguments": "${tools}/composer/composer.phar create-project laravel/laravel ${www}/${projectName}",
+          "arguments": "${tools}/composer/composer.phar create-project --no-interaction laravel/laravel ${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 600000
         }
@@ -458,7 +458,7 @@
         {
           "type": "run",
           "executable": "${php}",
-          "arguments": "${tools}/composer/composer.phar create-project -s dev laminas/laminas-mvc-skeleton ${www}/${projectName}",
+          "arguments": "${tools}/composer/composer.phar create-project --no-interaction -s dev laminas/laminas-mvc-skeleton ${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 600000
         }
@@ -476,7 +476,7 @@
         {
           "type": "run",
           "executable": "${php}",
-          "arguments": "${tools}/composer/composer.phar create-project --repository-url=https://repo.magento.com/ magento/project-community-edition ${www}/${projectName}",
+          "arguments": "${tools}/composer/composer.phar create-project --no-interaction --repository-url=https://repo.magento.com/ magento/project-community-edition ${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 900000
         }
@@ -494,7 +494,7 @@
         {
           "type": "run",
           "executable": "${php}",
-          "arguments": "${tools}/composer/composer.phar create-project microweber/microweber ${www}/${projectName} dev-master",
+          "arguments": "${tools}/composer/composer.phar create-project --no-interaction microweber/microweber ${www}/${projectName} dev-master",
           "workingDirectory": "${www}",
           "timeoutMs": 900000
         }
@@ -570,7 +570,7 @@
         {
           "type": "run",
           "executable": "${php}",
-          "arguments": "${tools}/composer/composer.phar create-project prestashop/prestashop ${www}/${projectName}",
+          "arguments": "${tools}/composer/composer.phar create-project --no-interaction prestashop/prestashop ${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 900000
         }
@@ -588,7 +588,7 @@
         {
           "type": "run",
           "executable": "${php}",
-          "arguments": "${tools}/composer/composer.phar create-project processwire/processwire ${www}/${projectName}",
+          "arguments": "${tools}/composer/composer.phar create-project --no-interaction processwire/processwire ${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 600000
         }
@@ -606,7 +606,7 @@
         {
           "type": "run",
           "executable": "${php}",
-          "arguments": "${tools}/composer/composer.phar create-project nette/web-project ${www}/${projectName}",
+          "arguments": "${tools}/composer/composer.phar create-project --no-interaction nette/web-project ${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 600000
         }
@@ -624,7 +624,7 @@
         {
           "type": "run",
           "executable": "${php}",
-          "arguments": "${tools}/composer/composer.phar create-project silverstripe/installer ${www}/${projectName}",
+          "arguments": "${tools}/composer/composer.phar create-project --no-interaction silverstripe/installer ${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 600000
         }
@@ -679,7 +679,7 @@
         {
           "type": "run",
           "executable": "${php}",
-          "arguments": "${tools}/composer/composer.phar create-project spiral/app ${www}/${projectName}",
+          "arguments": "${tools}/composer/composer.phar create-project --no-interaction spiral/app ${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 600000
         }
@@ -715,7 +715,7 @@
         {
           "type": "run",
           "executable": "${php}",
-          "arguments": "${tools}/composer/composer.phar create-project sylius/sylius-standard ${www}/${projectName}",
+          "arguments": "${tools}/composer/composer.phar create-project --no-interaction sylius/sylius-standard ${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 900000
         }
@@ -733,7 +733,7 @@
         {
           "type": "run",
           "executable": "${php}",
-          "arguments": "${tools}/composer/composer.phar create-project symfony/skeleton ${www}/${projectName}",
+          "arguments": "${tools}/composer/composer.phar create-project --no-interaction symfony/skeleton ${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 600000
         }
@@ -751,7 +751,7 @@
         {
           "type": "run",
           "executable": "${php}",
-          "arguments": "${tools}/composer/composer.phar create-project tempest/app ${www}/${projectName}",
+          "arguments": "${tools}/composer/composer.phar create-project --no-interaction tempest/app ${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 600000
         }
@@ -787,14 +787,14 @@
         {
           "type": "run",
           "executable": "${php}",
-          "arguments": "${tools}/composer/composer.phar create-project laravel/laravel:\"^12.0\" ${www}/${projectName}",
+          "arguments": "${tools}/composer/composer.phar create-project --no-interaction laravel/laravel:\"^12.0\" ${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 600000
         },
         {
           "type": "run",
           "executable": "${php}",
-          "arguments": "${tools}/composer/composer.phar require area17/twill:\"^3.5\"",
+          "arguments": "${tools}/composer/composer.phar require --no-interaction area17/twill:\"^3.5\"",
           "workingDirectory": "${www}/${projectName}",
           "timeoutMs": 900000
         }
@@ -830,7 +830,7 @@
         {
           "type": "run",
           "executable": "${php}",
-          "arguments": "${tools}/composer/composer.phar create-project \"typo3/cms-base-distribution:^13.4\" ${www}/${projectName}",
+          "arguments": "${tools}/composer/composer.phar create-project --no-interaction \"typo3/cms-base-distribution:^13.4\" ${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 900000
         }
@@ -848,7 +848,7 @@
         {
           "type": "run",
           "executable": "${php}",
-          "arguments": "${tools}/composer/composer.phar create-project yiisoft/yii2-app-basic ${www}/${projectName}",
+          "arguments": "${tools}/composer/composer.phar create-project --no-interaction yiisoft/yii2-app-basic ${www}/${projectName}",
           "workingDirectory": "${www}",
           "timeoutMs": 600000
         }

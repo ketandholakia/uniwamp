@@ -34,7 +34,6 @@ type
     function BuildCmdCommandLine(const ExecutablePath, Arguments: string): string;
     function ShellExecuteInWorkingDir(const Executable, Parameters, WorkingDir: string): Boolean;
     function ShellExecuteCmdInWorkingDir(const WorkingDir, CommandLine: string): Boolean;
-    function PrepareWinScpLaunch(out WinScpExe, WinScpIni, ErrorMessage: string): Boolean;
     function BundledEditorExecutable: string;
 
     function ApacheModuleDir: string;
@@ -92,8 +91,6 @@ type
     function LaunchNpmInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function LaunchYarnInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function LaunchPnpmInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
-    function LaunchWinScp: TRuntimeActionResult;
-    function LaunchWinScpInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
     function LaunchMailpit: TRuntimeActionResult;
     function LaunchRedis: TRuntimeActionResult;
     function LaunchMemcached: TRuntimeActionResult;
@@ -209,94 +206,6 @@ begin
   Result := ShellExecuteInWorkingDir('cmd.exe', '/K ' + CommandLine, WorkingDir);
 end;
 
-function TUniWampRuntime.PrepareWinScpLaunch(out WinScpExe, WinScpIni, ErrorMessage: string): Boolean;
-const
-  WinScpIniContents =
-    '[Configuration\Interface]' + sLineBreak +
-    'RandomSeedFile=.\winscp.rnd' + sLineBreak +
-    'DDTemporaryDirectory=.\temp\' + sLineBreak;
-var
-  WinScpTempDir: string;
-begin
-  WinScpExe := BundledToolExecutable(FPaths.WinScpDir, 'WinSCP.exe');
-  if WinScpExe = '' then
-  begin
-    ErrorMessage := 'WinSCP was not found in runtime\tools\winscp.';
-    Exit(False);
-  end;
-
-  WinScpIni := TPath.Combine(FPaths.WinScpDir, 'WinSCP.ini');
-  WinScpTempDir := TPath.Combine(FPaths.WinScpDir, 'temp');
-  try
-    EnsureDirectory(WinScpTempDir);
-    if not FileExists(WinScpIni) then
-      TFile.WriteAllText(WinScpIni, WinScpIniContents, TEncoding.UTF8);
-  except
-    on E: Exception do
-    begin
-      ErrorMessage := 'Unable to prepare WinSCP portable config: ' + E.Message;
-      Exit(False);
-    end;
-  end;
-
-  Result := True;
-end;
-
-function TUniWampRuntime.LaunchWinScp: TRuntimeActionResult;
-var
-  WinScpExe: string;
-  WinScpIni: string;
-  ErrorMessage: string;
-begin
-  if not PrepareWinScpLaunch(WinScpExe, WinScpIni, ErrorMessage) then
-  begin
-    Result.Success := False;
-    Result.Message := ErrorMessage;
-    Exit;
-  end;
-
-  Result.Success := ShellExecuteInWorkingDir(
-    WinScpExe,
-    '/newinstance /ini=' + QuoteForCmd(WinScpIni),
-    FPaths.WinScpDir);
-  if Result.Success then
-    Result.Message := 'WinSCP launched'
-  else
-    Result.Message := 'Failed to launch WinSCP';
-end;
-
-function TUniWampRuntime.LaunchWinScpInWorkingDir(const WorkingDir: string): TRuntimeActionResult;
-var
-  WinScpExe: string;
-  WinScpIni: string;
-  ErrorMessage: string;
-begin
-  if Trim(WorkingDir) = '' then
-  begin
-    Result := LaunchWinScp;
-    Exit;
-  end;
-
-  if not PrepareWinScpLaunch(WinScpExe, WinScpIni, ErrorMessage) then
-  begin
-    Result.Success := False;
-    Result.Message := ErrorMessage;
-    Exit;
-  end;
-
-  Result.Success := ShellExecuteInWorkingDir(
-    WinScpExe,
-    '/newinstance /ini=' + QuoteForCmd(WinScpIni),
-    FPaths.WinScpDir);
-  if Result.Success then
-    if Trim(WorkingDir) <> '' then
-      Result.Message := 'WinSCP launched. Open ' + WorkingDir + ' from WinSCP manually.'
-    else
-      Result.Message := 'WinSCP launched'
-  else
-    Result.Message := 'Failed to launch WinSCP';
-end;
-
 constructor TUniWampRuntime.Create(const Paths: TAppPaths; Config: TUniWampConfig);
 begin
   inherited Create;
@@ -380,16 +289,6 @@ begin
   if BufferSize > 0 then
     Result := Buffer;
 end;
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -784,8 +683,6 @@ function TUniWampRuntime.LaunchEditor: TRuntimeActionResult;
 begin
   Result := LaunchTextEditor(FPaths.AppRoot);
 end;
-
-
 
 
 
@@ -1414,8 +1311,6 @@ begin
       Result.Message := 'Failed to launch standard CMD terminal';
   end;
 end;
-
-
 
 
 

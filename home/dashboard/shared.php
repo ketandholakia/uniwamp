@@ -480,6 +480,38 @@ function dashboardIsStackRunning(array $config): bool
     return !empty($config['apacheRunning']) && !empty($config['mariaDbRunning']);
 }
 
+function dashboardPublicConfig(array $config): array
+{
+    $public = [];
+    foreach ([
+        'httpPort', 'httpsPort', 'databasePort', 'hostName', 'configVersion',
+        'selectedPhpVersion', 'selectedNodeVersion', 'phpProfile', 'themeStyleName',
+        'enableSsl', 'startAllOnLaunch', 'openDashboardAfterStart', 'confirmVHostDelete',
+        'apacheRunning', 'mariaDbRunning', 'lastApacheError', 'lastMariaDbError',
+        'lastHostsSyncStatus', 'apacheEnabledModules', 'phpVersions',
+        'phpEnabledExtensions', 'phpSettings',
+    ] as $key) {
+        if (array_key_exists($key, $config)) {
+            $public[$key] = $config[$key];
+        }
+    }
+
+    $public['vhosts'] = [];
+    foreach (is_array($config['vhosts'] ?? null) ? $config['vhosts'] : [] as $vhost) {
+        if (!is_array($vhost) || empty($vhost['serverName'])) {
+            continue;
+        }
+        $public['vhosts'][] = [
+            'serverName' => (string) $vhost['serverName'],
+            'serverAliases' => (string) ($vhost['serverAliases'] ?? ''),
+            'documentRoot' => (string) ($vhost['documentRoot'] ?? ''),
+            'enableSsl' => !empty($vhost['enableSsl']),
+        ];
+    }
+
+    return $public;
+}
+
 function dashboardLoadState(string $root): array
 {
     $configFile = $root . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . 'uniwamp.json';
@@ -524,6 +556,7 @@ function dashboardLoadState(string $root): array
 
     $availableApacheModules = dashboardCoreDetectApacheModules($root . DIRECTORY_SEPARATOR . 'runtime' . DIRECTORY_SEPARATOR . 'apache' . DIRECTORY_SEPARATOR . 'modules');
     $enabledApacheModules = dashboardCoreLoadEnabledApacheModules($config, $availableApacheModules);
+    $publicConfig = dashboardPublicConfig($config);
 
     $adminerUrl = sprintf(
         'http://%s:%d/adminer/index.php?%s',
@@ -537,7 +570,7 @@ function dashboardLoadState(string $root): array
 
     return [
         'root' => $root,
-        'config' => $config,
+        'config' => $publicConfig,
         'hostName' => $hostName,
         'httpPort' => $httpPort,
         'httpsPort' => $httpsPort,
@@ -554,7 +587,7 @@ function dashboardLoadState(string $root): array
         'projectCount' => $projectCount,
         'vhostCount' => count($vhosts),
         'vhostProjectCount' => $vhostProjectCount,
-        'recentVhosts' => array_slice($vhosts, -6),
+        'recentVhosts' => array_slice($publicConfig['vhosts'], -6),
         'projects' => $projects,
         'activityLines' => $activityLines,
         'serviceHistoryLines' => $serviceHistoryLines,

@@ -1,4 +1,4 @@
-unit Ui.UniWamp.VHostDialog;
+﻿unit Ui.UniWamp.VHostDialog;
 
 interface
 
@@ -35,8 +35,9 @@ type
     procedure OkClick(Sender: TObject);
   public
     constructor Create(AOwner: TComponent); override;
-    class function Execute(AOwner: TComponent; const BaseVHostDir, DefaultServerName,
-      DefaultDocumentRoot, DefaultAliases: string; DefaultEnableSsl: Boolean): TVHostDialogResult; static;
+    class function Execute(AOwner: TComponent; const BaseVHostDir, DialogCaption,
+      DefaultServerName, DefaultDocumentRoot, DefaultAliases: string;
+      DefaultEnableSsl: Boolean): TVHostDialogResult; static;
   end;
 
 implementation
@@ -84,7 +85,7 @@ begin
   inherited CreateNew(AOwner);
   BorderStyle := bsDialog;
   Position := poScreenCenter;
-  Caption := 'Add VHost';
+  Caption := 'Add Virtual Host';
   ClientWidth := 560;
   ClientHeight := 228;
   BorderIcons := [biSystemMenu];
@@ -213,11 +214,13 @@ begin
 end;
 
 class function TVHostDialog.Execute(AOwner: TComponent; const BaseVHostDir,
-  DefaultServerName, DefaultDocumentRoot, DefaultAliases: string; DefaultEnableSsl: Boolean): TVHostDialogResult;
+  DialogCaption, DefaultServerName, DefaultDocumentRoot, DefaultAliases: string; DefaultEnableSsl: Boolean): TVHostDialogResult;
 var
   Dialog: TVHostDialog;
 begin
   Dialog := TVHostDialog.Create(AOwner);
+  if DialogCaption <> '' then
+    Dialog.Caption := DialogCaption;
   try
     Dialog.FBaseVHostDir := BaseVHostDir;
     Dialog.FServerNameEdit.Text := DefaultServerName;

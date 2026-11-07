@@ -19,10 +19,7 @@ uses
   Core.UniWamp.Paths,
   Core.UniWamp.Security,
   Core.UniWamp.Secrets,
-  Core.UniWamp.ScriptCatalog,
-  Core.UniWamp.SyncEngine,
-  Core.UniWamp.SyncService,
-  Core.UniWamp.SyncTransport;
+  Core.UniWamp.ScriptCatalog;
 
 procedure Fail(const MessageText: string);
 begin
@@ -95,7 +92,7 @@ begin
   Result.MailpitDir := TPath.Combine(Result.ToolsDir, 'mailpit');
   Result.RedisDir := TPath.Combine(Result.ToolsDir, 'redis');
   Result.MemcachedDir := TPath.Combine(Result.ToolsDir, 'memcached');
-  Result.WinScpDir := TPath.Combine(Result.ToolsDir, 'winscp');
+  Result.FreeFileSyncDir := TPath.Combine(Result.ToolsDir, 'freefilesync');
   Result.MkcertDir := TPath.Combine(Result.ToolsDir, 'mkcert');
   Result.MkcertExe := TPath.Combine(Result.MkcertDir, 'mkcert.exe');
   Result.ApacheDir := TPath.Combine(Result.RuntimeDir, 'apache');
@@ -161,7 +158,7 @@ begin
   AssertTrue(Paths.MailpitDir <> '', 'MailpitDir must be initialized');
   AssertTrue(Paths.RedisDir <> '', 'RedisDir must be initialized');
   AssertTrue(Paths.MemcachedDir <> '', 'MemcachedDir must be initialized');
-  AssertTrue(Paths.WinScpDir <> '', 'WinScpDir must be initialized');
+  AssertTrue(Paths.FreeFileSyncDir <> '', 'FreeFileSyncDir must be initialized');
   AssertTrue(Paths.ApacheDir <> '', 'ApacheDir must be initialized');
   AssertTrue(Paths.ApacheBinDir <> '', 'ApacheBinDir must be initialized');
   AssertTrue(Paths.ApacheConfDir <> '', 'ApacheConfDir must be initialized');
@@ -190,95 +187,48 @@ begin
   TFile.WriteAllText(FileName, Content, TEncoding.UTF8);
 end;
 
-type
-  TMockSyncTransport = class(TInterfacedObject, ISyncTransport)
-  private
-    FEntries: TDictionary<string, TRemoteEntries>;
-  public
-    constructor Create;
-    destructor Destroy; override;
-    procedure AddEntries(const RemotePath: string; const Entries: TRemoteEntries);
-    procedure Connect;
-    procedure Disconnect;
-    function IsConnected: Boolean;
-    function ListDirectory(const RemotePath: string): TRemoteEntries;
-    function RemoteDirectoryExists(const RemotePath: string): Boolean;
-    procedure EnsureRemoteDirectory(const RemotePath: string);
-    procedure DeleteRemoteFile(const RemotePath: string);
-    procedure DeleteRemoteDirectory(const RemotePath: string; const Recursive: Boolean);
-    procedure RenameRemoteFile(const SourceRemotePath, TargetRemotePath: string);
-    procedure DownloadFile(const RemotePath, LocalPath: string; const OnProgress: TSyncTransferProgressEvent);
-    procedure UploadFile(const LocalPath, RemotePath: string; const OnProgress: TSyncTransferProgressEvent);
-    procedure SetLogHandler(const Handler: TSyncLogEvent);
-  end;
-
-constructor TMockSyncTransport.Create;
+function BackslashJson(const Value: string): string;
 begin
-  inherited Create;
-  FEntries := TDictionary<string, TRemoteEntries>.Create;
+  Result := StringReplace(Value, '\', '\\', [rfReplaceAll]);
 end;
 
-destructor TMockSyncTransport.Destroy;
+function VHostJson(const ServerName, DocumentRoot, SslCert, SslKey: string): string;
 begin
-  FEntries.Free;
-  inherited Destroy;
+  Result := '{"serverName":"' + ServerName + '","serverAliases":"","documentRoot":"' +
+    BackslashJson(DocumentRoot) + '","enableSsl":false,"sslCertFile":"' +
+    BackslashJson(SslCert) + '","sslKeyFile":"' + BackslashJson(SslKey) + '"}';
 end;
 
-procedure TMockSyncTransport.AddEntries(const RemotePath: string; const Entries: TRemoteEntries);
+function BuildConfigJson(const DocumentRoot, VHostsJson: string): string;
 begin
-  FEntries.AddOrSetValue(RemotePath, Entries);
-end;
-
-procedure TMockSyncTransport.Connect;
-begin
-end;
-
-procedure TMockSyncTransport.Disconnect;
-begin
-end;
-
-function TMockSyncTransport.IsConnected: Boolean;
-begin
-  Result := True;
-end;
-
-function TMockSyncTransport.ListDirectory(const RemotePath: string): TRemoteEntries;
-begin
-  if not FEntries.TryGetValue(RemotePath, Result) then
-    SetLength(Result, 0);
-end;
-
-function TMockSyncTransport.RemoteDirectoryExists(const RemotePath: string): Boolean;
-begin
-  Result := FEntries.ContainsKey(RemotePath);
-end;
-
-procedure TMockSyncTransport.EnsureRemoteDirectory(const RemotePath: string);
-begin
-end;
-
-procedure TMockSyncTransport.DeleteRemoteFile(const RemotePath: string);
-begin
-end;
-
-procedure TMockSyncTransport.DeleteRemoteDirectory(const RemotePath: string; const Recursive: Boolean);
-begin
-end;
-
-procedure TMockSyncTransport.RenameRemoteFile(const SourceRemotePath, TargetRemotePath: string);
-begin
-end;
-
-procedure TMockSyncTransport.DownloadFile(const RemotePath, LocalPath: string; const OnProgress: TSyncTransferProgressEvent);
-begin
-end;
-
-procedure TMockSyncTransport.UploadFile(const LocalPath, RemotePath: string; const OnProgress: TSyncTransferProgressEvent);
-begin
-end;
-
-procedure TMockSyncTransport.SetLogHandler(const Handler: TSyncLogEvent);
-begin
+  Result :=
+    '{' +
+    '"configVersion":3,' +
+    '"httpPort":8080,' +
+    '"httpsPort":8443,' +
+    '"databasePort":3307,' +
+    '"hostName":"localhost",' +
+    '"documentRoot":"' + BackslashJson(DocumentRoot) + '",' +
+    '"selectedPhpVersion":"php85",' +
+    '"selectedNodeVersion":"node-v22",' +
+    '"terminalExePath":"bin\\cmder\\cmder.exe",' +
+    '"phpProfile":"development",' +
+    '"themeStyleName":"Windows",' +
+    '"enableSsl":false,' +
+    '"apachePid":0,' +
+    '"mariaDbPid":0,' +
+    '"apacheRunning":false,' +
+    '"mariaDbRunning":false,' +
+    '"lastApacheError":"",' +
+    '"lastMariaDbError":"",' +
+    '"lastHostsSyncStatus":"",' +
+    '"apacheEnabledModules":[],' +
+    '"phpVersions":["php85"],' +
+    '"phpEnabledExtensions":[],' +
+    '"phpSettings":{},' +
+    '"nodeVersions":["node-v22"],' +
+    '"vhosts":[' + VHostsJson + ']' +
+    '}';
 end;
 
 procedure TestMalformedConfigRecovery;
@@ -825,186 +775,6 @@ begin
   end;
 end;
 
-procedure TestSyncServiceUsesLinkedConnectionProfileSecrets;
-var
-  RootDir: string;
-  Paths: TAppPaths;
-  Config: TUniWampConfig;
-  ConnectionProfile: TConnectionProfile;
-  SyncProfile: TSyncProfile;
-  LocalSyncDir: string;
-  LocalFileName: string;
-  ErrorMessage: string;
-  CommandLine: string;
-  Service: ISyncService;
-  OriginalFactory: TSyncTransportFactory;
-  CapturedCredentials: TSyncCredentials;
-  CapturedFactoryCall: Boolean;
-  ResultInfo: TRuntimeActionResult;
-begin
-  RootDir := CreateTempRoot('sync-service-connection-secrets');
-  try
-    Paths := BuildPaths(RootDir);
-    EnsureTestLayout(Paths);
-    LocalSyncDir := TPath.Combine(RootDir, 'sync-src');
-    TDirectory.CreateDirectory(LocalSyncDir);
-    LocalFileName := TPath.Combine(LocalSyncDir, 'index.txt');
-    TFile.WriteAllText(LocalFileName, 'payload', TEncoding.UTF8);
-
-    Config := TUniWampConfig.Create;
-    try
-      Config.SetDefaults(Paths);
-
-      ConnectionProfile := Default(TConnectionProfile);
-      ConnectionProfile.Name := 'Production Server';
-      ConnectionProfile.Protocol := 'sftp';
-      ConnectionProfile.Host := 'server.example';
-      ConnectionProfile.Port := 2222;
-      ConnectionProfile.Username := 'deploy';
-      Config.ReplaceConnectionProfiles([ConnectionProfile]);
-
-      SyncProfile := Default(TSyncProfile);
-      SyncProfile.Name := 'Deploy Job';
-      SyncProfile.ConnectionProfileName := ConnectionProfile.Name;
-      SyncProfile.Protocol := 'sftp';
-      SyncProfile.Direction := 'upload';
-      SyncProfile.RemotePath := '/remote';
-      SyncProfile.LocalPath := LocalSyncDir;
-      SyncProfile.WorkingDirectory := LocalSyncDir;
-      SyncProfile.DeleteEnabled := False;
-      SyncProfile.DryRunByDefault := True;
-      Config.ReplaceSyncProfiles([SyncProfile]);
-
-      AssertTrue(SaveConnectionPassword(Paths, ConnectionProfile.Name, 'conn-pass', ErrorMessage),
-        'Connection password should save');
-      AssertTrue(SaveConnectionKeyPassphrase(Paths, ConnectionProfile.Name, 'conn-key-pass', ErrorMessage),
-        'Connection key passphrase should save');
-      AssertTrue(SaveSecret(Paths, SyncPasswordKey(SyncProfile.Name), 'sync-pass', ErrorMessage),
-        'Legacy sync password should save');
-      AssertTrue(SaveSecret(Paths, SyncKeyPassphraseKey(SyncProfile.Name), 'sync-key-pass', ErrorMessage),
-        'Legacy sync key passphrase should save');
-
-      OriginalFactory := SyncTransportFactory;
-      CapturedFactoryCall := False;
-      SyncTransportFactory :=
-        function(const Credentials: TSyncCredentials): ISyncTransport
-        begin
-          CapturedFactoryCall := True;
-          CapturedCredentials := Credentials;
-          Result := TMockSyncTransport.Create;
-        end;
-      try
-        Service := TSyncService.Create(Paths, Config);
-        ResultInfo := Service.BuildCommandPreview(SyncProfile.Name, True, CommandLine);
-        AssertTrue(ResultInfo.Success,
-          'Dry-run preview should succeed with the linked connection profile. Message="' + ResultInfo.Message + '"');
-        AssertTrue(CapturedFactoryCall, 'Sync transport factory should be invoked');
-        AssertEquals(ConnectionProfile.Host, CapturedCredentials.Host,
-          'Sync service should use the connection profile host');
-        AssertIntEquals(ConnectionProfile.Port, CapturedCredentials.Port,
-          'Sync service should use the connection profile port');
-        AssertEquals(ConnectionProfile.Username, CapturedCredentials.Username,
-          'Sync service should use the connection profile username');
-        AssertEquals('conn-pass', CapturedCredentials.Password,
-          'Sync service should load the connection profile password');
-        AssertEquals('conn-key-pass', CapturedCredentials.KeyPassphrase,
-          'Sync service should load the connection profile key passphrase');
-        AssertTrue(CapturedCredentials.Password <> 'sync-pass',
-          'Sync service should not load the sync-profile password by mistake');
-        AssertTrue(CapturedCredentials.KeyPassphrase <> 'sync-key-pass',
-          'Sync service should not load the sync-profile key passphrase by mistake');
-      finally
-        SyncTransportFactory := OriginalFactory;
-      end;
-    finally
-      Config.Free;
-      DeleteAllConnectionSecrets(Paths, ConnectionProfile.Name);
-      DeleteSecret(Paths, SyncPasswordKey(SyncProfile.Name), ErrorMessage);
-      DeleteSecret(Paths, SyncKeyPassphraseKey(SyncProfile.Name), ErrorMessage);
-      TDirectory.Delete(RootDir, True);
-    end;
-  except
-    on E: Exception do
-    begin
-      if DirectoryExists(RootDir) then
-        TDirectory.Delete(RootDir, True);
-      raise;
-    end;
-  end;
-end;
-
-procedure TestSyncEngineRejectsUnsafeRemoteEntries;
-var
-  RootDir: string;
-  LocalRoot: string;
-  Transport: ISyncTransport;
-  RootEntries: TRemoteEntries;
-begin
-  RootDir := CreateTempRoot('sync-engine-safety');
-  try
-    LocalRoot := TPath.Combine(RootDir, 'www');
-    TDirectory.CreateDirectory(LocalRoot);
-    Transport := TMockSyncTransport.Create as ISyncTransport;
-    try
-      SetLength(RootEntries, 1);
-      RootEntries[0].Name := '..\outside.txt';
-      RootEntries[0].IsDirectory := False;
-      RootEntries[0].Size := 1;
-      RootEntries[0].ModifiedUtc := 0;
-      TMockSyncTransport(Transport).AddEntries('/remote', RootEntries);
-      try
-        TSyncEngine.BuildPlan(Transport, LocalRoot, '/remote', 'download', [], False);
-        Fail('Sync engine should reject unsafe remote entries.');
-      except
-        on E: ESyncTransportError do
-          AssertContains(E.Message, 'unsafe entry name', 'Sync engine should report the unsafe remote entry');
-      end;
-    finally
-      Transport := nil;
-    end;
-  finally
-    TDirectory.Delete(RootDir, True);
-  end;
-end;
-
-procedure TestSyncEngineRejectsExcessiveRemoteItemCount;
-var
-  RootDir: string;
-  LocalRoot: string;
-  Transport: ISyncTransport;
-  Entries: TRemoteEntries;
-  Index: Integer;
-begin
-  RootDir := CreateTempRoot('sync-engine-item-count');
-  try
-    LocalRoot := TPath.Combine(RootDir, 'www');
-    TDirectory.CreateDirectory(LocalRoot);
-    Transport := TMockSyncTransport.Create as ISyncTransport;
-    try
-      SetLength(Entries, 1025);
-      for Index := 0 to High(Entries) do
-      begin
-        Entries[Index].Name := 'file' + Index.ToString + '.txt';
-        Entries[Index].IsDirectory := False;
-        Entries[Index].Size := 1;
-        Entries[Index].ModifiedUtc := 0;
-      end;
-      TMockSyncTransport(Transport).AddEntries('/remote', Entries);
-      try
-        TSyncEngine.BuildPlan(Transport, LocalRoot, '/remote', 'download', [], False);
-        Fail('Sync engine should reject excessive remote item count.');
-      except
-        on E: ESyncTransportError do
-          AssertContains(E.Message, 'maximum item count', 'Sync engine should report the item limit');
-      end;
-    finally
-      Transport := nil;
-    end;
-  finally
-    TDirectory.Delete(RootDir, True);
-  end;
-end;
-
 procedure TestProjectRestoreRollsBackWhenHostsSyncFails;
 var
   RootDir: string;
@@ -1160,6 +930,266 @@ begin
   end;
 end;
 
+procedure TestLegacyRootMigrationT1;
+var
+  RootDir, NewRoot, OldRoot, ExtRoot, OldLocalAppData: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  VHosts: TArray<TVHostEntry>;
+begin
+  RootDir := CreateTempRoot('t1');
+  NewRoot := TPath.Combine(RootDir, 'newroot');
+  OldRoot := TPath.Combine(RootDir, 'oldroot');
+  ExtRoot := TPath.Combine(RootDir, 'external');
+  try
+    SetLocalAppDataForTest(CreateTempRoot('t1-lad'), OldLocalAppData);
+    try
+      Paths := BuildPaths(NewRoot);
+      EnsureTestLayout(Paths);
+      WriteTextFile(Paths.AppConfigFile, BuildConfigJson(TPath.Combine(OldRoot, 'www'),
+        VHostJson('genuine.local', TPath.Combine(OldRoot, 'www\site'), '', '') + ',' +
+        VHostJson('external.local', TPath.Combine(ExtRoot, 'www\blog'), '', '')));
+
+      Config := TUniWampConfig.Create;
+      try
+        AssertTrue(Config.LoadOrCreate(Paths), 'T1: legacy-root migration should be reported');
+        AssertTrue(SameText(Config.DocumentRoot, TPath.Combine(NewRoot, 'www')),
+          'T1: document root should migrate to the new root');
+        VHosts := Config.VHosts;
+        AssertIntEquals(2, Length(VHosts), 'T1: both virtual hosts should remain');
+        AssertTrue(SameText(VHosts[0].DocumentRoot, TPath.Combine(NewRoot, 'www\site')),
+          'T1: genuine virtual host should migrate to the new root');
+        AssertTrue(SameText(VHosts[1].DocumentRoot, TPath.Combine(ExtRoot, 'www\blog')),
+          'T1: external virtual host must remain unchanged');
+        AssertContains(Config.LastMigrationMessage, 'Migrated', 'T1: migration should be reported');
+      finally
+        Config.Free;
+      end;
+    finally
+      SetEnvironmentVariable('LOCALAPPDATA', PChar(OldLocalAppData));
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TestLegacyRootDefaultDocumentRootT2;
+var
+  RootDir, NewRoot, OldLocalAppData: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+begin
+  RootDir := CreateTempRoot('t2');
+  NewRoot := TPath.Combine(RootDir, 'root');
+  try
+    SetLocalAppDataForTest(CreateTempRoot('t2-lad'), OldLocalAppData);
+    try
+      Paths := BuildPaths(NewRoot);
+      EnsureTestLayout(Paths);
+      WriteTextFile(Paths.AppConfigFile, BuildConfigJson(TPath.Combine(NewRoot, 'www'), ''));
+
+      Config := TUniWampConfig.Create;
+      try
+        AssertTrue(not Config.LoadOrCreate(Paths),
+          'T2: the default <root>\www document root must not trigger migration');
+        AssertTrue(Config.LastMigrationMessage = '', 'T2: no migration message is expected');
+        AssertTrue(SameText(Config.DocumentRoot, Paths.WwwDir),
+          'T2: document root should stay at the application www directory');
+      finally
+        Config.Free;
+      end;
+    finally
+      SetEnvironmentVariable('LOCALAPPDATA', PChar(OldLocalAppData));
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TestLegacyRootExternalDocumentRootT3;
+var
+  RootDir, NewRoot, ExtRoot, ExternalDocRoot, OldLocalAppData: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+begin
+  RootDir := CreateTempRoot('t3');
+  NewRoot := TPath.Combine(RootDir, 'root');
+  ExtRoot := TPath.Combine(RootDir, 'external');
+  ExternalDocRoot := TPath.Combine(ExtRoot, 'mysite');
+  try
+    SetLocalAppDataForTest(CreateTempRoot('t3-lad'), OldLocalAppData);
+    try
+      Paths := BuildPaths(NewRoot);
+      EnsureTestLayout(Paths);
+      WriteTextFile(Paths.AppConfigFile, BuildConfigJson(ExternalDocRoot, ''));
+
+      Config := TUniWampConfig.Create;
+      try
+        AssertTrue(not Config.LoadOrCreate(Paths),
+          'T3: an external document root without a www anchor must not trigger migration');
+        AssertTrue(SameText(Config.DocumentRoot, ExternalDocRoot),
+          'T3: external document root must remain unchanged');
+      finally
+        Config.Free;
+      end;
+    finally
+      SetEnvironmentVariable('LOCALAPPDATA', PChar(OldLocalAppData));
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TestLegacyRootExternalAnchorPathT4;
+var
+  RootDir, NewRoot, ExtRoot, ExternalWwwPath, ExternalVHostPath, OldLocalAppData: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  VHosts: TArray<TVHostEntry>;
+begin
+  RootDir := CreateTempRoot('t4');
+  NewRoot := TPath.Combine(RootDir, 'root');
+  ExtRoot := TPath.Combine(RootDir, 'external');
+  ExternalWwwPath := TPath.Combine(ExtRoot, 'www\blog');
+  ExternalVHostPath := TPath.Combine(ExtRoot, 'www\site');
+  try
+    SetLocalAppDataForTest(CreateTempRoot('t4-lad'), OldLocalAppData);
+    try
+      Paths := BuildPaths(NewRoot);
+      EnsureTestLayout(Paths);
+      WriteTextFile(Paths.AppConfigFile, BuildConfigJson(ExternalWwwPath,
+        VHostJson('external.local', ExternalVHostPath, '', '')));
+
+      Config := TUniWampConfig.Create;
+      try
+        AssertTrue(not Config.LoadOrCreate(Paths),
+          'T4: a path containing \www\ must never be read as a legacy UniWamp root');
+        AssertTrue(SameText(Config.DocumentRoot, ExternalWwwPath),
+          'T4: external document root containing \www\ must remain unchanged');
+        VHosts := Config.VHosts;
+        AssertIntEquals(1, Length(VHosts), 'T4: the external virtual host should remain');
+        AssertTrue(SameText(VHosts[0].DocumentRoot, ExternalVHostPath),
+          'T4: external virtual host containing \www\ must remain unchanged');
+      finally
+        Config.Free;
+      end;
+    finally
+      SetEnvironmentVariable('LOCALAPPDATA', PChar(OldLocalAppData));
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TestLegacyRootExternalBinSslT5;
+var
+  RootDir, NewRoot, ExtRoot, ExtBinPath, ExtSslCert, ExtSslKey, OldLocalAppData: string;
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  VHosts: TArray<TVHostEntry>;
+begin
+  RootDir := CreateTempRoot('t5');
+  NewRoot := TPath.Combine(RootDir, 'root');
+  ExtRoot := TPath.Combine(RootDir, 'external');
+  ExtBinPath := TPath.Combine(ExtRoot, 'bin\project');
+  ExtSslCert := TPath.Combine(ExtRoot, 'ssl\server.crt');
+  ExtSslKey := TPath.Combine(ExtRoot, 'ssl\server.key');
+  try
+    SetLocalAppDataForTest(CreateTempRoot('t5-lad'), OldLocalAppData);
+    try
+      Paths := BuildPaths(NewRoot);
+      EnsureTestLayout(Paths);
+      WriteTextFile(Paths.AppConfigFile, BuildConfigJson(TPath.Combine(NewRoot, 'www'),
+        VHostJson('external.local', ExtBinPath, ExtSslCert, ExtSslKey)));
+
+      Config := TUniWampConfig.Create;
+      try
+        AssertTrue(not Config.LoadOrCreate(Paths),
+          'T5: external \bin\ and \ssl\ paths must not trigger migration');
+        VHosts := Config.VHosts;
+        AssertIntEquals(1, Length(VHosts), 'T5: the external virtual host should remain');
+        AssertTrue(SameText(VHosts[0].DocumentRoot, ExtBinPath),
+          'T5: external \bin\ document root must remain unchanged');
+        AssertTrue(SameText(VHosts[0].SslCertFile, ExtSslCert),
+          'T5: external \ssl\ certificate path must remain unchanged');
+        AssertTrue(SameText(VHosts[0].SslKeyFile, ExtSslKey),
+          'T5: external \ssl\ key path must remain unchanged');
+      finally
+        Config.Free;
+      end;
+    finally
+      SetEnvironmentVariable('LOCALAPPDATA', PChar(OldLocalAppData));
+    end;
+  finally
+    TDirectory.Delete(RootDir, True);
+  end;
+end;
+
+procedure TestLegacyRootOrderingT6;
+  function RunOrder(const ExternalFirst: Boolean): Boolean;
+  var
+    RootDir, NewRoot, OldRoot, ExtRoot, OldLocalAppData, VHostsJson: string;
+    Paths: TAppPaths;
+    Config: TUniWampConfig;
+    VHosts: TArray<TVHostEntry>;
+    GenuinePath, ExternalPath: string;
+  begin
+    RootDir := CreateTempRoot('t6');
+    NewRoot := TPath.Combine(RootDir, 'newroot');
+    OldRoot := TPath.Combine(RootDir, 'oldroot');
+    ExtRoot := TPath.Combine(RootDir, 'external');
+    GenuinePath := TPath.Combine(OldRoot, 'www\genuine');
+    ExternalPath := TPath.Combine(ExtRoot, 'www\external');
+    try
+      SetLocalAppDataForTest(CreateTempRoot('t6-lad'), OldLocalAppData);
+      try
+        Paths := BuildPaths(NewRoot);
+        EnsureTestLayout(Paths);
+        if ExternalFirst then
+          VHostsJson := VHostJson('external.local', ExternalPath, '', '') + ',' +
+            VHostJson('genuine.local', GenuinePath, '', '')
+        else
+          VHostsJson := VHostJson('genuine.local', GenuinePath, '', '') + ',' +
+            VHostJson('external.local', ExternalPath, '', '');
+        WriteTextFile(Paths.AppConfigFile,
+          BuildConfigJson(TPath.Combine(OldRoot, 'www'), VHostsJson));
+
+        Config := TUniWampConfig.Create;
+        try
+          Config.LoadOrCreate(Paths);
+          VHosts := Config.VHosts;
+          AssertIntEquals(2, Length(VHosts), 'T6: both virtual hosts should remain');
+          // Locate both by name so the assertion is order independent.
+          if SameText(VHosts[0].ServerName, 'genuine.local') then
+          begin
+            AssertTrue(SameText(VHosts[0].DocumentRoot, TPath.Combine(NewRoot, 'www\genuine')),
+              'T6: genuine virtual host should migrate regardless of order');
+            AssertTrue(SameText(VHosts[1].DocumentRoot, ExternalPath),
+              'T6: external virtual host must remain unchanged regardless of order');
+          end
+          else
+          begin
+            AssertTrue(SameText(VHosts[1].DocumentRoot, TPath.Combine(NewRoot, 'www\genuine')),
+              'T6: genuine virtual host should migrate regardless of order');
+            AssertTrue(SameText(VHosts[0].DocumentRoot, ExternalPath),
+              'T6: external virtual host must remain unchanged regardless of order');
+          end;
+          Result := True;
+        finally
+          Config.Free;
+        end;
+      finally
+        SetEnvironmentVariable('LOCALAPPDATA', PChar(OldLocalAppData));
+      end;
+    finally
+      TDirectory.Delete(RootDir, True);
+    end;
+  end;
+begin
+  AssertTrue(RunOrder(True), 'T6: migration must be independent of vhost order (external first)');
+  AssertTrue(RunOrder(False), 'T6: migration must be independent of vhost order (genuine first)');
+end;
+
 begin
   try
     TestMalformedConfigRecovery;
@@ -1173,18 +1203,23 @@ begin
     TestConnectionSecretsMigrateFromLegacySyncKeys;
     TestAkauntingRecipeWritesMysqlEnvFile;
     TestErpsaasRecipeWritesMysqlEnvFile;
-    TestSyncServiceUsesLinkedConnectionProfileSecrets;
-    TestSyncEngineRejectsUnsafeRemoteEntries;
-    TestSyncEngineRejectsExcessiveRemoteItemCount;
     TestProjectRestoreRollsBackWhenHostsSyncFails;
     TestDeleteVHostLeavesExternalSslFilesUntouched;
     TestProjectRestoreRejectsUnsafeArchiveFileName;
     TestAtomicSaveCreatesDirectoryAndFile;
+    Writeln('Legacy-root migration regression tests:');
+    TestLegacyRootMigrationT1; Writeln('  T1 PASS - normal portable-root migration');
+    TestLegacyRootDefaultDocumentRootT2; Writeln('  T2 PASS - default document root');
+    TestLegacyRootExternalDocumentRootT3; Writeln('  T3 PASS - external document root');
+    TestLegacyRootExternalAnchorPathT4; Writeln('  T4 PASS - external path containing \www\');
+    TestLegacyRootExternalBinSslT5; Writeln('  T5 PASS - external paths containing \bin\ or \ssl\');
+    TestLegacyRootOrderingT6; Writeln('  T6 PASS - vhost ordering independence');
     Writeln('Config harness passed.');
   except
     on E: Exception do
     begin
       Writeln(E.ClassName + ': ' + E.Message);
+      Writeln(E.StackTrace);
       Halt(1);
     end;
   end;

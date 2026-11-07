@@ -111,10 +111,26 @@
         <DCCReference Include="Core\Core.UniWamp.Paths.pas"/>
         <DCCReference Include="Core\Core.UniWamp.Runtime.pas"/>
         <DCCReference Include="Core\Core.UniWamp.ProcessManager.pas"/>
+        <DCCReference Include="Core\Core.UniWamp.ConfigGenerator.pas"/>
+        <DCCReference Include="Core\Core.UniWamp.PackageManager.pas"/>
+        <DCCReference Include="Core\Core.UniWamp.VHostManager.pas"/>
+        <DCCReference Include="Core\Core.UniWamp.ProjectBackupService.pas"/>
+        <DCCReference Include="Core\Core.UniWamp.DatabaseBackupService.pas"/>
+        <DCCReference Include="Core\Core.UniWamp.SyncTypes.pas"/>
+        <DCCReference Include="Core\Core.UniWamp.FreeFileSyncService.pas"/>
+        <DCCReference Include="Core\Core.UniWamp.FreeFileSyncBatchWriter.pas"/>
+        <DCCReference Include="Core\Core.UniWamp.HostsFileService.pas"/>
+        <DCCReference Include="Core\Core.UniWamp.BackupTypes.pas"/>
         <DCCReference Include="Core\Core.UniWamp.TemplateRenderer.pas"/>
         <DCCReference Include="Core\Core.UniWamp.PortUtils.pas"/>
         <DCCReference Include="Core\Core.UniWamp.ScriptCatalog.pas"/>
+        <DCCReference Include="Core\Core.UniWamp.TaskRunner.pas"/>
         <DCCReference Include="Core\Core.UniWamp.ScriptEngine.pas"/>
+        <DCCReference Include="Core\Core.UniWamp.Interfaces.pas"/>
+        <DCCReference Include="Core\Core.UniWamp.ServiceLocator.pas"/>
+        <DCCReference Include="Core\Core.UniWamp.Secrets.pas"/>
+        <DCCReference Include="Core\Core.UniWamp.ServiceSupervisor.pas"/>
+        <DCCReference Include="Core\Core.UniWamp.Types.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

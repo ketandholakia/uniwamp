@@ -6,3 +6,6 @@ socket={{TMP_DIR}}/mariadb.sock
 pid-file={{LOGS_DIR}}/mariadb.pid
 log-error={{LOGS_DIR}}/mariadb-error.log
 tmpdir={{TMP_DIR}}
+bind-address=127.0.0.1
+character-set-server=utf8mb4
+collation-server=utf8mb4_unicode_ci

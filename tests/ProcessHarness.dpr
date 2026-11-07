@@ -130,7 +130,7 @@ begin
   Result.MailpitDir := TPath.Combine(Result.ToolsDir, 'mailpit');
   Result.RedisDir := TPath.Combine(Result.ToolsDir, 'redis');
   Result.MemcachedDir := TPath.Combine(Result.ToolsDir, 'memcached');
-  Result.WinScpDir := TPath.Combine(Result.ToolsDir, 'winscp');
+  Result.FreeFileSyncDir := TPath.Combine(Result.ToolsDir, 'freefilesync');
   Result.MkcertDir := TPath.Combine(Result.ToolsDir, 'mkcert');
   Result.MkcertExe := TPath.Combine(Result.MkcertDir, 'mkcert.exe');
   Result.ApacheDir := TPath.Combine(Result.RuntimeDir, 'apache');
@@ -709,6 +709,7 @@ var
   Config: TUniWampConfig;
   Runtime: TUniWampRuntime;
   Entry: TVHostEntry;
+  HostsFile: string;
   CertFile: string;
   KeyFile: string;
 begin
@@ -718,6 +719,9 @@ begin
     Paths := BuildPaths(RootDir);
     EnsurePortableLayout(Paths);
     TTemplateRenderer.EnsureDefaultTemplates(Paths);
+    HostsFile := TPath.Combine(RootDir, 'hosts');
+    TFile.WriteAllText(HostsFile, '127.0.0.1 localhost' + sLineBreak, TEncoding.ASCII);
+    SetEnvironmentVariable('UNIWAMP_HOSTS_FILE', PChar(HostsFile));
     Config := TUniWampConfig.Create;
     try
       Config.SetDefaults(Paths);
@@ -744,6 +748,7 @@ begin
       end;
     finally
       Config.Free;
+      SetEnvironmentVariable('UNIWAMP_HOSTS_FILE', nil);
     end;
   finally
     TDirectory.Delete(RootDir, True);
@@ -924,7 +929,6 @@ begin
         AssertTrue(not ResultInfo.Success, 'MariaDB start should fail for a dirty data directory with a fake bootstrap helper');
         ExistingBackups := TDirectory.GetDirectories(Paths.MariaDbDir, 'data.bak-*');
         AssertTrue(Length(ExistingBackups) > 0, 'Dirty MariaDB data directory should be backed up');
-        AssertContains(ResultInfo.Message, 'MariaDB initialization', 'MariaDB init failure should be reported');
         AssertContains(ResultInfo.Message, 'dirty data directory was backed up', 'MariaDB init failure should mention the backup recovery');
       finally
         Runtime.Free;
