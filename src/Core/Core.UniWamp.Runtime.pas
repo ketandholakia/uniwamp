@@ -11,7 +11,6 @@ uses
   Core.UniWamp.ApacheManager,
   Core.UniWamp.MariaDbManager,
   Core.UniWamp.Types,
-  Core.UniWamp.Interfaces,
   Core.UniWamp.Paths;
 
 function ChoosePreferredTerminalExecutable(const CmderPath, WindowsTerminalPath: string): string;
@@ -19,7 +18,9 @@ function DescribeTerminalLaunchMode(const TerminalExecutable: string): string;
 
 type
 
-  TUniWampRuntime = class(TInterfacedObject, IRuntime)
+  // Plain object on purpose: the manager callbacks below capture Self, which
+  // would form a reference cycle through TInterfacedObject refcounting.
+  TUniWampRuntime = class(TObject)
   private
     FPaths: TAppPaths;
     FConfig: TUniWampConfig;

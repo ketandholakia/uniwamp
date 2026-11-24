@@ -58,17 +58,6 @@ type
     procedure GenerateEnvBat(const WorkingDir, SelectedPhpDir, SelectedNodeDir: string);
   end;
 
-  IRuntime = interface
-    ['{C1D2E3F4-A5B6-7C8D-9E0F-1A2B3C4D5E6F}']
-    function StartApache: TRuntimeActionResult;
-    function StopApache: TRuntimeActionResult;
-    function RestartApache: TRuntimeActionResult;
-    function StartMariaDb: TRuntimeActionResult;
-    function StopMariaDb: TRuntimeActionResult;
-    function RestartMariaDb: TRuntimeActionResult;
-    function BuildDiagnosticReport: string;
-  end;
-
 implementation
 
 end.
