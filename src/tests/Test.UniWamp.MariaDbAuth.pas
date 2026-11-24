@@ -21,6 +21,10 @@ type
     procedure TestCreateMariaDbDefaultsExtraFile_WritesPasswordAndDeletesCleanly;
     [Test]
     procedure TestPrependDefaultsExtraFileArg_PrefixesArguments;
+    [Test]
+    procedure TestBuildAlterRootPasswordSqlQuotesAndEscapes;
+    [Test]
+    procedure TestBuildMariaDbShutdownArgsUsesDefaultsFile;
   end;
 
 implementation
@@ -74,6 +78,36 @@ begin
     'Defaults file argument should be inserted.');
   Assert.Contains(Arguments, '--protocol=tcp -uroot',
     'Original arguments should be preserved.');
+end;
+
+procedure TMariaDbAuthTests.TestBuildAlterRootPasswordSqlQuotesAndEscapes;
+var
+  Sql: string;
+begin
+  Sql := BuildAlterRootPasswordSql('secret');
+  Assert.AreEqual('ALTER USER ''root''@''localhost'' IDENTIFIED BY ''secret'';', Sql);
+  Assert.AreEqual(0, Pos('PASSWORD(', Sql),
+    'Deprecated PASSWORD() function must not be used.');
+
+  // A single quote in the password must be doubled for SQL.
+  Assert.Contains(BuildAlterRootPasswordSql('o''brien'), '''o''''brien'';',
+    'Single quotes in the password must be escaped.');
+end;
+
+procedure TMariaDbAuthTests.TestBuildMariaDbShutdownArgsUsesDefaultsFile;
+var
+  Arguments: string;
+begin
+  Arguments := BuildMariaDbShutdownArgs('C:\temp\client.cnf', 3307);
+  Assert.Contains(Arguments, '--defaults-extra-file="C:\temp\client.cnf"',
+    'Stored credentials must be passed for the graceful shutdown.');
+  Assert.Contains(Arguments, '--user=root shutdown',
+    'Shutdown arguments must request a server shutdown.');
+
+  Arguments := BuildMariaDbShutdownArgs('', 3307);
+  Assert.AreEqual(0, Pos('--defaults-extra-file', Arguments),
+    'No credentials file argument when no defaults file is available.');
+  Assert.Contains(Arguments, '--port=3307', 'Database port must be included.');
 end;
 
 initialization

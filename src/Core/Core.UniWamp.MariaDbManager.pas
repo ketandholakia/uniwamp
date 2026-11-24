@@ -359,7 +359,10 @@ end;
 
 function TMariaDbManager.Stop: TRuntimeActionResult;
 var
-  StartResult: TProcessStartResult;
+  Output: string;
+  AuthError: string;
+  Arguments: string;
+  DefaultsFileName: string;
   State: TServiceProcessState;
 begin
   Result.Success := True;
@@ -377,12 +380,23 @@ begin
   end;
   if FileExists(MysqlAdminExe) then
   begin
-    StartResult := TProcessManager.StartDetached(
-      MysqlAdminExe,
-      '--port=' + FConfig.DatabasePort.ToString + ' shutdown',
-      FPaths.MariaDbBinDir);
-    if StartResult.Success then
-      TProcessManager.WaitForExit(StartResult.ProcessId, 4000);
+    // mysqladmin needs the stored root password once one has been set;
+    // without it the graceful shutdown fails with access denied and the stop
+    // degrades to TerminateProcess (crash recovery on the next start).
+    DefaultsFileName := '';
+    if LoadMariaDbRootPassword(FPaths) <> '' then
+    begin
+      if not CreateMariaDbDefaultsExtraFile(FPaths, LoadMariaDbRootPassword(FPaths),
+        DefaultsFileName, AuthError) then
+        DefaultsFileName := '';
+    end;
+    try
+      Arguments := BuildMariaDbShutdownArgs(DefaultsFileName, FConfig.DatabasePort);
+      TProcessManager.RunAndCaptureOutput(MysqlAdminExe, Arguments,
+        FPaths.MariaDbBinDir, Output, 10000);
+    finally
+      DeleteMariaDbDefaultsExtraFile(DefaultsFileName);
+    end;
   end;
 
   Result.Success := TServiceProcessSupervisor.StopOwnedProcess(State);
@@ -466,7 +480,7 @@ begin
     Arguments := '--protocol=tcp --host=127.0.0.1 --port=' + FConfig.DatabasePort.ToString +
       ' --user=root';
     Arguments := PrependDefaultsExtraFileArg(DefaultsFileName, Arguments);
-    Sql := 'SET PASSWORD = PASSWORD(''' + StringReplace(NewPassword, '''', '''''', [rfReplaceAll]) + ''');';
+    Sql := BuildAlterRootPasswordSql(NewPassword);
     Session := TProcessManager.StartInteractive(MysqlClientExePath, Arguments, FPaths.MariaDbBinDir, nil, StartError);
     if not Assigned(Session) then
     begin

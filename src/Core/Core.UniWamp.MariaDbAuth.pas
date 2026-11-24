@@ -11,6 +11,9 @@ function CreateMariaDbDefaultsExtraFile(const Paths: TAppPaths; const Password: 
 procedure DeleteMariaDbDefaultsExtraFile(const FileName: string);
 function PrependDefaultsExtraFileArg(const DefaultsFileName, Arguments: string): string;
 function BuildMariaDbSourceFileArgs(const SqlFileName, DefaultsFileName: string): string;
+function BuildAlterRootPasswordSql(const NewPassword: string): string;
+function BuildMariaDbShutdownArgs(const DefaultsFileName: string;
+  const DatabasePort: Integer): string;
 
 implementation
 
@@ -88,6 +91,22 @@ begin
   NormalizedSqlFileName := StringReplace(SqlFileName, '"', '\"', [rfReplaceAll]);
   Result := '--batch --raw --execute="source ' + NormalizedSqlFileName + '"';
   Result := PrependDefaultsExtraFileArg(DefaultsFileName, Result);
+end;
+
+function BuildAlterRootPasswordSql(const NewPassword: string): string;
+begin
+  // PASSWORD() is deprecated in MariaDB; ALTER USER is the supported way to
+  // change the root password from a client session.
+  Result := 'ALTER USER ''root''@''localhost'' IDENTIFIED BY ''' +
+    StringReplace(NewPassword, '''', '''''', [rfReplaceAll]) + ''';';
+end;
+
+function BuildMariaDbShutdownArgs(const DefaultsFileName: string;
+  const DatabasePort: Integer): string;
+begin
+  Result := PrependDefaultsExtraFileArg(DefaultsFileName,
+    '--protocol=tcp --host=127.0.0.1 --port=' + DatabasePort.ToString +
+    ' --user=root shutdown');
 end;
 
 end.
