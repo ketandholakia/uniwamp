@@ -12,6 +12,8 @@ type
     [Test]
     procedure TestRedactSensitiveTextRedactsKnownSecrets;
     [Test]
+    procedure TestRedactSensitiveTextRedactsBase64SyncPassword;
+    [Test]
     procedure TestChooseActivityLogClipboardTextPrefersFileText;
   end;
 
@@ -33,6 +35,19 @@ begin
   Assert.AreEqual(0, Pos('top', Text), Text);
   Assert.AreEqual(0, Pos('letmein', Text), Text);
   Assert.IsTrue(Pos('[redacted]', Text) > 0, Text);
+end;
+
+procedure TDiagnosticsTests.TestRedactSensitiveTextRedactsBase64SyncPassword;
+var
+  Text: string;
+begin
+  // FreeFileSync job URLs embed the password as |pass64=<base64>; the 'pass='
+  // rule does not match that key, so it needs its own.
+  Text := 'sftp://user@example.com/mnt|pass64=c2VjcmV0';
+  Text := RedactSensitiveText(Text);
+
+  Assert.AreEqual(0, Pos('c2VjcmV0', Text), Text);
+  Assert.Contains(Text, 'pass64=[redacted]', Text);
 end;
 
 procedure TDiagnosticsTests.TestChooseActivityLogClipboardTextPrefersFileText;

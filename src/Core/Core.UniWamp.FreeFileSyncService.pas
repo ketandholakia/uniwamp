@@ -52,6 +52,7 @@ uses
   System.IOUtils,
   Core.UniWamp.Secrets,
   Core.UniWamp.Security,
+  Core.UniWamp.TaskRunner,
   Core.UniWamp.ProcessManager;
 
 { TFreeFileSyncService }
@@ -406,6 +407,15 @@ begin
       Result.Message := 'Failed to launch FreeFileSync for the comparison preview.';
       Exit;
     end;
+    // The GUI parses the job file during startup; remove it shortly after
+    // launch so the embedded pass64 credentials do not persist on disk.
+    TTaskRunner.Run(
+      procedure
+      begin
+        Sleep(8000);
+        if TFile.Exists(GuiFilePath) then
+          TFile.Delete(GuiFilePath);
+      end);
     Result.Success := True;
     Result.Message := 'Dry run: comparison opened in FreeFileSync. Nothing was ' +
       'synchronized; review the results before syncing manually.';
@@ -422,34 +432,40 @@ begin
   Spec.LogFilePath := LogFilePath;
 
   try
-    TFreeFileSyncBatchWriter.WriteBatchFile(Spec, BatchFilePath);
-  except
-    on E: Exception do
-    begin
-      Result.Success := False;
-      Result.Message := 'Failed to write FreeFileSync batch file: ' + E.Message;
-      Exit;
+    try
+      TFreeFileSyncBatchWriter.WriteBatchFile(Spec, BatchFilePath);
+    except
+      on E: Exception do
+      begin
+        Result.Success := False;
+        Result.Message := 'Failed to write FreeFileSync batch file: ' + E.Message;
+        Exit;
+      end;
     end;
-  end;
 
-  // Execute FreeFileSync in batch mode and wait for its actual result.
-  // This prevents the UI from reporting success while the remote transfer is
-  // still running or has already failed.
-  var Output: string;
-  Result.Success := TProcessManager.RunAndCaptureOutput(
-    FreeFileSyncExe,
-    '"' + BatchFilePath + '"',
-    ExtractFileDir(BatchFilePath),
-    Output,
-    0);
+    // Execute FreeFileSync in batch mode and wait for its actual result.
+    // This prevents the UI from reporting success while the remote transfer is
+    // still running or has already failed.
+    var Output: string;
+    Result.Success := TProcessManager.RunAndCaptureOutput(
+      FreeFileSyncExe,
+      '"' + BatchFilePath + '"',
+      ExtractFileDir(BatchFilePath),
+      Output,
+      0);
 
-  if Result.Success then
-  begin
-    Result.Message := 'Sync completed. Log: ' + LogFilePath;
-  end
-  else
-  begin
-    Result.Message := 'FreeFileSync reported a synchronization failure. Log: ' + LogFilePath;
+    if Result.Success then
+    begin
+      Result.Message := 'Sync completed. Log: ' + LogFilePath;
+    end
+    else
+    begin
+      Result.Message := 'FreeFileSync reported a synchronization failure. Log: ' + LogFilePath;
+    end;
+  finally
+    // The batch file embeds the sync password (pass64); never leave it on disk.
+    if TFile.Exists(BatchFilePath) then
+      TFile.Delete(BatchFilePath);
   end;
 end;
 

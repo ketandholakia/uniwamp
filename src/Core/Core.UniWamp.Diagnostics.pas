@@ -61,6 +61,7 @@ begin
   Result := Text;
   Result := RedactValueAfterKey(Result, 'password=');
   Result := RedactValueAfterKey(Result, 'pass=');
+  Result := RedactValueAfterKey(Result, 'pass64=');
   Result := RedactValueAfterKey(Result, 'token=');
   Result := RedactValueAfterKey(Result, 'secret=');
 end;
