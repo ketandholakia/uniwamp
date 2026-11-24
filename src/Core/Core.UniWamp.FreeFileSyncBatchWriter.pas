@@ -91,6 +91,9 @@ begin
   PathPart := Trim(StringReplace(RemotePath, '\', '/', [rfReplaceAll]));
   if (PathPart <> '') and not PathPart.StartsWith('/') then
     PathPart := '/' + PathPart;
+  // The remote path is user-configured and lands inside a <Pair> element;
+  // escape it like the local path so it cannot inject XML markup.
+  PathPart := EscapeXml(PathPart);
 
   PasswordPart := '';
   if Trim(Password) <> '' then

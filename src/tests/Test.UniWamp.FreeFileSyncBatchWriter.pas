@@ -20,15 +20,31 @@ type
     procedure TestGuiFileDryRunNeverEmitsPermanentDeletionPolicy;
     [Test]
     procedure TestBatchFileKeepsPermanentDeletionPolicyForRealRuns;
+    [Test]
+    procedure TestRemotePathIsXmlEscaped;
   end;
 
 implementation
 
 uses
   System.IOUtils,
+  System.StrUtils,
   System.SysUtils,
   Core.UniWamp.FreeFileSyncBatchWriter,
   Core.UniWamp.SyncTypes;
+
+function CountOccurrences(const Needle, Haystack: string): Integer;
+var
+  P: Integer;
+begin
+  Result := 0;
+  P := Pos(Needle, Haystack);
+  while P > 0 do
+  begin
+    Inc(Result);
+    P := PosEx(Needle, Haystack, P + Length(Needle));
+  end;
+end;
 
 function BuildTestSpec: TFreeFileSyncJobSpec;
 begin
@@ -95,6 +111,26 @@ begin
   XmlText := TFile.ReadAllText(TargetFile);
   Assert.Contains(XmlText, '<DeletionPolicy>Permanent</DeletionPolicy>',
     'Real runs keep the existing permanent deletion policy.');
+end;
+
+procedure TFreeFileSyncBatchWriterTests.TestRemotePathIsXmlEscaped;
+var
+  Spec: TFreeFileSyncJobSpec;
+  TargetFile: string;
+  XmlText: string;
+begin
+  Spec := BuildTestSpec;
+  Spec.RemotePath := '/home/</Right><PostSyncCommand>calc.exe</PostSyncCommand>';
+  TargetFile := TPath.Combine(FOutputDir, 'injection.ffs_batch');
+  TFreeFileSyncBatchWriter.WriteBatchFile(Spec, TargetFile);
+
+  XmlText := TFile.ReadAllText(TargetFile);
+  Assert.AreEqual(0, Pos('</Right><PostSyncCommand>', XmlText),
+    'Remote path must not inject raw XML elements.');
+  Assert.Contains(XmlText, '&lt;/Right&gt;&lt;PostSyncCommand&gt;',
+    'Remote path must be XML-escaped.');
+  Assert.AreEqual(1, CountOccurrences('<Pair>', XmlText),
+    'Injected markup must not create additional folder pairs.');
 end;
 
 initialization

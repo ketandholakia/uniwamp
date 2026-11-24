@@ -51,6 +51,7 @@ uses
   System.Classes,
   System.IOUtils,
   Core.UniWamp.Secrets,
+  Core.UniWamp.Security,
   Core.UniWamp.ProcessManager;
 
 { TFreeFileSyncService }
@@ -265,12 +266,20 @@ var
   PathErrorMessage: string;
   GuiFilePath: string;
   Spec: TFreeFileSyncJobSpec;
+  SafeProfileName: string;
+  ProfileNameError: string;
 begin
   CommandLine := '';
   if not TryGetProfile(ProfileName, Profile) then
   begin
     Result.Success := False;
     Result.Message := 'Sync profile not found: ' + ProfileName;
+    Exit;
+  end;
+  if not ValidateProfileName(Profile.Name, SafeProfileName, ProfileNameError) then
+  begin
+    Result.Success := False;
+    Result.Message := 'Sync profile "' + Profile.Name + '" has an invalid name: ' + ProfileNameError;
     Exit;
   end;
   Entry := Default(TVHostEntry);
@@ -299,7 +308,7 @@ begin
   // Generate an .ffs_gui file so the user can open it in FreeFileSync GUI
   // and visually review the comparison before syncing.
   GuiFilePath := TPath.Combine(FPaths.TmpDir,
-    TPath.Combine('ffs', LowerCase(Trim(Profile.Name)) + '.ffs_gui'));
+    TPath.Combine('ffs', LowerCase(SafeProfileName) + '.ffs_gui'));
 
   Spec := BuildJobSpec(Profile, Entry);
   Spec.LocalPath := LocalPath;
@@ -332,11 +341,19 @@ var
   GuiFilePath: string;
   Spec: TFreeFileSyncJobSpec;
   LogFilePath: string;
+  SafeProfileName: string;
+  ProfileNameError: string;
 begin
   if not TryGetProfile(ProfileName, Profile) then
   begin
     Result.Success := False;
     Result.Message := 'Sync profile not found: ' + ProfileName;
+    Exit;
+  end;
+  if not ValidateProfileName(Profile.Name, SafeProfileName, ProfileNameError) then
+  begin
+    Result.Success := False;
+    Result.Message := 'Sync profile "' + Profile.Name + '" has an invalid name: ' + ProfileNameError;
     Exit;
   end;
   Entry := Default(TVHostEntry);
@@ -368,7 +385,7 @@ begin
     // generated .ffs_gui job so the user can review the comparison and
     // decide whether to synchronize manually.
     GuiFilePath := TPath.Combine(FPaths.TmpDir,
-      TPath.Combine('ffs', LowerCase(Trim(Profile.Name)) + '.ffs_gui'));
+      TPath.Combine('ffs', LowerCase(SafeProfileName) + '.ffs_gui'));
     Spec := BuildJobSpec(Profile, Entry);
     Spec.LocalPath := LocalPath;
     Spec.DryRun := True;
@@ -397,8 +414,8 @@ begin
 
   // Generate an .ffs_batch file for unattended execution
   BatchFilePath := TPath.Combine(FPaths.TmpDir,
-    TPath.Combine('ffs', LowerCase(Trim(Profile.Name)) + '.ffs_batch'));
-  LogFilePath := TPath.Combine(FPaths.LogsDir, 'sync-' + LowerCase(Trim(Profile.Name)) + '.log');
+    TPath.Combine('ffs', LowerCase(SafeProfileName) + '.ffs_batch'));
+  LogFilePath := TPath.Combine(FPaths.LogsDir, 'sync-' + LowerCase(SafeProfileName) + '.log');
 
   Spec := BuildJobSpec(Profile, Entry);
   Spec.LocalPath := LocalPath;

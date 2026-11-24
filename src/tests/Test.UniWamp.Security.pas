@@ -12,6 +12,10 @@ type
     [Test]
     procedure TestExtractZipSafelyRejectsTraversalEntry;
     [Test]
+    procedure TestValidateProfileNameAcceptsPlainNames;
+    [Test]
+    procedure TestValidateProfileNameRejectsTraversalAndMarkup;
+    [Test]
     procedure TestValidateZipArchiveStructureRejectsTraversalEntry;
     [Test]
     procedure TestValidateZipArchiveStructureRejectsDuplicateEntry;
@@ -138,6 +142,32 @@ begin
     if TDirectory.Exists(RootDir) then
       TDirectory.Delete(RootDir, True);
   end;
+end;
+
+procedure TSecurityTests.TestValidateProfileNameAcceptsPlainNames;
+var
+  NormalizedValue: string;
+  ErrorMessage: string;
+begin
+  Assert.IsTrue(ValidateProfileName('My Sync', NormalizedValue, ErrorMessage), ErrorMessage);
+  Assert.AreEqual('My Sync', NormalizedValue);
+  Assert.IsTrue(ValidateProfileName('  sync-01  ', NormalizedValue, ErrorMessage), ErrorMessage);
+  Assert.AreEqual('sync-01', NormalizedValue);
+end;
+
+procedure TSecurityTests.TestValidateProfileNameRejectsTraversalAndMarkup;
+var
+  NormalizedValue: string;
+  ErrorMessage: string;
+begin
+  Assert.IsFalse(ValidateProfileName('..\..\evil', NormalizedValue, ErrorMessage));
+  Assert.IsFalse(ValidateProfileName('..', NormalizedValue, ErrorMessage));
+  Assert.IsFalse(ValidateProfileName('.', NormalizedValue, ErrorMessage));
+  Assert.IsFalse(ValidateProfileName('', NormalizedValue, ErrorMessage));
+  Assert.IsFalse(ValidateProfileName('a<b>profile', NormalizedValue, ErrorMessage),
+    'Markup characters must be rejected so profile names cannot inject XML.');
+  Assert.IsFalse(ValidateProfileName('x:y', NormalizedValue, ErrorMessage));
+  Assert.IsFalse(ValidateProfileName('site/../../etc', NormalizedValue, ErrorMessage));
 end;
 
 procedure TSecurityTests.TestValidateZipArchiveStructureRejectsTraversalEntry;

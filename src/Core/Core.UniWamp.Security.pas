@@ -10,6 +10,7 @@ function ValidateProjectName(const Value: string; out ErrorMessage: string): Boo
 function ValidateServerName(const Value: string; out NormalizedValue, ErrorMessage: string): Boolean;
 function ValidateDocumentRoot(const Value: string; out NormalizedValue, ErrorMessage: string): Boolean;
 function ValidateServerAliases(const Value: string; out NormalizedValue, ErrorMessage: string): Boolean;
+function ValidateProfileName(const Value: string; out NormalizedValue, ErrorMessage: string): Boolean;
 function ValidateUpdatePackageFileName(const Value: string; out ErrorMessage: string): Boolean;
 function ValidateZipArchiveStructure(const Zip: TZipFile; out ErrorMessage: string): Boolean;
 function ExtractZipSafely(const Zip: TZipFile; const TargetDir: string; out ErrorMessage: string): Boolean;
@@ -329,6 +330,22 @@ begin
   finally
     Parts.Free;
   end;
+end;
+
+function ValidateProfileName(const Value: string; out NormalizedValue, ErrorMessage: string): Boolean;
+begin
+  NormalizedValue := Trim(Value);
+  // Profile names become file names (sync job files, logs) and XML content;
+  // reject anything that could traverse directories or inject markup.
+  Result := (NormalizedValue <> '') and
+    (Pos('/', NormalizedValue) = 0) and
+    (Pos('\', NormalizedValue) = 0) and
+    not ContainsInvalidPathChar(NormalizedValue) and
+    (NormalizedValue <> '.') and (NormalizedValue <> '..');
+  if Result then
+    ErrorMessage := ''
+  else
+    ErrorMessage := 'Profile name must be a non-empty file name without path separators.';
 end;
 
 function ValidateUpdatePackageFileName(const Value: string; out ErrorMessage: string): Boolean;
