@@ -22,6 +22,7 @@ type
     Direction: string;      // 'upload' | 'download'
     SyncVariant: string;    // 'update' | 'mirror' | 'twoway'  (default: 'update')
     DeleteEnabled: Boolean;
+    DryRun: Boolean;        // true = comparison only; never permanently delete
     Excludes: TArray<string>;
     LogFilePath: string;    // Where FFS should write its log (empty = no log)
   end;
@@ -191,7 +192,10 @@ begin
       SB.AppendLine('            <Right Create="none" Update="none" Delete="none"/>');
     end;
     SB.AppendLine('        </Changes>');
-    SB.AppendLine('        <DeletionPolicy>Permanent</DeletionPolicy>');
+    if Spec.DryRun then
+      SB.AppendLine('        <DeletionPolicy>MoveToRecycleBin</DeletionPolicy>')
+    else
+      SB.AppendLine('        <DeletionPolicy>Permanent</DeletionPolicy>');
     SB.AppendLine('        <VersioningFolder Style="Replace"/>');
     SB.AppendLine('    </Synchronize>');
     SB.AppendLine('    <Filter>');
@@ -293,7 +297,10 @@ begin
       SB.AppendLine('            <Right Create="none" Update="none" Delete="none"/>');
     end;
     SB.AppendLine('        </Changes>');
-    SB.AppendLine('        <DeletionPolicy>Permanent</DeletionPolicy>');
+    if Spec.DryRun then
+      SB.AppendLine('        <DeletionPolicy>MoveToRecycleBin</DeletionPolicy>')
+    else
+      SB.AppendLine('        <DeletionPolicy>Permanent</DeletionPolicy>');
     SB.AppendLine('        <VersioningFolder Style="Replace"/>');
     SB.AppendLine('    </Synchronize>');
     SB.AppendLine('    <Filter>');

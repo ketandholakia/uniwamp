@@ -329,6 +329,7 @@ var
   LocalPath: string;
   PathErrorMessage: string;
   BatchFilePath: string;
+  GuiFilePath: string;
   Spec: TFreeFileSyncJobSpec;
   LogFilePath: string;
 begin
@@ -358,6 +359,39 @@ begin
   begin
     Result.Success := False;
     Result.Message := PathErrorMessage;
+    Exit;
+  end;
+
+  if UseDryRun then
+  begin
+    // A dry run must never change files: open the FreeFileSync GUI with a
+    // generated .ffs_gui job so the user can review the comparison and
+    // decide whether to synchronize manually.
+    GuiFilePath := TPath.Combine(FPaths.TmpDir,
+      TPath.Combine('ffs', LowerCase(Trim(Profile.Name)) + '.ffs_gui'));
+    Spec := BuildJobSpec(Profile, Entry);
+    Spec.LocalPath := LocalPath;
+    Spec.DryRun := True;
+    try
+      TFreeFileSyncBatchWriter.WriteGuiFile(Spec, GuiFilePath);
+    except
+      on E: Exception do
+      begin
+        Result.Success := False;
+        Result.Message := 'Failed to write FreeFileSync GUI file: ' + E.Message;
+        Exit;
+      end;
+    end;
+    if not TProcessManager.StartDetached(FreeFileSyncExe,
+      '"' + GuiFilePath + '"', ExtractFileDir(GuiFilePath)).Success then
+    begin
+      Result.Success := False;
+      Result.Message := 'Failed to launch FreeFileSync for the comparison preview.';
+      Exit;
+    end;
+    Result.Success := True;
+    Result.Message := 'Dry run: comparison opened in FreeFileSync. Nothing was ' +
+      'synchronized; review the results before syncing manually.';
     Exit;
   end;
 
