@@ -22,6 +22,11 @@ type
 
 implementation
 
+uses
+  System.IOUtils,
+  Core.UniWamp.Diagnostics,
+  Core.UniWamp.Paths;
+
 class procedure TTaskRunner.Run(const Action: TTaskAction;
   const OnSuccess: TTaskCallback;
   const OnError: TTaskErrorCallback;
@@ -60,6 +65,19 @@ begin
                 end))
             else
               OnError(ErrorMsg);
+          end
+          else
+          begin
+            // Without a handler the failure would vanish silently; surface it
+            // in the activity log instead of swallowing it.
+            try
+              AppendRotatedLogLine(
+                TPath.Combine(TAppPaths.Detect.LogsDir, 'activity.log'),
+                FormatDateTime('hh:nn:ss', Now) + '  Background task error: ' + E.Message,
+                500);
+            except
+              // Logging must never mask the original failure path.
+            end;
           end;
         end;
       end;
