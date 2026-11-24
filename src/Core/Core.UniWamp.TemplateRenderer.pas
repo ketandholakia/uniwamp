@@ -43,7 +43,7 @@ var
   TemplateText: string;
 begin
   TemplateText := TFile.ReadAllText(TemplateFile, TEncoding.UTF8);
-  AtomicWriteTextFile(OutputFile, RenderTemplate(TemplateText, Values), TEncoding.UTF8);
+  AtomicWriteTextFile(OutputFile, RenderTemplate(TemplateText, Values), UTF8NoBom);
 end;
 
 class function TTemplateRenderer.DefaultApacheTemplate: string;

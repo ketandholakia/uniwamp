@@ -242,7 +242,7 @@ begin
     Values.Add('LOGS_DIR', LogsDir);
     TemplateText := TFile.ReadAllText(FPaths.MariaDbTemplateFile, TEncoding.UTF8);
     RenderedText := TTemplateRenderer.RenderTemplate(TemplateText, Values);
-    AtomicWriteTextFile(FPaths.MariaDbIniFile, RenderedText, TEncoding.ASCII);
+    AtomicWriteTextFile(FPaths.MariaDbIniFile, RenderedText, UTF8NoBom);
   finally
     Values.Free;
   end;
@@ -341,7 +341,7 @@ begin
     Lines.Add('echo  MariaDB bin: %UNIWAMP_MARIADB_BIN%');
     Lines.Add('echo.');
     Lines.Add('cd /d "' + ResolvedWorkingDir + '"');
-    Lines.SaveToFile(FPaths.EnvBatFile, TEncoding.ASCII);
+    Lines.SaveToFile(FPaths.EnvBatFile, UTF8NoBom);
   finally
     Lines.Free;
   end;

@@ -10,12 +10,35 @@ procedure AtomicWriteTextFile(const FileName, Content: string; Encoding: TEncodi
 procedure AtomicReplaceFile(const SourceFileName, TargetFileName: string;
   const BackupFileName: string = '');
 
+// UTF-8 without BOM. Generated stack config files (httpd.conf, php.ini,
+// mariadb.ini, env.bat) must not carry a BOM.
+function UTF8NoBom: TEncoding;
+
 implementation
 
 uses
   Winapi.Windows,
   System.Classes,
   System.IOUtils;
+
+type
+  TUTF8NoBomEncoding = class(TUTF8Encoding)
+  public
+    function GetPreamble: TBytes; override;
+  end;
+
+var
+  GUTF8NoBomEncoding: TUTF8NoBomEncoding;
+
+function TUTF8NoBomEncoding.GetPreamble: TBytes;
+begin
+  Result := nil;
+end;
+
+function UTF8NoBom: TEncoding;
+begin
+  Result := GUTF8NoBomEncoding;
+end;
 
 procedure WriteTextAndFlush(const FileName, Content: string; Encoding: TEncoding);
 var
@@ -95,4 +118,8 @@ begin
   end;
 end;
 
+initialization
+  GUTF8NoBomEncoding := TUTF8NoBomEncoding.Create;
+finalization
+  GUTF8NoBomEncoding.Free;
 end.
