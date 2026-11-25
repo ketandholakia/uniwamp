@@ -8,7 +8,7 @@
                 "displayVersion":  "v0.3.0-alpha",
                 "sourcePath":  "src\\tmpbuild\\bin\\UniWamp.exe",
                 "targetPath":  "{app}\\UniWamp.exe",
-                "sha256":  "1cf0df0ea6034644698a443d2f6640577a7689cbf707f4e7de2b1bbcea7521f4"
+                "sha256":  "ba53013808dfb39adb39c5096d035a858741b1beed12fb617075b25b066a351f"
             },
     "components":  [
                        {
@@ -19,7 +19,7 @@
                            "sourcePath":  "src\\tmpbuild\\bin\\UniWamp.exe",
                            "targetPath":  "{app}\\UniWamp.exe",
                            "primaryArtifact":  "src\\tmpbuild\\bin\\UniWamp.exe",
-                           "sha256":  "1cf0df0ea6034644698a443d2f6640577a7689cbf707f4e7de2b1bbcea7521f4"
+                           "sha256":  "ba53013808dfb39adb39c5096d035a858741b1beed12fb617075b25b066a351f"
                        },
                        {
                            "name":  "Apache HTTP Server",
