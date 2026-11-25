@@ -943,6 +943,7 @@ end;
 procedure TestAddVHostNormalizesAliasesAndGeneratesConfig;
 var
   RootDir: string;
+  HostsFile: string;
   Paths: TAppPaths;
   Config: TUniWampConfig;
   Runtime: TUniWampRuntime;
@@ -956,6 +957,9 @@ begin
     Paths := BuildPaths(RootDir);
     EnsurePortableLayout(Paths);
     TTemplateRenderer.EnsureDefaultTemplates(Paths);
+    HostsFile := TPath.Combine(RootDir, 'hosts');
+    TFile.WriteAllText(HostsFile, '127.0.0.1 localhost' + sLineBreak, TEncoding.ASCII);
+    SetEnvironmentVariable('UNIWAMP_HOSTS_FILE', PChar(HostsFile));
     Config := TUniWampConfig.Create;
     try
       Config.SetDefaults(Paths);
@@ -984,6 +988,7 @@ begin
       end;
     finally
       Config.Free;
+      SetEnvironmentVariable('UNIWAMP_HOSTS_FILE', nil);
     end;
   finally
     TDirectory.Delete(RootDir, True);
