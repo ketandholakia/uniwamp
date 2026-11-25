@@ -101,3 +101,14 @@ Desktop.ini
 !/runtime/certs/
 !/runtime/certs/cacert.pem
 *.env
+
+# ============================================================
+# Local secrets, build artifacts, and backups
+# ============================================================
+config/secrets/
+src/secrets/
+src/tmpbuild/
+src/src.zip
+config/*.bak*
+tmp/runtime-state.json
+tmp/ffs/
