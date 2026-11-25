@@ -37,7 +37,9 @@ type
 
   TProcessManager = class
   public
-    class function StartDetached(const ExecutablePath, Arguments, WorkingDirectory: string): TProcessStartResult; static;
+    class function BuildEnvironmentWithPrependedPath(const PrependDirs: array of string): string; static;
+    class function StartDetached(const ExecutablePath, Arguments, WorkingDirectory: string;
+      const EnvironmentBlock: string = ''; const AssignToJob: Boolean = False): TProcessStartResult; static;
     class function StartInteractive(const ExecutablePath, Arguments, WorkingDirectory: string;
       const OnOutput: TProcessOutputEvent; out ErrorMessage: string): IInteractiveProcessSession; static;
     class function RunAndCaptureOutput(const ExecutablePath, Arguments, WorkingDirectory: string;
@@ -55,8 +57,66 @@ type
 implementation
 
 uses
+  System.StrUtils,
   System.Threading,
   Core.UniWamp.TaskRunner;
+
+type
+  TManagedJob = class
+  private
+    FHandle: THandle;
+    FLock: TCriticalSection;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    function AssignProcess(const ProcessHandle: THandle): Boolean;
+  end;
+
+var
+  GManagedJob: TManagedJob = nil;
+
+function GetSharedManagedJob: TManagedJob;
+begin
+  if GManagedJob = nil then
+    GManagedJob := TManagedJob.Create;
+  Result := GManagedJob;
+end;
+
+constructor TManagedJob.Create;
+var
+  Info: TJobObjectExtendedLimitInformation;
+begin
+  inherited Create;
+  FLock := TCriticalSection.Create;
+  FHandle := CreateJobObject(nil, nil);
+  if FHandle <> 0 then
+  begin
+    ZeroMemory(@Info, SizeOf(Info));
+    Info.BasicLimitInformation.LimitFlags := JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    SetInformationJobObject(FHandle, JobObjectExtendedLimitInformation, @Info, SizeOf(Info));
+  end;
+end;
+
+destructor TManagedJob.Destroy;
+begin
+  if FHandle <> 0 then
+  begin
+    CloseHandle(FHandle);
+    FHandle := 0;
+  end;
+  FLock.Free;
+  inherited Destroy;
+end;
+
+function TManagedJob.AssignProcess(const ProcessHandle: THandle): Boolean;
+begin
+  FLock.Acquire;
+  try
+    Result := (FHandle <> 0) and AssignProcessToJobObject(FHandle, ProcessHandle);
+  finally
+    FLock.Release;
+  end;
+end;
 
 type
   TInteractiveProcessSession = class(TInterfacedObject, IInteractiveProcessSession)
@@ -417,13 +477,78 @@ begin
     QueueThread);
 end;
 
+function CompareEnvVarsCaseInsensitive(List: TStringList; Index1, Index2: Integer): Integer;
+begin
+  Result := CompareText(List[Index1], List[Index2]);
+end;
+
+class function TProcessManager.BuildEnvironmentWithPrependedPath(const PrependDirs: array of string): string;
+var
+  EnvPtr: PChar;
+  P: PChar;
+  Lines: TStringList;
+  I: Integer;
+  NewPath: string;
+  ExistingPath: string;
+  Entry: string;
+  FoundPath: Boolean;
+begin
+  NewPath := '';
+  for Entry in PrependDirs do
+    if (Trim(Entry) <> '') and DirectoryExists(Entry) then
+      NewPath := NewPath + Entry + ';';
+
+  ExistingPath := GetEnvironmentVariable('PATH');
+  if Trim(ExistingPath) <> '' then
+    NewPath := NewPath + ExistingPath
+  else if NewPath.EndsWith(';') then
+    Delete(NewPath, Length(NewPath), 1);
+
+  Lines := TStringList.Create;
+  EnvPtr := GetEnvironmentStrings;
+  try
+    FoundPath := False;
+    if EnvPtr <> nil then
+    begin
+      P := EnvPtr;
+      while P^ <> #0 do
+      begin
+        Entry := P;
+        if StartsText('PATH=', Entry) then
+        begin
+          Lines.Add('PATH=' + NewPath);
+          FoundPath := True;
+        end
+        else if Entry <> '' then
+          Lines.Add(Entry);
+        Inc(P, Length(Entry) + 1);
+      end;
+    end;
+    if not FoundPath then
+      Lines.Add('PATH=' + NewPath);
+
+    Lines.CustomSort(CompareEnvVarsCaseInsensitive);
+    Result := '';
+    for I := 0 to Lines.Count - 1 do
+      Result := Result + Lines[I] + #0;
+    Result := Result + #0;
+  finally
+    if EnvPtr <> nil then
+      FreeEnvironmentStrings(EnvPtr);
+    Lines.Free;
+  end;
+end;
+
 class function TProcessManager.StartDetached(const ExecutablePath, Arguments,
-  WorkingDirectory: string): TProcessStartResult;
+  WorkingDirectory: string; const EnvironmentBlock: string;
+  const AssignToJob: Boolean): TProcessStartResult;
 var
   StartupInfo: TStartupInfo;
   ProcessInfo: TProcessInformation;
   CommandLine: string;
   PWorkingDir: PChar;
+  PEnv: Pointer;
+  CreationFlags: DWORD;
 begin
   Result.Success := False;
   Result.ProcessId := 0;
@@ -451,9 +576,25 @@ begin
   else
     PWorkingDir := PChar(WorkingDirectory);
 
-  if CreateProcess(nil, PChar(CommandLine), nil, nil, False, CREATE_NO_WINDOW,
-    nil, PWorkingDir, StartupInfo, ProcessInfo) then
+  CreationFlags := CREATE_NO_WINDOW;
+  if AssignToJob then
+    CreationFlags := CreationFlags or CREATE_SUSPENDED or CREATE_NEW_PROCESS_GROUP;
+  if EnvironmentBlock <> '' then
   begin
+    CreationFlags := CreationFlags or CREATE_UNICODE_ENVIRONMENT;
+    PEnv := PChar(EnvironmentBlock);
+  end
+  else
+    PEnv := nil;
+
+  if CreateProcess(nil, PChar(CommandLine), nil, nil, False, CreationFlags,
+    PEnv, PWorkingDir, StartupInfo, ProcessInfo) then
+  begin
+    if AssignToJob then
+    begin
+      GetSharedManagedJob.AssignProcess(ProcessInfo.hProcess);
+      ResumeThread(ProcessInfo.hThread);
+    end;
     Result.Success := True;
     Result.ProcessId := ProcessInfo.dwProcessId;
     CloseHandle(ProcessInfo.hThread);
@@ -714,25 +855,15 @@ begin
     EnumParams.WindowFound := False;
     EnumWindows(@EnumWindowsProc, LPARAM(@EnumParams));
 
-    // 2. If it's a console app and no window was found, attempt AttachConsole
-    if not EnumParams.WindowFound then
+    // 2. Wait for process to exit gracefully if a window received WM_CLOSE
+    if EnumParams.WindowFound then
     begin
-      if AttachConsole(ProcessId) then
-      begin
-        SetConsoleCtrlHandler(nil, True); // Ignore Ctrl+C for ourselves temporarily
-        GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
-        Sleep(50); // Give it a moment to dispatch
-        FreeConsole;
-        SetConsoleCtrlHandler(nil, False); // Restore
-      end;
+      WaitRes := WaitForSingleObject(Handle, ForceAfterMs);
+      if WaitRes = WAIT_OBJECT_0 then
+        Exit(True);
     end;
 
-    // 3. Wait for process to exit gracefully
-    WaitRes := WaitForSingleObject(Handle, ForceAfterMs);
-    if WaitRes = WAIT_OBJECT_0 then
-      Exit(True);
-
-    // 4. Force termination if still running
+    // 3. Force termination if still running
     Result := TerminateProcess(Handle, 0);
     if Result then
       Result := WaitForSingleObject(Handle, 2000) = WAIT_OBJECT_0;
@@ -789,5 +920,10 @@ begin
     CloseHandle(Handle);
   end;
 end;
+
+initialization
+
+finalization
+  FreeAndNil(GManagedJob);
 
 end.

@@ -36,6 +36,7 @@ type
     function DeleteVHost(const ServerName: string): TRuntimeActionResult;
     function GenerateSslCertificate: TRuntimeActionResult;
     function GenerateSslCertificateFor(const CommonName, CertFile, KeyFile: string): TRuntimeActionResult;
+    function GenerateSslCertificateForWithAliases(const CommonName, ExtraDnsNames, CertFile, KeyFile: string): TRuntimeActionResult;
     function RefreshVHostSslCertificate(const ServerName: string): TRuntimeActionResult;
     function EnsureDefaultSslCertificate(out ErrorMessage: string): Boolean;
   end;
@@ -155,7 +156,7 @@ begin
     ManagedSslDir := BuildManagedSslDir(NormalizedServerName);
     Entry.SslCertFile := TPath.Combine(ManagedSslDir, 'server.crt');
     Entry.SslKeyFile := TPath.Combine(ManagedSslDir, 'server.key');
-    Result := GenerateSslCertificateFor(NormalizedServerName, Entry.SslCertFile, Entry.SslKeyFile);
+    Result := GenerateSslCertificateForWithAliases(NormalizedServerName, NormalizedAliases, Entry.SslCertFile, Entry.SslKeyFile);
     if not Result.Success then
       Exit;
   end;
@@ -291,7 +292,7 @@ begin
     if not SslWasEnabled or ServerNameChanged or
        not FileExists(NewEntry.SslCertFile) or not FileExists(NewEntry.SslKeyFile) then
     begin
-      Result := GenerateSslCertificateFor(NormalizedNewServerName, NewEntry.SslCertFile, NewEntry.SslKeyFile);
+      Result := GenerateSslCertificateForWithAliases(NormalizedNewServerName, NormalizedAliases, NewEntry.SslCertFile, NewEntry.SslKeyFile);
       if not Result.Success then
         Exit;
     end
@@ -422,15 +423,33 @@ end;
 
 function TVHostManager.GenerateSslCertificateFor(const CommonName, CertFile,
   KeyFile: string): TRuntimeActionResult;
+begin
+  Result := GenerateSslCertificateForWithAliases(CommonName, '', CertFile, KeyFile);
+end;
+
+function TVHostManager.GenerateSslCertificateForWithAliases(const CommonName, ExtraDnsNames,
+  CertFile, KeyFile: string): TRuntimeActionResult;
 var
   OpenSslExe: string;
+  OpenSslConf: string;
   CommandOutput: string;
   OpenSslSucceeded: Boolean;
   CertDir: string;
   MkcertOutput: string;
   MkcertInstallOutput: string;
+  MkcertCaRoot: string;
+  MkcertMarkerFile: string;
+  MkcertNeedInstall: Boolean;
+  MkcertArgs: string;
   MkcertError: string;
   OpenSslError: string;
+  SanList: TStringList;
+  AliasParts: TStringList;
+  I: Integer;
+  Item: string;
+  SanDnsArgs: string;
+  OpenSslSan: string;
+  OpenSslArgs: string;
   procedure RemovePartialFiles;
   begin
     if FileExists(CertFile) then
@@ -447,70 +466,141 @@ begin
   if CertDir <> '' then
     EnsureDirectory(CertDir);
 
-  if FileExists(FPaths.MkcertExe) then
-  begin
-    // Ensure the CA is installed in the trust store (prompts UAC on first run)
-    TProcessManager.RunAndCaptureOutput(FPaths.MkcertExe, '-install', FPaths.MkcertDir, MkcertInstallOutput, 60000);
-    if TProcessManager.RunAndCaptureOutput(
-      FPaths.MkcertExe,
-      '-cert-file "' + CertFile + '" -key-file "' + KeyFile + '" "' + CommonName + '"',
-      FPaths.MkcertDir,
-      MkcertOutput,
-      30000) and FileExists(CertFile) and FileExists(KeyFile) then
+  SanList := TStringList.Create;
+  AliasParts := TStringList.Create;
+  try
+    SanList.Duplicates := dupIgnore;
+    SanList.Add(Trim(CommonName));
+    if Trim(ExtraDnsNames) <> '' then
     begin
-      Result.Success := True;
-      Result.Message := 'SSL certificate generated successfully via mkcert (locally trusted).';
-      Exit;
+      AliasParts.StrictDelimiter := True;
+      AliasParts.Delimiter := ' ';
+      AliasParts.DelimitedText := StringReplace(Trim(ExtraDnsNames), ',', ' ', [rfReplaceAll]);
+      for I := 0 to AliasParts.Count - 1 do
+      begin
+        Item := Trim(AliasParts[I]);
+        if (Item <> '') and (SanList.IndexOf(Item) < 0) then
+          SanList.Add(Item);
+      end;
     end;
-    MkcertError := Trim(MkcertInstallOutput);
-    if Trim(MkcertOutput) <> '' then
+
+    SanDnsArgs := '';
+    OpenSslSan := '';
+    for I := 0 to SanList.Count - 1 do
+    begin
+      SanDnsArgs := SanDnsArgs + ' "' + SanList[I] + '"';
+      if OpenSslSan <> '' then
+        OpenSslSan := OpenSslSan + ',';
+      if (Pos('.', SanList[I]) > 0) and (CharInSet(SanList[I][1], ['0'..'9'])) then
+        OpenSslSan := OpenSslSan + 'IP:' + SanList[I]
+      else
+        OpenSslSan := OpenSslSan + 'DNS:' + SanList[I];
+    end;
+    if SanList.IndexOf('127.0.0.1') < 0 then
+    begin
+      SanDnsArgs := SanDnsArgs + ' 127.0.0.1';
+      OpenSslSan := OpenSslSan + ',IP:127.0.0.1';
+    end;
+    SanDnsArgs := SanDnsArgs + ' ::1';
+    OpenSslSan := OpenSslSan + ',IP:::1';
+
+    if FileExists(FPaths.MkcertExe) then
+    begin
+      MkcertMarkerFile := TPath.Combine(FPaths.SslDir, '.mkcert-ca-installed');
+      MkcertNeedInstall := not FileExists(MkcertMarkerFile);
+      if MkcertNeedInstall then
+      begin
+        if TProcessManager.RunAndCaptureOutput(FPaths.MkcertExe, '-CAROOT', FPaths.MkcertDir, MkcertCaRoot, 10000) then
+        begin
+          MkcertCaRoot := Trim(MkcertCaRoot);
+          if (MkcertCaRoot <> '') and FileExists(TPath.Combine(MkcertCaRoot, 'rootCA.pem')) then
+            MkcertNeedInstall := False;
+        end;
+      end;
+      if MkcertNeedInstall then
+      begin
+        if TProcessManager.RunAndCaptureOutput(FPaths.MkcertExe, '-install', FPaths.MkcertDir, MkcertInstallOutput, 60000) then
+        begin
+          EnsureDirectory(FPaths.SslDir);
+          TFile.WriteAllText(MkcertMarkerFile, 'installed', TEncoding.UTF8);
+        end;
+      end;
+
+      MkcertArgs := '-cert-file "' + CertFile + '" -key-file "' + KeyFile + '"' + SanDnsArgs;
+      if TProcessManager.RunAndCaptureOutput(
+        FPaths.MkcertExe,
+        MkcertArgs,
+        FPaths.MkcertDir,
+        MkcertOutput,
+        30000) and FileExists(CertFile) and FileExists(KeyFile) then
+      begin
+        Result.Success := True;
+        Result.Message := 'SSL certificate generated successfully via mkcert (locally trusted).';
+        Exit;
+      end;
+      MkcertError := Trim(MkcertInstallOutput);
+      if Trim(MkcertOutput) <> '' then
+      begin
+        if MkcertError <> '' then
+          MkcertError := MkcertError + sLineBreak;
+        MkcertError := MkcertError + Trim(MkcertOutput);
+      end;
+      if MkcertError = '' then
+        MkcertError := 'mkcert certificate generation failed.';
+      RemovePartialFiles;
+    end;
+
+    // 2. Fallback to OpenSSL (untrusted self-signed with SAN)
+    OpenSslExe := TPath.Combine(FPaths.ApacheBinDir, 'openssl.exe');
+    if not FileExists(OpenSslExe) then
     begin
       if MkcertError <> '' then
-        MkcertError := MkcertError + sLineBreak;
-      MkcertError := MkcertError + Trim(MkcertOutput);
+        Result.Message := 'SSL certificate generation failed: ' + MkcertError + sLineBreak +
+          'OpenSSL executable not found.'
+      else
+        Result.Message := 'OpenSSL executable not found.';
+      Exit;
     end;
-    if MkcertError = '' then
-      MkcertError := 'mkcert certificate generation failed.';
-    RemovePartialFiles;
-  end;
 
-  // 2. Fallback to OpenSSL (untrusted self-signed)
-  OpenSslExe := TPath.Combine(FPaths.ApacheBinDir, 'openssl.exe');
-  if not FileExists(OpenSslExe) then
-  begin
-    if MkcertError <> '' then
-      Result.Message := 'SSL certificate generation failed: ' + MkcertError + sLineBreak +
-        'OpenSSL executable not found.'
-    else
-      Result.Message := 'OpenSSL executable not found.';
-    Exit;
-  end;
+    OpenSslConf := TPath.Combine(FPaths.ApacheConfDir, 'openssl.cnf');
+    if not FileExists(OpenSslConf) then
+      OpenSslConf := TPath.Combine(FPaths.ApacheBinDir, 'openssl.cnf');
 
-  OpenSslSucceeded := TProcessManager.RunAndCaptureOutput(
-    OpenSslExe,
-    'req -x509 -nodes -days 365 -newkey rsa:2048 ' +
-    '-subj "/CN=' + CommonName + '" ' +
-    '-keyout "' + KeyFile + '" ' +
-    '-out "' + CertFile + '"',
-    FPaths.SslDir,
-    CommandOutput,
-    120000);
-  if OpenSslSucceeded and FileExists(CertFile) and FileExists(KeyFile) then
-  begin
-    Result.Success := True;
-    Result.Message := 'SSL certificate generated via OpenSSL (untrusted).';
-  end
-  else
-  begin
-    OpenSslError := Trim(CommandOutput);
-    if OpenSslError = '' then
-      OpenSslError := 'OpenSSL certificate generation failed.';
-    RemovePartialFiles;
-    if MkcertError <> '' then
-      Result.Message := 'SSL certificate generation failed: ' + MkcertError + sLineBreak +
-        OpenSslError
+    OpenSslArgs := 'req -x509 -nodes -days 365 -newkey rsa:2048 ';
+    if FileExists(OpenSslConf) then
+      OpenSslArgs := OpenSslArgs + '-config "' + OpenSslConf + '" ';
+    OpenSslArgs := OpenSslArgs +
+      '-subj "/CN=' + CommonName + '" ' +
+      '-addext "subjectAltName=' + OpenSslSan + '" ' +
+      '-keyout "' + KeyFile + '" ' +
+      '-out "' + CertFile + '"';
+
+    OpenSslSucceeded := TProcessManager.RunAndCaptureOutput(
+      OpenSslExe,
+      OpenSslArgs,
+      FPaths.SslDir,
+      CommandOutput,
+      120000);
+    if OpenSslSucceeded and FileExists(CertFile) and FileExists(KeyFile) then
+    begin
+      Result.Success := True;
+      Result.Message := 'SSL certificate generated via OpenSSL (untrusted).';
+    end
     else
-      Result.Message := OpenSslError;
+    begin
+      OpenSslError := Trim(CommandOutput);
+      if OpenSslError = '' then
+        OpenSslError := 'OpenSSL certificate generation failed.';
+      RemovePartialFiles;
+      if MkcertError <> '' then
+        Result.Message := 'SSL certificate generation failed: ' + MkcertError + sLineBreak +
+          OpenSslError
+      else
+        Result.Message := OpenSslError;
+    end;
+  finally
+    AliasParts.Free;
+    SanList.Free;
   end;
 end;
 

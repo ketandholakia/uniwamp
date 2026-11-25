@@ -153,7 +153,6 @@ begin
   Result.WwwDir := TPath.Combine(Root, 'www');
   Result.VHostsDir := Result.WwwDir;
   Result.SslDir := TPath.Combine(Root, 'ssl');
-  Result.StateFile := TPath.Combine(Result.ConfigDir, 'state.json');
   Result.AppConfigFile := TPath.Combine(Result.ConfigDir, 'uniwamp.json');
   Result.ApacheTemplateFile := TPath.Combine(Result.TemplatesDir, 'httpd.conf.tpl');
   Result.ApacheSslTemplateFile := TPath.Combine(Result.TemplatesDir, 'httpd-ssl.conf.tpl');

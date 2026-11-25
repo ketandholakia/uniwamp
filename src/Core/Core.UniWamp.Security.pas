@@ -106,6 +106,8 @@ begin
     Exit(True);
   if IsValidIPv4Address(Value) then
     Exit(True);
+  if (Value[1] = '.') or (Value[Length(Value)] = '.') or (Pos('..', Value) > 0) then
+    Exit;
 
   Parts := TStringList.Create;
   try

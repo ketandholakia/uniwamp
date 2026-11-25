@@ -21,10 +21,55 @@ implementation
 uses
   Winapi.Winsock2,
   Winapi.Windows,
-  System.Classes,
-  System.SysUtils,
-  System.StrUtils,
-  Core.UniWamp.ProcessManager;
+  System.SysUtils;
+
+const
+  AF_INET6_VAL = 23;
+  TCP_TABLE_OWNER_PID_LISTENER = 3;
+  PROCESS_QUERY_LIMITED_INFO = $1000;
+
+type
+  TMibTcpRowOwnerPid = record
+    dwState: DWORD;
+    dwLocalAddr: DWORD;
+    dwLocalPort: DWORD;
+    dwRemoteAddr: DWORD;
+    dwRemotePort: DWORD;
+    dwOwningPid: DWORD;
+  end;
+  PMibTcpRowOwnerPid = ^TMibTcpRowOwnerPid;
+
+  TMibTcpTableOwnerPid = record
+    dwNumEntries: DWORD;
+    table: array[0..0] of TMibTcpRowOwnerPid;
+  end;
+  PMibTcpTableOwnerPid = ^TMibTcpTableOwnerPid;
+
+  TMibTcp6RowOwnerPid = record
+    ucLocalAddr: array[0..15] of Byte;
+    dwLocalScopeId: DWORD;
+    dwLocalPort: DWORD;
+    ucRemoteAddr: array[0..15] of Byte;
+    dwRemoteScopeId: DWORD;
+    dwRemotePort: DWORD;
+    dwState: DWORD;
+    dwOwningPid: DWORD;
+  end;
+  PMibTcp6RowOwnerPid = ^TMibTcp6RowOwnerPid;
+
+  TMibTcp6TableOwnerPid = record
+    dwNumEntries: DWORD;
+    table: array[0..0] of TMibTcp6RowOwnerPid;
+  end;
+  PMibTcp6TableOwnerPid = ^TMibTcp6TableOwnerPid;
+
+function GetExtendedTcpTable(pTcpTable: Pointer; var dwSize: DWORD; bOrder: BOOL;
+  ulAf: ULONG; TableClass: Integer; Reserved: ULONG): DWORD; stdcall;
+  external 'iphlpapi.dll' name 'GetExtendedTcpTable';
+
+function QueryFullProcessImageNameW(hProcess: THandle; dwFlags: DWORD;
+  lpExeName: PWideChar; var lpdwSize: DWORD): BOOL; stdcall;
+  external kernel32 name 'QueryFullProcessImageNameW';
 
 function TPortInspection.OwnerDescription: string;
 begin
@@ -35,128 +80,128 @@ begin
   Result := Format('PID %d', [OwnerPid]);
 end;
 
-function System32Directory: string;
-begin
-  Result := GetEnvironmentVariable('SystemRoot');
-  if Result = '' then
-    Result := 'C:\Windows';
-  Result := IncludeTrailingPathDelimiter(Result) + 'System32';
-end;
-
 function QueryProcessImageName(const ProcessId: Cardinal): string;
 var
-  TasklistOutput: string;
-  CsvLines: TStringList;
-  CsvFields: TStringList;
+  HProc: THandle;
+  Buffer: array[0..1023] of WideChar;
+  Size: DWORD;
 begin
   Result := '';
   if ProcessId = 0 then
     Exit;
 
-  if not TProcessManager.RunAndCaptureOutput(
-    IncludeTrailingPathDelimiter(System32Directory) + 'tasklist.exe',
-    Format('/FI "PID eq %d" /FO CSV /NH', [ProcessId]),
-    System32Directory,
-    TasklistOutput) then
+  HProc := OpenProcess(PROCESS_QUERY_LIMITED_INFO, False, ProcessId);
+  if HProc = 0 then
+    Exit;
+  try
+    Size := Length(Buffer);
+    if QueryFullProcessImageNameW(HProc, 0, Buffer, Size) then
+      Result := ExtractFileName(Buffer);
+  finally
+    CloseHandle(HProc);
+  end;
+end;
+
+function FormatIPv4Addr(const Addr: DWORD): string;
+begin
+  Result := Format('%d.%d.%d.%d', [
+    Addr and $FF,
+    (Addr shr 8) and $FF,
+    (Addr shr 16) and $FF,
+    (Addr shr 24) and $FF
+  ]);
+end;
+
+function InspectTcpTableFamily(const Family: ULONG; const Port: Integer;
+  out Inspection: TPortInspection): Boolean;
+var
+  Size: DWORD;
+  Res: DWORD;
+  I: DWORD;
+  Table4: PMibTcpTableOwnerPid;
+  Row4: PMibTcpRowOwnerPid;
+  Table6: PMibTcp6TableOwnerPid;
+  Row6: PMibTcp6RowOwnerPid;
+  LocalPort: Word;
+begin
+  Result := False;
+  Inspection := Default(TPortInspection);
+  Size := 0;
+  Res := GetExtendedTcpTable(nil, Size, False, Family, TCP_TABLE_OWNER_PID_LISTENER, 0);
+  if (Res <> ERROR_INSUFFICIENT_BUFFER) and (Res <> NO_ERROR) then
+    Exit;
+  if Size = 0 then
     Exit;
 
-  CsvLines := TStringList.Create;
-  CsvFields := TStringList.Create;
-  try
-    CsvLines.Text := Trim(TasklistOutput);
-    if CsvLines.Count = 0 then
-      Exit;
-    CsvFields.StrictDelimiter := True;
-    CsvFields.Delimiter := ',';
-    CsvFields.QuoteChar := '"';
-    CsvFields.DelimitedText := CsvLines[0];
-    if CsvFields.Count > 0 then
-      Result := CsvFields[0];
-  finally
-    CsvFields.Free;
-    CsvLines.Free;
+  if Family = AF_INET then
+  begin
+    GetMem(Table4, Size);
+    try
+      if GetExtendedTcpTable(Table4, Size, False, Family, TCP_TABLE_OWNER_PID_LISTENER, 0) = NO_ERROR then
+      begin
+        Row4 := @Table4^.table[0];
+        for I := 0 to Table4^.dwNumEntries - 1 do
+        begin
+          LocalPort := ntohs(Word(Row4^.dwLocalPort));
+          if LocalPort = Word(Port) then
+          begin
+            Inspection.Available := False;
+            Inspection.OwnerPid := Row4^.dwOwningPid;
+            Inspection.OwnerImageName := QueryProcessImageName(Row4^.dwOwningPid);
+            Inspection.Binding := Format('%s:%d', [FormatIPv4Addr(Row4^.dwLocalAddr), Port]);
+            Inspection.State := 'LISTENING';
+            Exit(True);
+          end;
+          Inc(Row4);
+        end;
+      end;
+    finally
+      FreeMem(Table4);
+    end;
+  end
+  else
+  begin
+    GetMem(Table6, Size);
+    try
+      if GetExtendedTcpTable(Table6, Size, False, Family, TCP_TABLE_OWNER_PID_LISTENER, 0) = NO_ERROR then
+      begin
+        Row6 := @Table6^.table[0];
+        for I := 0 to Table6^.dwNumEntries - 1 do
+        begin
+          LocalPort := ntohs(Word(Row6^.dwLocalPort));
+          if LocalPort = Word(Port) then
+          begin
+            Inspection.Available := False;
+            Inspection.OwnerPid := Row6^.dwOwningPid;
+            Inspection.OwnerImageName := QueryProcessImageName(Row6^.dwOwningPid);
+            Inspection.Binding := Format('[::]:%d', [Port]);
+            Inspection.State := 'LISTENING';
+            Exit(True);
+          end;
+          Inc(Row6);
+        end;
+      end;
+    finally
+      FreeMem(Table6);
+    end;
   end;
 end;
 
 function InspectTcpPort(const Port: Integer): TPortInspection;
-var
-  WsaData: TWSAData;
-  Sock: TSocket;
-  Addr: sockaddr_in;
-  NetstatOutput: string;
-  Lines: TStringList;
-  Tokens: TStringList;
-  Line: string;
-  LocalBinding: string;
-  ParsedPid: Cardinal;
 begin
-  Result.Available := False;
-  Result.OwnerPid := 0;
-  Result.OwnerImageName := '';
-  Result.Binding := '';
-  Result.State := '';
-
-  if not TProcessManager.RunAndCaptureOutput(
-    IncludeTrailingPathDelimiter(System32Directory) + 'netstat.exe',
-    '-ano -p tcp',
-    System32Directory,
-    NetstatOutput) then
+  Result := Default(TPortInspection);
+  if (Port < 1) or (Port > 65535) then
+  begin
+    Result.Available := False;
     Exit;
-
-  Lines := TStringList.Create;
-  Tokens := TStringList.Create;
-  try
-    Lines.Text := NetstatOutput;
-    for Line in Lines do
-    begin
-      Tokens.Clear;
-      ExtractStrings([' ', #9], [], PChar(Trim(Line)), Tokens);
-      if Tokens.Count < 5 then
-        Continue;
-
-      LocalBinding := Tokens[1];
-      if not EndsText(':' + Port.ToString, LocalBinding) then
-        Continue;
-
-      if not SameText(Tokens[3], 'LISTENING') then
-        Continue;
-
-      if not TryStrToUInt(Tokens[4], ParsedPid) then
-        Continue;
-
-      Result.Available := False;
-      Result.OwnerPid := ParsedPid;
-      Result.Binding := LocalBinding;
-      Result.State := Tokens[3];
-      Result.OwnerImageName := QueryProcessImageName(ParsedPid);
-      Exit;
-    end;
-  finally
-    Tokens.Free;
-    Lines.Free;
   end;
 
-  if WSAStartup($0202, WsaData) <> 0 then
+  if InspectTcpTableFamily(AF_INET, Port, Result) then
     Exit;
-  try
-    Sock := socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if Sock <> INVALID_SOCKET then
-    try
-      ZeroMemory(@Addr, SizeOf(Addr));
-      Addr.sin_family := AF_INET;
-      Addr.sin_addr.S_addr := inet_addr(PAnsiChar(AnsiString('127.0.0.1')));
-      Addr.sin_port := htons(Port);
-      if bind(Sock, PSockAddr(@Addr)^, SizeOf(Addr)) = 0 then
-      begin
-        Result.Available := True;
-        Exit;
-      end;
-    finally
-      closesocket(Sock);
-    end;
-  finally
-    WSACleanup;
-  end;
+  if InspectTcpTableFamily(AF_INET6_VAL, Port, Result) then
+    Exit;
+
+  Result.Available := True;
 end;
 
 function DescribeTcpPortOwner(const Port: Integer): string;

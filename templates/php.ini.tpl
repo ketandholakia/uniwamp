@@ -13,4 +13,5 @@ extension_dir="{{PHP_EXT_DIR}}"
 {{PHP_EXTENSION_LINES}}
 upload_tmp_dir="{{TMP_DIR}}"
 sys_temp_dir="{{TMP_DIR}}"
+session.save_path="{{TMP_DIR}}/sessions"
 error_log="{{LOGS_DIR}}\php-error.log"

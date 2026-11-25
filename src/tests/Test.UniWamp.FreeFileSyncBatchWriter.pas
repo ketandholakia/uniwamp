@@ -22,6 +22,8 @@ type
     procedure TestBatchFileKeepsPermanentDeletionPolicyForRealRuns;
     [Test]
     procedure TestRemotePathIsXmlEscaped;
+    [Test]
+    procedure TestBuildCommandPreviewForVHostExcludesPass64;
   end;
 
 implementation
@@ -31,6 +33,11 @@ uses
   System.StrUtils,
   System.SysUtils,
   Core.UniWamp.FreeFileSyncBatchWriter,
+  Core.UniWamp.FreeFileSyncService,
+  Core.UniWamp.Config,
+  Core.UniWamp.Paths,
+  Core.UniWamp.Secrets,
+  Core.UniWamp.Types,
   Core.UniWamp.SyncTypes;
 
 function CountOccurrences(const Needle, Haystack: string): Integer;
@@ -131,6 +138,57 @@ begin
     'Remote path must be XML-escaped.');
   Assert.AreEqual(1, CountOccurrences('<Pair>', XmlText),
     'Injected markup must not create additional folder pairs.');
+end;
+
+procedure TFreeFileSyncBatchWriterTests.TestBuildCommandPreviewForVHostExcludesPass64;
+var
+  Paths: TAppPaths;
+  Config: TUniWampConfig;
+  Service: TFreeFileSyncService;
+  Profile: TSyncProfile;
+  CommandLine: string;
+  Res: TRuntimeActionResult;
+  SecretErr: string;
+  GuiFile: string;
+  XmlText: string;
+begin
+  Paths := TAppPaths.Detect;
+  Paths.AppRoot := FOutputDir;
+  Paths.TmpDir := TPath.Combine(FOutputDir, 'tmp');
+  Paths.FreeFileSyncDir := TPath.Combine(FOutputDir, 'ffs');
+  TDirectory.CreateDirectory(Paths.TmpDir);
+  TDirectory.CreateDirectory(Paths.FreeFileSyncDir);
+  TFile.WriteAllText(TPath.Combine(Paths.FreeFileSyncDir, 'FreeFileSync.exe'), '');
+  TDirectory.CreateDirectory(TPath.Combine(FOutputDir, 'site'));
+
+  Config := TUniWampConfig.Create;
+  Service := TFreeFileSyncService.Create(Paths, Config);
+  try
+    Profile := Default(TSyncProfile);
+    Profile.Name := 'preview_secret_test';
+    Profile.Protocol := 'sftp';
+    Profile.Direction := 'upload';
+    Profile.Host := 'example.com';
+    Profile.Port := 22;
+    Profile.Username := 'tester';
+    Profile.RemotePath := '/var/www';
+    Profile.LocalPath := TPath.Combine(FOutputDir, 'site');
+    Config.AddOrUpdateSyncProfile(Profile);
+    SaveConnectionPassword(Paths, Profile.Name, 'SuperSecret123!', SecretErr);
+    try
+      Res := Service.BuildCommandPreviewForVHost(Profile.Name, '', True, CommandLine);
+      Assert.IsTrue(Res.Success, Res.Message);
+      GuiFile := TPath.Combine(Paths.TmpDir, 'ffs\preview_secret_test.ffs_gui');
+      Assert.IsTrue(FileExists(GuiFile), 'Preview .ffs_gui should exist');
+      XmlText := TFile.ReadAllText(GuiFile, TEncoding.UTF8);
+      Assert.AreEqual(0, Pos('pass64=', XmlText), 'Preview .ffs_gui must never contain pass64');
+    finally
+      DeleteAllConnectionSecrets(Paths, Profile.Name);
+    end;
+  finally
+    Service.Free;
+    Config.Free;
+  end;
 end;
 
 initialization

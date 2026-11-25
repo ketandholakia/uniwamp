@@ -87,6 +87,11 @@ begin
     '<VirtualHost _default_:{{HTTPS_PORT}}>' + sLineBreak +
     '  DocumentRoot "{{DOCUMENT_ROOT}}"' + sLineBreak +
     '  ServerName {{HOST_NAME}}:{{HTTPS_PORT}}' + sLineBreak +
+    '  <Directory "{{DOCUMENT_ROOT}}">' + sLineBreak +
+    '    AllowOverride All' + sLineBreak +
+    '    DirectoryIndex index.php index.html' + sLineBreak +
+    '    Require all granted' + sLineBreak +
+    '  </Directory>' + sLineBreak +
     '  SSLEngine on' + sLineBreak +
     '  SSLCertificateFile "{{SSL_CERT_FILE}}"' + sLineBreak +
     '  SSLCertificateKeyFile "{{SSL_KEY_FILE}}"' + sLineBreak +
@@ -149,7 +154,8 @@ begin
 
   if (PhpTemplateText = '') or
      (Pos('{{PHP_EXTENSION_LINES}}', PhpTemplateText) = 0) or
-     (Pos('{{ERROR_REPORTING}}', PhpTemplateText) = 0) then
+     (Pos('{{ERROR_REPORTING}}', PhpTemplateText) = 0) or
+     (Pos('session.save_path=', PhpTemplateText) = 0) then
     AtomicWriteTextFile(Paths.PhpTemplateFile,
       '[PHP]' + sLineBreak +
       'display_errors={{DISPLAY_ERRORS}}' + sLineBreak +
@@ -166,6 +172,7 @@ begin
       '{{PHP_EXTENSION_LINES}}' + sLineBreak +
       'upload_tmp_dir="{{TMP_DIR}}"' + sLineBreak +
       'sys_temp_dir="{{TMP_DIR}}"' + sLineBreak +
+      'session.save_path="{{TMP_DIR}}/sessions"' + sLineBreak +
       'error_log="{{LOGS_DIR}}\php-error.log"', TEncoding.UTF8);
 end;
 

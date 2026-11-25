@@ -1,4 +1,4 @@
-﻿unit Ui.UniWamp.MainForm;
+unit Ui.UniWamp.MainForm;
 
 interface
 
@@ -272,11 +272,11 @@ type
     FProgressSpinner: TProgressBar;
     FIsBusy: Boolean;
     FIsShuttingDown: Boolean;
-    FUiUpdateQueueThread: TThread;
+    FLifetimeToken: ILifetimeToken;
     FBackgroundOpLock: TCriticalSection;
     FBackgroundOpsDone: TEvent;
     FActiveBackgroundOperations: Integer;
-    FPendingUiUpdates: Integer;
+    FPortCheckInFlight: Boolean;
     function BeginBackgroundOperation: Boolean;
     procedure EndBackgroundOperation;
     procedure StartBackgroundThread(const Work: TProc);
@@ -1324,11 +1324,8 @@ begin
   FBackgroundOpLock := TCriticalSection.Create;
   FBackgroundOpsDone := TEvent.Create(nil, True, True, '');
   FActiveBackgroundOperations := 0;
-  FPendingUiUpdates := 0;
-  FUiUpdateQueueThread := TThread.CreateAnonymousThread(
-    procedure
-    begin
-    end);
+  FPortCheckInFlight := False;
+  FLifetimeToken := TLifetimeToken.Create;
   FUpdateManifestDialog := TOpenDialog.Create(Self);
   FUpdateManifestDialog.Filter := 'Update manifest (*.json)|*.json|All files (*.*)|*.*';
   FUpdateManifestDialog.Title := 'Select update manifest';
@@ -2082,89 +2079,6 @@ begin
   ApplyPanelIcon(MariaStopButton, 'stop');
   ApplyPanelIcon(MariaRestartButton, 'restart_alt');
   ClearPanelIcon(GenerateSslButton);
-  ClearPanelIcon(LaunchTerminalButton);
-  ClearPanelIcon(OpenRepoTerminalButton);
-  ClearPanelIcon(ComposerButton);
-  ClearPanelIcon(GitButton);
-  ClearPanelIcon(NodeButton);
-  ClearPanelIcon(WpCliButton);
-  ClearPanelIcon(MailpitButton);
-  ClearPanelIcon(RedisButton);
-  ClearPanelIcon(MemcachedButton);
-  ClearPanelIcon(NpmButton);
-  ClearPanelIcon(YarnButton);
-  ClearPanelIcon(PnpmButton);
-  ClearPanelIcon(EditorButton);
-  ClearPanelIcon(UpdateButton);
-  ClearPanelIcon(CopyDiagnosticReportButton);
-  ClearPanelIcon(CopyActivityLogButton);
-  ClearPanelIcon(OpenHostsFileButton);
-  ClearPanelIcon(BackupDatabaseButton);
-  ClearPanelIcon(RestoreDatabaseButton);
-  ClearPanelIcon(OpenPhpExtensionsButton);
-  ClearPanelIcon(OpenPhpSettingsButton);
-  ClearPanelIcon(OpenApacheModulesButton);
-  ClearPanelIcon(SaveConfigButton);
-  ApplyPanelIcon(exitbutton, 'logout');
-  ApplyPanelIcon(AddVHostButton, 'add');
-  ApplyPanelIcon(EditVHostButton, 'edit');
-  ApplyPanelIcon(OpenVHostButton, 'open_in_new');
-  ApplyPanelIcon(OpenVHostFolderButton, 'folder_open');
-  ClearPanelIcon(OpenVHostTerminalButton);
-  ApplyPanelIcon(BackupProjectButton, 'save');
-  ApplyPanelIcon(RestoreProjectButton, 'restore');
-  ApplyPanelIcon(CopyVHostUrlButton, 'content_copy');
-  ApplyPanelIcon(DeleteVHostButton, 'delete');
-  ClearPanelIcon(OpenApacheLogButton);
-  ClearPanelIcon(OpenMariaLogButton);
-  ClearPanelIcon(ClearApacheLogButton);
-  ClearPanelIcon(ClearMariaLogButton);
-  ClearPanelIcon(ClearActivityLogButton);
-  ApplyPanelIcon(EditPhpIniButton, 'code');
-  ApplyPanelIcon(EditHttpdConfButton, 'web');
-  ApplyPanelIcon(EditMariaDbIniButton, 'database');
-  SetButtonCaption(LaunchTerminalButton, 'Terminal');
-  SetButtonCaption(OpenRepoTerminalButton, 'Repo Terminal');
-  SetButtonCaption(ComposerButton, 'Composer');
-  SetButtonCaption(GitButton, 'Git');
-  SetButtonCaption(NodeButton, 'Node');
-  SetButtonCaption(WpCliButton, 'WP-CLI');
-  SetButtonCaption(MailpitButton, 'Mailpit');
-  SetButtonCaption(RedisButton, 'Redis');
-  SetButtonCaption(MemcachedButton, 'Memcached');
-  SetButtonCaption(NpmButton, 'npm');
-  SetButtonCaption(YarnButton, 'yarn');
-  SetButtonCaption(PnpmButton, 'pnpm');
-  SetButtonCaption(EditorButton, 'Editor');
-  SetButtonCaption(UpdateButton, 'Update');
-  SetButtonCaption(SaveConfigButton, 'Save Config');
-  SetButtonCaption(GenerateSslButton, 'Generate SSL');
-  SetButtonCaption(CopyDiagnosticReportButton, 'Copy Report');
-  SetButtonCaption(CopyActivityLogButton, 'Copy Activity');
-  SetButtonCaption(OpenHostsFileButton, 'Hosts File');
-  SetButtonCaption(BackupDatabaseButton, 'DB Backup');
-  SetButtonCaption(RestoreDatabaseButton, 'DB Restore');
-  SetButtonCaption(OpenApacheLogButton, 'Apache Log');
-  SetButtonCaption(OpenMariaLogButton, 'MariaDB Log');
-  SetButtonCaption(ClearApacheLogButton, 'Clear Apache');
-  SetButtonCaption(ClearMariaLogButton, 'Clear MariaDB');
-  SetButtonCaption(ClearActivityLogButton, 'Clear activity');
-  SetButtonCaption(OpenPhpExtensionsButton, 'PHP Extensions');
-  SetButtonCaption(OpenPhpSettingsButton, 'PHP Settings');
-  SetButtonCaption(OpenApacheModulesButton, 'Apache Modules');
-  SetButtonCaption(AddVHostButton, 'Add');
-  SetButtonCaption(EditVHostButton, 'Edit');
-  SetButtonCaption(OpenVHostButton, 'Open Selected');
-  SetButtonCaption(OpenVHostFolderButton, 'Open Folder');
-  SetButtonCaption(OpenVHostTerminalButton, 'Terminal');
-  SetButtonCaption(BackupProjectButton, 'Backup Project');
-  SetButtonCaption(RestoreProjectButton, 'Restore Project');
-  SetButtonCaption(CopyVHostUrlButton, 'Copy URL');
-  SetButtonCaption(DeleteVHostButton, 'Delete vHost');
-  SetButtonCaption(EditPhpIniButton, 'php.ini');
-  SetButtonCaption(EditHttpdConfButton, 'httpd.conf');
-  SetButtonCaption(EditMariaDbIniButton, 'mariadb.ini');
-  ClearPanelIcon(GenerateSslButton);
   ClearPanelIcon(Panel8);
   ClearPanelIcon(Panel9);
   ClearPanelIcon(LaunchTerminalButton);
@@ -2190,6 +2104,24 @@ begin
   ClearPanelIcon(PnpmButton);
   ClearPanelIcon(EditorButton);
   ClearPanelIcon(UpdateButton);
+  ApplyPanelIcon(exitbutton, 'logout');
+  ApplyPanelIcon(AddVHostButton, 'add');
+  ApplyPanelIcon(EditVHostButton, 'edit');
+  ApplyPanelIcon(OpenVHostButton, 'open_in_new');
+  ApplyPanelIcon(OpenVHostFolderButton, 'folder_open');
+  ClearPanelIcon(OpenVHostTerminalButton);
+  ApplyPanelIcon(BackupProjectButton, 'save');
+  ApplyPanelIcon(RestoreProjectButton, 'restore');
+  ApplyPanelIcon(CopyVHostUrlButton, 'content_copy');
+  ApplyPanelIcon(DeleteVHostButton, 'delete');
+  ClearPanelIcon(OpenApacheLogButton);
+  ClearPanelIcon(OpenMariaLogButton);
+  ClearPanelIcon(ClearApacheLogButton);
+  ClearPanelIcon(ClearMariaLogButton);
+  ClearPanelIcon(ClearActivityLogButton);
+  ApplyPanelIcon(EditPhpIniButton, 'code');
+  ApplyPanelIcon(EditHttpdConfButton, 'web');
+  ApplyPanelIcon(EditMariaDbIniButton, 'database');
   SetButtonCaption(GenerateSslButton, 'Generate SSL');
   SetButtonCaption(Panel8, 'Web Dashboard');
   SetButtonCaption(Panel9, 'Adminer');
@@ -2216,6 +2148,23 @@ begin
   SetButtonCaption(PnpmButton, 'pnpm');
   SetButtonCaption(EditorButton, 'Editor');
   SetButtonCaption(UpdateButton, 'Update');
+  SetButtonCaption(OpenApacheLogButton, 'Apache Log');
+  SetButtonCaption(OpenMariaLogButton, 'MariaDB Log');
+  SetButtonCaption(ClearApacheLogButton, 'Clear Apache');
+  SetButtonCaption(ClearMariaLogButton, 'Clear MariaDB');
+  SetButtonCaption(ClearActivityLogButton, 'Clear activity');
+  SetButtonCaption(AddVHostButton, 'Add');
+  SetButtonCaption(EditVHostButton, 'Edit');
+  SetButtonCaption(OpenVHostButton, 'Open Selected');
+  SetButtonCaption(OpenVHostFolderButton, 'Open Folder');
+  SetButtonCaption(OpenVHostTerminalButton, 'Terminal');
+  SetButtonCaption(BackupProjectButton, 'Backup Project');
+  SetButtonCaption(RestoreProjectButton, 'Restore Project');
+  SetButtonCaption(CopyVHostUrlButton, 'Copy URL');
+  SetButtonCaption(DeleteVHostButton, 'Delete vHost');
+  SetButtonCaption(EditPhpIniButton, 'php.ini');
+  SetButtonCaption(EditHttpdConfButton, 'httpd.conf');
+  SetButtonCaption(EditMariaDbIniButton, 'mariadb.ini');
   BuildMenus;
   Menu := FMainMenu;
   if HandleAllocated then
@@ -2826,25 +2775,18 @@ end;
 
 destructor TMainForm.Destroy;
 var
-  PendingWork: Integer;
+  Deadline: UInt64;
 begin
   FIsShuttingDown := True;
+  if Assigned(FLifetimeToken) then
+    FLifetimeToken.Invalidate;
   SetStatusRefreshEnabled(False);
-  while True do
+  if Assigned(FBackgroundOpsDone) then
   begin
-    FBackgroundOpLock.Enter;
-    try
-      PendingWork := FActiveBackgroundOperations + FPendingUiUpdates;
-    finally
-      FBackgroundOpLock.Leave;
-    end;
-    if PendingWork = 0 then
-      Break;
-    CheckSynchronize(10);
-    Sleep(10);
+    Deadline := GetTickCount64 + 3000;
+    while (FBackgroundOpsDone.WaitFor(10) = wrTimeout) and (GetTickCount64 < Deadline) do
+      CheckSynchronize(10);
   end;
-  TThread.RemoveQueuedEvents(FUiUpdateQueueThread);
-  FUiUpdateQueueThread.Free;
   FBackgroundOpsDone.Free;
   FBackgroundOpLock.Free;
   FMainPhpProfileItems.Free;
@@ -2854,6 +2796,15 @@ begin
   FUpdateManifestDialog.Free;
   FProjectBackupManifestDialog.Free;
   FDatabaseBackupInfoDialog.Free;
+  // Clean up any temporary .ffs_gui dry-run files on exit
+  try
+    var FfsTempDir := TPath.Combine(FPaths.TmpDir, 'ffs');
+    if TDirectory.Exists(FfsTempDir) then
+      for var GuiFile in TDirectory.GetFiles(FfsTempDir, '*.ffs_gui') do
+        TFile.Delete(GuiFile);
+  except
+  end;
+  TServiceLocator.Instance.Clear;
   FRuntime.Free;
   FConfig.Free;
   inherited;
@@ -3045,32 +2996,19 @@ begin
 end;
 
 procedure TMainForm.QueueUiUpdate(const Action: TProc);
+var
+  Token: ILifetimeToken;
 begin
   if FIsShuttingDown or Application.Terminated or (csDestroying in ComponentState) or
-    not Assigned(FUiUpdateQueueThread) then
+    not Assigned(FLifetimeToken) or not FLifetimeToken.IsAlive then
     Exit;
-  FBackgroundOpLock.Enter;
-  try
-    Inc(FPendingUiUpdates);
-  finally
-    FBackgroundOpLock.Leave;
-  end;
-  TThread.Queue(FUiUpdateQueueThread, TThreadProcedure(
+  Token := FLifetimeToken;
+  TThread.Queue(nil, TThreadProcedure(
     procedure
     begin
-      try
-        if not (FIsShuttingDown or Application.Terminated or (csDestroying in ComponentState) or
-          not HandleAllocated) and Assigned(Action) then
-          Action();
-      finally
-        FBackgroundOpLock.Enter;
-        try
-          if FPendingUiUpdates > 0 then
-            Dec(FPendingUiUpdates);
-        finally
-          FBackgroundOpLock.Leave;
-        end;
-      end;
+      if Token.IsAlive and not (FIsShuttingDown or Application.Terminated or
+        (csDestroying in ComponentState) or not HandleAllocated) and Assigned(Action) then
+        Action();
     end));
 end;
 
@@ -3207,7 +3145,7 @@ begin
      (ApachePidBefore <> FConfig.ApachePid) or
      (MariaDbRunningBefore <> FConfig.MariaDbRunning) or
      (MariaDbPidBefore <> FConfig.MariaDbPid) then
-    FConfig.Save(FPaths);
+    FConfig.SaveRuntimeState(FPaths);
   finally
     SetStatusRefreshEnabled(True);
     FStatusRefreshBusy := False;
@@ -3222,69 +3160,84 @@ end;
 
 procedure TMainForm.UpdatePortConflictLabels;
 var
-  Port: Integer;
-  OwnerInfo: string;
-  CaptionText: string;
+  HttpPort: Integer;
+  HttpsPort: Integer;
+  DbPort: Integer;
 begin
   if not Assigned(FHttpPortOwnerLabel) or not Assigned(FHttpsPortOwnerLabel) or not Assigned(FDbPortOwnerLabel) then
     Exit;
+  if FPortCheckInFlight then
+    Exit;
 
-  Port := StrToIntDef(Trim(HttpPortEdit.Text), FConfig.HttpPort);
-  if (Port <> FLastHttpPortChecked) or (FHttpPortOwnerLabel.Caption = '') then
-  begin
-    OwnerInfo := DescribeTcpPortOwner(Port);
-    if OwnerInfo = '' then
-    begin
-      CaptionText := Format('HTTP %d: available', [Port]);
-      FHttpPortOwnerLabel.Font.Color := RGB(0, 128, 0);
-    end
-    else
-    begin
-      CaptionText := Format('HTTP %d: %s', [Port, OwnerInfo]);
-      FHttpPortOwnerLabel.Font.Color := clRed;
-    end;
-    FHttpPortOwnerLabel.Caption := CaptionText;
-    FHttpPortOwnerLabel.Hint := CaptionText;
-    FLastHttpPortChecked := Port;
-  end;
+  HttpPort := StrToIntDef(Trim(HttpPortEdit.Text), FConfig.HttpPort);
+  HttpsPort := StrToIntDef(Trim(HttpsPortEdit.Text), FConfig.HttpsPort);
+  DbPort := StrToIntDef(Trim(DbPortEdit.Text), FConfig.DatabasePort);
 
-  Port := StrToIntDef(Trim(HttpsPortEdit.Text), FConfig.HttpsPort);
-  if (Port <> FLastHttpsPortChecked) or (FHttpsPortOwnerLabel.Caption = '') then
-  begin
-    OwnerInfo := DescribeTcpPortOwner(Port);
-    if OwnerInfo = '' then
-    begin
-      CaptionText := Format('HTTPS %d: available', [Port]);
-      FHttpsPortOwnerLabel.Font.Color := RGB(0, 128, 0);
-    end
-    else
-    begin
-      CaptionText := Format('HTTPS %d: %s', [Port, OwnerInfo]);
-      FHttpsPortOwnerLabel.Font.Color := clRed;
-    end;
-    FHttpsPortOwnerLabel.Caption := CaptionText;
-    FHttpsPortOwnerLabel.Hint := CaptionText;
-    FLastHttpsPortChecked := Port;
-  end;
+  if (HttpPort = FLastHttpPortChecked) and (FHttpPortOwnerLabel.Caption <> '') and
+     (HttpsPort = FLastHttpsPortChecked) and (FHttpsPortOwnerLabel.Caption <> '') and
+     (DbPort = FLastDbPortChecked) and (FDbPortOwnerLabel.Caption <> '') then
+    Exit;
 
-  Port := StrToIntDef(Trim(DbPortEdit.Text), FConfig.DatabasePort);
-  if (Port <> FLastDbPortChecked) or (FDbPortOwnerLabel.Caption = '') then
-  begin
-    OwnerInfo := DescribeTcpPortOwner(Port);
-    if OwnerInfo = '' then
+  FPortCheckInFlight := True;
+  StartBackgroundThread(
+    procedure
+    var
+      HttpOwner: string;
+      HttpsOwner: string;
+      DbOwner: string;
     begin
-      CaptionText := Format('DB %d: available', [Port]);
-      FDbPortOwnerLabel.Font.Color := RGB(0, 128, 0);
-    end
-    else
-    begin
-      CaptionText := Format('DB %d: %s', [Port, OwnerInfo]);
-      FDbPortOwnerLabel.Font.Color := clRed;
-    end;
-    FDbPortOwnerLabel.Caption := CaptionText;
-    FDbPortOwnerLabel.Hint := CaptionText;
-    FLastDbPortChecked := Port;
-  end;
+      HttpOwner := DescribeTcpPortOwner(HttpPort);
+      HttpsOwner := DescribeTcpPortOwner(HttpsPort);
+      DbOwner := DescribeTcpPortOwner(DbPort);
+      QueueUiUpdate(
+        procedure
+        var
+          CaptionText: string;
+        begin
+          FPortCheckInFlight := False;
+          if HttpOwner = '' then
+          begin
+            CaptionText := Format('HTTP %d: available', [HttpPort]);
+            FHttpPortOwnerLabel.Font.Color := RGB(0, 128, 0);
+          end
+          else
+          begin
+            CaptionText := Format('HTTP %d: %s', [HttpPort, HttpOwner]);
+            FHttpPortOwnerLabel.Font.Color := clRed;
+          end;
+          FHttpPortOwnerLabel.Caption := CaptionText;
+          FHttpPortOwnerLabel.Hint := CaptionText;
+          FLastHttpPortChecked := HttpPort;
+
+          if HttpsOwner = '' then
+          begin
+            CaptionText := Format('HTTPS %d: available', [HttpsPort]);
+            FHttpsPortOwnerLabel.Font.Color := RGB(0, 128, 0);
+          end
+          else
+          begin
+            CaptionText := Format('HTTPS %d: %s', [HttpsPort, HttpsOwner]);
+            FHttpsPortOwnerLabel.Font.Color := clRed;
+          end;
+          FHttpsPortOwnerLabel.Caption := CaptionText;
+          FHttpsPortOwnerLabel.Hint := CaptionText;
+          FLastHttpsPortChecked := HttpsPort;
+
+          if DbOwner = '' then
+          begin
+            CaptionText := Format('DB %d: available', [DbPort]);
+            FDbPortOwnerLabel.Font.Color := RGB(0, 128, 0);
+          end
+          else
+          begin
+            CaptionText := Format('DB %d: %s', [DbPort, DbOwner]);
+            FDbPortOwnerLabel.Font.Color := clRed;
+          end;
+          FDbPortOwnerLabel.Caption := CaptionText;
+          FDbPortOwnerLabel.Hint := CaptionText;
+          FLastDbPortChecked := DbPort;
+        end);
+    end);
 end;
 
 procedure TMainForm.UpdateHeaderStateColors;
@@ -3942,10 +3895,9 @@ end;
 
 procedure TMainForm.PopulateVHostSyncMenu(const ServerName: string);
 var
-  SyncService: ISyncService;
   Profile: TSyncProfile;
-  CommandPreview: string;
-  PreviewResult: TRuntimeActionResult;
+  SafeName: string;
+  NameErr: string;
   function AddProfileItem(ParentItem: TMenuItem; const CaptionPrefix: string;
     const ProfileName: string; const UseDryRun: Boolean): TMenuItem;
   begin
@@ -3961,12 +3913,11 @@ begin
   FVHostSyncDownloadDryRunMenu.Clear;
   FVHostSyncDownloadMenu.Clear;
 
-  SyncService := TServiceLocator.Instance.GetService<ISyncService>;
   for Profile in FConfig.SyncProfiles do
   begin
-    PreviewResult := SyncService.BuildCommandPreviewForVHost(Profile.Name, ServerName,
-      Profile.DryRunByDefault, CommandPreview);
-    if not PreviewResult.Success then
+    if not ValidateProfileName(Profile.Name, SafeName, NameErr) then
+      Continue;
+    if (Trim(Profile.LocalPath) = '') and (Trim(ServerName) = '') then
       Continue;
 
     if SameText(Profile.Direction, 'upload') then
@@ -4931,9 +4882,20 @@ begin
 end;
 
 procedure TMainForm.OpenApacheModulesClick(Sender: TObject);
+var
+  UpdatedModules: TArray<string>;
+  RestartInfo: TRuntimeActionResult;
 begin
-  if TApacheModulesForm.Execute(Self, FPaths, FConfig, FRuntime) then
+  if TApacheModulesForm.Execute(Self, FPaths, FConfig.ApacheModules, UpdatedModules) then
   begin
+    FConfig.ReplaceApacheModules(UpdatedModules);
+    FConfig.Save(FPaths);
+    FRuntime.GenerateAllConfigs;
+    if FConfig.ApacheRunning then
+    begin
+      RestartInfo := FRuntime.RestartApache;
+      AppendStatus('Apache reload after module update: ' + RestartInfo.Message);
+    end;
     LoadStateIntoUi;
     RefreshStatus;
     AppendStatus('Apache modules saved.');
@@ -5845,6 +5807,8 @@ end;
 procedure TMainForm.FormCloseQuery(Sender: TObject; var CanClose: Boolean);
 begin
   FIsShuttingDown := True;
+  if Assigned(FLifetimeToken) then
+    FLifetimeToken.Invalidate;
   SetStatusRefreshEnabled(False);
   if not SaveUiIntoState then
   begin

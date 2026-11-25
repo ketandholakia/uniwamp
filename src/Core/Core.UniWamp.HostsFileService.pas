@@ -4,6 +4,7 @@ interface
 
 uses
   Winapi.Windows,
+  Winapi.ShellAPI,
   System.StrUtils,
   System.SysUtils,
   System.Classes,
@@ -46,7 +47,6 @@ begin
   Result := TPath.Combine(SystemRoot, 'System32\drivers\etc\hosts');
 end;
 
-
 const
   ManagedHostsBeginMarker = '# BEGIN UniWamp Managed Hosts';
   ManagedHostsEndMarker = '# END UniWamp Managed Hosts';
@@ -58,6 +58,50 @@ begin
   FConfig := Config;
 end;
 
+function TryElevatedHostsSync(const TempHostsFile: string; out ErrorMessage: string): Boolean;
+var
+  SEI: TShellExecuteInfo;
+  ExitCode: DWORD;
+  WaitRes: DWORD;
+begin
+  Result := False;
+  ErrorMessage := '';
+  ZeroMemory(@SEI, SizeOf(SEI));
+  SEI.cbSize := SizeOf(SEI);
+  SEI.fMask := SEE_MASK_NOCLOSEPROCESS;
+  SEI.lpVerb := 'runas';
+  SEI.lpFile := PChar(ParamStr(0));
+  SEI.lpParameters := PChar('--sync-hosts "' + TempHostsFile + '"');
+  SEI.nShow := SW_HIDE;
+  if not ShellExecuteEx(@SEI) then
+  begin
+    ErrorMessage := SysErrorMessage(GetLastError);
+    Exit;
+  end;
+  try
+    if SEI.hProcess = 0 then
+    begin
+      ErrorMessage := 'Elevated hosts sync did not return a process handle.';
+      Exit;
+    end;
+    WaitRes := WaitForSingleObject(SEI.hProcess, 30000);
+    if WaitRes <> WAIT_OBJECT_0 then
+    begin
+      ErrorMessage := 'Elevated hosts sync timed out.';
+      Exit;
+    end;
+    if not GetExitCodeProcess(SEI.hProcess, ExitCode) or (ExitCode <> 0) then
+    begin
+      ErrorMessage := Format('Elevated hosts sync failed with exit code %d.', [ExitCode]);
+      Exit;
+    end;
+    Result := True;
+  finally
+    if SEI.hProcess <> 0 then
+      CloseHandle(SEI.hProcess);
+  end;
+end;
+
 function THostsFileService.SyncHostsFile(out ErrorMessage: string): Boolean;
 var
   HostsPath: string;
@@ -66,6 +110,9 @@ var
   StartPos: Integer;
   EndPos: Integer;
   ManagedBlock: string;
+  TempHostsFile: string;
+  ElevError: string;
+  GuidVal: TGUID;
   function IsAccessDenied(const E: Exception): Boolean;
   begin
     Result := (E is EOSError) and (EOSError(E).ErrorCode = ERROR_ACCESS_DENIED);
@@ -106,6 +153,29 @@ begin
   except
     on E: Exception do
     begin
+      if IsAccessDenied(E) and (Trim(GetEnvironmentVariable('UNIWAMP_HOSTS_FILE')) = '') then
+      begin
+        CreateGUID(GuidVal);
+        TempHostsFile := TPath.Combine(FPaths.TmpDir,
+          'hosts-sync-' + GUIDToString(GuidVal).Replace('{', '').Replace('}', '') + '.tmp');
+        try
+          EnsureDirectory(FPaths.TmpDir);
+          AtomicWriteTextFile(TempHostsFile, HostsText, TEncoding.ASCII);
+          if TryElevatedHostsSync(TempHostsFile, ElevError) then
+          begin
+            FConfig.LastHostsSyncStatus := 'Hosts synced (elevated)';
+            Result := True;
+            Exit;
+          end;
+          FConfig.LastHostsSyncStatus := 'Hosts update requires Administrator';
+          ErrorMessage := 'Hosts file update failed: ' + ElevError;
+        finally
+          if FileExists(TempHostsFile) then
+            TFile.Delete(TempHostsFile);
+        end;
+        Exit;
+      end;
+
       if IsAccessDenied(E) then
         FConfig.LastHostsSyncStatus := 'Hosts update requires Administrator'
       else
@@ -130,6 +200,8 @@ begin
       if Trim(Entry.ServerName) <> '' then
       begin
         ManagedHostLine := '127.0.0.1 ' + Trim(Entry.ServerName);
+        if Trim(Entry.ServerAliases) <> '' then
+          ManagedHostLine := ManagedHostLine + ' ' + Trim(Entry.ServerAliases);
         if ManagedHosts.IndexOf(ManagedHostLine) < 0 then
           ManagedHosts.Add(ManagedHostLine);
       end;

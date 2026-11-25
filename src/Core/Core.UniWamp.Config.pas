@@ -4,6 +4,7 @@ interface
 
 uses
   System.Generics.Collections,
+  System.SyncObjs,
   System.SysUtils,
   Core.UniWamp.Paths;
 
@@ -80,6 +81,7 @@ type
 
   TUniWampConfig = class
   private
+    FLock: TMultiReadExclusiveWriteSynchronizer;
     FVHosts: TList<TVHostEntry>;
     FApacheModules: TList<string>;
     FPhpVersions: TList<string>;
@@ -116,8 +118,14 @@ type
     LastSyncDownloadProfile: string;
     constructor Create;
     destructor Destroy; override;
+    procedure BeginRead;
+    procedure EndRead;
+    procedure BeginWrite;
+    procedure EndWrite;
     function LoadOrCreate(const Paths: TAppPaths): Boolean;
     procedure Save(const Paths: TAppPaths);
+    procedure SaveRuntimeState(const Paths: TAppPaths);
+    procedure LoadRuntimeState(const Paths: TAppPaths);
     procedure SetDefaults(const Paths: TAppPaths);
     procedure ReplaceApacheModules(const Modules: TArray<string>);
     function ApacheModules: TArray<string>;
@@ -143,6 +151,8 @@ type
     procedure DeleteVHost(const ServerName: string);
   end;
 
+function MakePortableRelativePath(const FullPath, AppRoot: string): string;
+
 implementation
 
 uses
@@ -162,6 +172,23 @@ const
 function NormalizePortablePath(const PathValue: string): string;
 begin
   Result := StringReplace(PathValue, '/', '\', [rfReplaceAll]);
+end;
+
+function MakePortableRelativePath(const FullPath, AppRoot: string): string;
+var
+  NormFull: string;
+  NormRoot: string;
+begin
+  if Trim(FullPath) = '' then
+    Exit('');
+  NormFull := ExcludeTrailingPathDelimiter(ExpandFileName(NormalizePortablePath(FullPath)));
+  NormRoot := IncludeTrailingPathDelimiter(ExpandFileName(NormalizePortablePath(AppRoot)));
+  if SameText(NormFull, ExcludeTrailingPathDelimiter(NormRoot)) then
+    Exit('.');
+  if StartsText(NormRoot, NormFull) then
+    Result := Copy(NormFull, Length(NormRoot) + 1, MaxInt)
+  else
+    Result := NormFull;
 end;
 
 function ResolveConfiguredPath(const PathValue, AppRoot: string): string;
@@ -348,6 +375,7 @@ end;
 constructor TUniWampConfig.Create;
 begin
   inherited Create;
+  FLock := TMultiReadExclusiveWriteSynchronizer.Create;
   FVHosts := TList<TVHostEntry>.Create;
   FApacheModules := TList<string>.Create;
   FPhpVersions := TList<string>.Create;
@@ -368,7 +396,28 @@ begin
   FPhpVersions.Free;
   FApacheModules.Free;
   FVHosts.Free;
+  FLock.Free;
   inherited;
+end;
+
+procedure TUniWampConfig.BeginRead;
+begin
+  FLock.BeginRead;
+end;
+
+procedure TUniWampConfig.EndRead;
+begin
+  FLock.EndRead;
+end;
+
+procedure TUniWampConfig.BeginWrite;
+begin
+  FLock.BeginWrite;
+end;
+
+procedure TUniWampConfig.EndWrite;
+begin
+  FLock.EndWrite;
 end;
 
 procedure TUniWampConfig.SetDefaults(const Paths: TAppPaths);
@@ -488,6 +537,7 @@ var
   Obj: TJSONObject;
   OldAppRoot: string;
   LegacyRootFound: Boolean;
+  HadRelativePath: Boolean;
   Migrated: Boolean;
   MigratedCount: Integer;
   OriginalValue: string;
@@ -764,11 +814,11 @@ begin
       Migrated := True;
     end;
 
+    HadRelativePath := False;
     if (DocumentRoot <> '') and not TPath.IsPathRooted(DocumentRoot) then
     begin
       DocumentRoot := ResolveConfiguredPath(DocumentRoot, Paths.AppRoot);
-      Inc(MigratedCount);
-      Migrated := True;
+      HadRelativePath := True;
     end;
 
     for I := 0 to FVHosts.Count - 1 do
@@ -777,20 +827,17 @@ begin
       if (Entry.DocumentRoot <> '') and not TPath.IsPathRooted(Entry.DocumentRoot) then
       begin
         Entry.DocumentRoot := ResolveConfiguredPath(Entry.DocumentRoot, Paths.AppRoot);
-        Inc(MigratedCount);
-        Migrated := True;
+        HadRelativePath := True;
       end;
       if (Entry.SslCertFile <> '') and not TPath.IsPathRooted(Entry.SslCertFile) then
       begin
         Entry.SslCertFile := ResolveConfiguredPath(Entry.SslCertFile, Paths.AppRoot);
-        Inc(MigratedCount);
-        Migrated := True;
+        HadRelativePath := True;
       end;
       if (Entry.SslKeyFile <> '') and not TPath.IsPathRooted(Entry.SslKeyFile) then
       begin
         Entry.SslKeyFile := ResolveConfiguredPath(Entry.SslKeyFile, Paths.AppRoot);
-        Inc(MigratedCount);
-        Migrated := True;
+        HadRelativePath := True;
       end;
       FVHosts[I] := Entry;
     end;
@@ -801,30 +848,33 @@ begin
       if (SyncProfile.LocalPath <> '') and not TPath.IsPathRooted(SyncProfile.LocalPath) then
       begin
         SyncProfile.LocalPath := ResolveConfiguredPath(SyncProfile.LocalPath, Paths.AppRoot);
-        Inc(MigratedCount);
-        Migrated := True;
+        HadRelativePath := True;
       end;
       if (SyncProfile.WorkingDirectory <> '') and not TPath.IsPathRooted(SyncProfile.WorkingDirectory) then
       begin
         SyncProfile.WorkingDirectory := ResolveConfiguredPath(SyncProfile.WorkingDirectory, Paths.AppRoot);
-        Inc(MigratedCount);
-        Migrated := True;
+        HadRelativePath := True;
       end;
       FSyncProfiles[I] := NormalizeSyncProfile(SyncProfile);
     end;
 
-    OldAppRoot := '';
-    LegacyRootFound := False;
-    // Portability safety: infer the previous install root only from UniWamp's
-    // own canonical document-root shape (<root>\www). Never infer it from vhost,
-    // SSL or sync paths, because those may legitimately point at external
-    // projects whose folder names must not be treated as a prior UniWamp root.
-    // Preferring no migration over a possibly wrong migration keeps external
-    // paths untouched.
-    if TryExtractLegacyRoot(DocumentRoot, 'www', OldAppRoot) and
+    OldAppRoot := Trim(ReadStringOrDefault(Root, 'lastAppRoot', ''));
+    if (OldAppRoot = '') and HadRelativePath then
+    begin
+      Inc(MigratedCount);
+      Migrated := True;
+    end;
+    LegacyRootFound := (OldAppRoot <> '') and
       not SameText(ExcludeTrailingPathDelimiter(NormalizePortablePath(OldAppRoot)),
-        ExcludeTrailingPathDelimiter(NormalizePortablePath(Paths.AppRoot))) then
-      LegacyRootFound := True;
+        ExcludeTrailingPathDelimiter(NormalizePortablePath(Paths.AppRoot)));
+    if not LegacyRootFound then
+    begin
+      OldAppRoot := '';
+      if TryExtractLegacyRoot(DocumentRoot, 'www', OldAppRoot) and
+        not SameText(ExcludeTrailingPathDelimiter(NormalizePortablePath(OldAppRoot)),
+          ExcludeTrailingPathDelimiter(NormalizePortablePath(Paths.AppRoot))) then
+        LegacyRootFound := True;
+    end;
 
     if LegacyRootFound and (OldAppRoot <> '') and
       not SameText(ExcludeTrailingPathDelimiter(NormalizePortablePath(OldAppRoot)),
@@ -933,8 +983,64 @@ begin
       MariaDbRootPassword := LoadMariaDbRootPassword(Paths);
     if (MariaDbRootPassword = '') and HasSecretInstallMismatch(Paths) and (LastMigrationMessage = '') then
       LastMigrationMessage := SecretPortabilityHint;
+    LoadRuntimeState(Paths);
     Result := Migrated;
   finally
+    Root.Free;
+  end;
+end;
+
+procedure TUniWampConfig.SaveRuntimeState(const Paths: TAppPaths);
+var
+  Root: TJSONObject;
+  StateFile: string;
+begin
+  StateFile := TPath.Combine(Paths.TmpDir, 'runtime-state.json');
+  Root := TJSONObject.Create;
+  BeginRead;
+  try
+    Root.AddPair('apachePid', TJSONNumber.Create(ApachePid));
+    Root.AddPair('mariaDbPid', TJSONNumber.Create(MariaDbPid));
+    Root.AddPair('apacheRunning', TJSONBool.Create(ApacheRunning));
+    Root.AddPair('mariaDbRunning', TJSONBool.Create(MariaDbRunning));
+    Root.AddPair('lastApacheError', LastApacheError);
+    Root.AddPair('lastMariaDbError', LastMariaDbError);
+    Root.AddPair('lastHostsSyncStatus', LastHostsSyncStatus);
+    AtomicWriteTextFile(StateFile, Root.Format(2), TEncoding.UTF8);
+  finally
+    EndRead;
+    Root.Free;
+  end;
+end;
+
+procedure TUniWampConfig.LoadRuntimeState(const Paths: TAppPaths);
+var
+  StateFile: string;
+  JsonText: string;
+  Root: TJSONObject;
+begin
+  StateFile := TPath.Combine(Paths.TmpDir, 'runtime-state.json');
+  if not FileExists(StateFile) then
+    Exit;
+  try
+    JsonText := TFile.ReadAllText(StateFile, TEncoding.UTF8);
+    Root := TJSONObject.ParseJSONValue(JsonText) as TJSONObject;
+  except
+    Exit;
+  end;
+  if not Assigned(Root) then
+    Exit;
+  BeginWrite;
+  try
+    ApachePid := ReadIntegerOrDefault(Root, 'apachePid', ApachePid);
+    MariaDbPid := ReadIntegerOrDefault(Root, 'mariaDbPid', MariaDbPid);
+    ApacheRunning := ReadBooleanOrDefault(Root, 'apacheRunning', ApacheRunning);
+    MariaDbRunning := ReadBooleanOrDefault(Root, 'mariaDbRunning', MariaDbRunning);
+    LastApacheError := ReadStringOrDefault(Root, 'lastApacheError', LastApacheError);
+    LastMariaDbError := ReadStringOrDefault(Root, 'lastMariaDbError', LastMariaDbError);
+    LastHostsSyncStatus := ReadStringOrDefault(Root, 'lastHostsSyncStatus', LastHostsSyncStatus);
+  finally
+    EndWrite;
     Root.Free;
   end;
 end;
@@ -959,29 +1065,24 @@ var
   BackupFile: string;
 begin
   Root := TJSONObject.Create;
+  BeginRead;
   try
     Root.AddPair('httpPort', TJSONNumber.Create(HttpPort));
     Root.AddPair('httpsPort', TJSONNumber.Create(HttpsPort));
     Root.AddPair('databasePort', TJSONNumber.Create(DatabasePort));
     Root.AddPair('hostName', HostName);
     Root.AddPair('configVersion', TJSONNumber.Create(CurrentConfigVersion));
-    Root.AddPair('documentRoot', DocumentRoot);
+    Root.AddPair('lastAppRoot', Paths.AppRoot);
+    Root.AddPair('documentRoot', MakePortableRelativePath(DocumentRoot, Paths.AppRoot));
     Root.AddPair('selectedPhpVersion', SelectedPhpVersion);
     Root.AddPair('selectedNodeVersion', SelectedNodeVersion);
-    Root.AddPair('terminalExePath', TerminalExePath);
+    Root.AddPair('terminalExePath', MakePortableRelativePath(TerminalExePath, Paths.AppRoot));
     Root.AddPair('phpProfile', PhpProfile);
     Root.AddPair('themeStyleName', ThemeStyleName);
     Root.AddPair('enableSsl', TJSONBool.Create(EnableSsl));
     Root.AddPair('startAllOnLaunch', TJSONBool.Create(StartAllOnLaunch));
     Root.AddPair('openDashboardAfterStart', TJSONBool.Create(OpenDashboardAfterStart));
     Root.AddPair('confirmVHostDelete', TJSONBool.Create(ConfirmVHostDelete));
-    Root.AddPair('apachePid', TJSONNumber.Create(ApachePid));
-    Root.AddPair('mariaDbPid', TJSONNumber.Create(MariaDbPid));
-    Root.AddPair('apacheRunning', TJSONBool.Create(ApacheRunning));
-    Root.AddPair('mariaDbRunning', TJSONBool.Create(MariaDbRunning));
-    Root.AddPair('lastApacheError', LastApacheError);
-    Root.AddPair('lastMariaDbError', LastMariaDbError);
-    Root.AddPair('lastHostsSyncStatus', LastHostsSyncStatus);
     Root.AddPair('lastSyncUploadProfile', LastSyncUploadProfile);
     Root.AddPair('lastSyncDownloadProfile', LastSyncDownloadProfile);
 
@@ -1011,17 +1112,17 @@ begin
       Obj := TJSONObject.Create;
       Obj.AddPair('serverName', Entry.ServerName);
       Obj.AddPair('serverAliases', Entry.ServerAliases);
-      Obj.AddPair('documentRoot', Entry.DocumentRoot);
+      Obj.AddPair('documentRoot', MakePortableRelativePath(Entry.DocumentRoot, Paths.AppRoot));
       Obj.AddPair('enableSsl', TJSONBool.Create(Entry.EnableSsl));
-      Obj.AddPair('sslCertFile', Entry.SslCertFile);
-      Obj.AddPair('sslKeyFile', Entry.SslKeyFile);
+      Obj.AddPair('sslCertFile', MakePortableRelativePath(Entry.SslCertFile, Paths.AppRoot));
+      Obj.AddPair('sslKeyFile', MakePortableRelativePath(Entry.SslKeyFile, Paths.AppRoot));
       Obj.AddPair('pinnedSyncUploadProfile', Entry.PinnedSyncUploadProfile);
       Obj.AddPair('pinnedSyncDownloadProfile', Entry.PinnedSyncDownloadProfile);
       Obj.AddPair('syncProtocol', Entry.SyncProtocol);
       Obj.AddPair('syncHost', Entry.SyncHost);
       Obj.AddPair('syncPort', TJSONNumber.Create(Entry.SyncPort));
       Obj.AddPair('syncUsername', Entry.SyncUsername);
-      Obj.AddPair('syncPrivateKeyFile', Entry.SyncPrivateKeyFile);
+      Obj.AddPair('syncPrivateKeyFile', MakePortableRelativePath(Entry.SyncPrivateKeyFile, Paths.AppRoot));
       Obj.AddPair('syncRemotePath', Entry.SyncRemotePath);
       Obj.AddPair('syncDirection', Entry.SyncDirection);
       Obj.AddPair('syncDeleteEnabled', TJSONBool.Create(Entry.SyncDeleteEnabled));
@@ -1045,7 +1146,7 @@ begin
       Obj.AddPair('host', SyncProfile.Host);
       Obj.AddPair('port', TJSONNumber.Create(SyncProfile.Port));
       Obj.AddPair('username', SyncProfile.Username);
-      Obj.AddPair('privateKeyFile', SyncProfile.PrivateKeyFile);
+      Obj.AddPair('privateKeyFile', MakePortableRelativePath(SyncProfile.PrivateKeyFile, Paths.AppRoot));
       Obj.AddPair('sshHostKeyFingerprint', SyncProfile.SshHostKeyFingerprint);
       Obj.AddPair('tlsCertificateFingerprint', SyncProfile.TlsCertificateFingerprint);
       Obj.AddPair('passiveMode', TJSONBool.Create(SyncProfile.PassiveMode));
@@ -1054,8 +1155,8 @@ begin
       Obj.AddPair('preSyncCommand', SyncProfile.PreSyncCommand);
       Obj.AddPair('postSyncCommand', SyncProfile.PostSyncCommand);
       Obj.AddPair('remotePath', SyncProfile.RemotePath);
-      Obj.AddPair('localPath', SyncProfile.LocalPath);
-      Obj.AddPair('workingDirectory', SyncProfile.WorkingDirectory);
+      Obj.AddPair('localPath', MakePortableRelativePath(SyncProfile.LocalPath, Paths.AppRoot));
+      Obj.AddPair('workingDirectory', MakePortableRelativePath(SyncProfile.WorkingDirectory, Paths.AppRoot));
       Obj.AddPair('deleteEnabled', TJSONBool.Create(SyncProfile.DeleteEnabled));
       Obj.AddPair('dryRunByDefault', TJSONBool.Create(SyncProfile.DryRunByDefault));
       Obj.AddPair('syncTool', SyncProfile.SyncTool);
@@ -1077,7 +1178,7 @@ begin
       Obj.AddPair('host', ConnectionProfile.Host);
       Obj.AddPair('port', TJSONNumber.Create(ConnectionProfile.Port));
       Obj.AddPair('username', ConnectionProfile.Username);
-      Obj.AddPair('privateKeyFile', ConnectionProfile.PrivateKeyFile);
+      Obj.AddPair('privateKeyFile', MakePortableRelativePath(ConnectionProfile.PrivateKeyFile, Paths.AppRoot));
       Obj.AddPair('sshHostKeyFingerprint', ConnectionProfile.SshHostKeyFingerprint);
       Obj.AddPair('tlsCertificateFingerprint', ConnectionProfile.TlsCertificateFingerprint);
       Obj.AddPair('passiveMode', TJSONBool.Create(ConnectionProfile.PassiveMode));
@@ -1090,6 +1191,7 @@ begin
     BackupFile := Paths.AppConfigFile + '.bak';
     AtomicWriteTextFile(Paths.AppConfigFile, JsonText, TEncoding.UTF8, BackupFile);
   finally
+    EndRead;
     Root.Free;
   end;
 end;
@@ -1098,74 +1200,129 @@ procedure TUniWampConfig.ReplacePhpVersions(const Versions: TArray<string>);
 var
   Item: string;
 begin
-  FPhpVersions.Clear;
-  for Item in Versions do
-    if (Trim(Item) <> '') and (FPhpVersions.IndexOf(Item) < 0) then
-      FPhpVersions.Add(Item);
+  BeginWrite;
+  try
+    FPhpVersions.Clear;
+    for Item in Versions do
+      if (Trim(Item) <> '') and (FPhpVersions.IndexOf(Item) < 0) then
+        FPhpVersions.Add(Item);
+  finally
+    EndWrite;
+  end;
 end;
 
 procedure TUniWampConfig.ReplaceApacheModules(const Modules: TArray<string>);
 var
   Item: string;
 begin
-  FApacheModules.Clear;
-  for Item in Modules do
-    if (Trim(Item) <> '') and (FApacheModules.IndexOf(Item) < 0) then
-      FApacheModules.Add(Item);
+  BeginWrite;
+  try
+    FApacheModules.Clear;
+    for Item in Modules do
+      if (Trim(Item) <> '') and (FApacheModules.IndexOf(Item) < 0) then
+        FApacheModules.Add(Item);
+  finally
+    EndWrite;
+  end;
 end;
 
 function TUniWampConfig.ApacheModules: TArray<string>;
 begin
-  Result := FApacheModules.ToArray;
+  BeginRead;
+  try
+    Result := FApacheModules.ToArray;
+  finally
+    EndRead;
+  end;
 end;
 
 function TUniWampConfig.PhpVersions: TArray<string>;
 begin
-  Result := FPhpVersions.ToArray;
+  BeginRead;
+  try
+    Result := FPhpVersions.ToArray;
+  finally
+    EndRead;
+  end;
 end;
 
 procedure TUniWampConfig.ReplacePhpExtensions(const Extensions: TArray<string>);
 var
   Item: string;
 begin
-  FPhpExtensions.Clear;
-  for Item in Extensions do
-    if (Trim(Item) <> '') and (FPhpExtensions.IndexOf(Item) < 0) then
-      FPhpExtensions.Add(Item);
+  BeginWrite;
+  try
+    FPhpExtensions.Clear;
+    for Item in Extensions do
+      if (Trim(Item) <> '') and (FPhpExtensions.IndexOf(Item) < 0) then
+        FPhpExtensions.Add(Item);
+  finally
+    EndWrite;
+  end;
 end;
 
 function TUniWampConfig.PhpExtensions: TArray<string>;
 begin
-  Result := FPhpExtensions.ToArray;
+  BeginRead;
+  try
+    Result := FPhpExtensions.ToArray;
+  finally
+    EndRead;
+  end;
 end;
 
 function TUniWampConfig.PhpSettingValue(const Name, DefaultValue: string): string;
 begin
-  if not FPhpSettings.TryGetValue(Name, Result) then
-    Result := DefaultValue;
+  BeginRead;
+  try
+    if not FPhpSettings.TryGetValue(Name, Result) then
+      Result := DefaultValue;
+  finally
+    EndRead;
+  end;
 end;
 
 procedure TUniWampConfig.SetPhpSettingValue(const Name, Value: string);
 begin
   if Trim(Name) = '' then
     Exit;
-  FPhpSettings.AddOrSetValue(Name, Value);
+  BeginWrite;
+  try
+    FPhpSettings.AddOrSetValue(Name, Value);
+  finally
+    EndWrite;
+  end;
 end;
 
 procedure TUniWampConfig.ReplaceNodeVersions(const Versions: TArray<string>);
 begin
-  FNodeVersions.Clear;
-  FNodeVersions.AddRange(Versions);
+  BeginWrite;
+  try
+    FNodeVersions.Clear;
+    FNodeVersions.AddRange(Versions);
+  finally
+    EndWrite;
+  end;
 end;
 
 function TUniWampConfig.NodeVersions: TArray<string>;
 begin
-  Result := FNodeVersions.ToArray;
+  BeginRead;
+  try
+    Result := FNodeVersions.ToArray;
+  finally
+    EndRead;
+  end;
 end;
 
 function TUniWampConfig.ConnectionProfiles: TArray<TConnectionProfile>;
 begin
-  Result := FConnectionProfiles.ToArray;
+  BeginRead;
+  try
+    Result := FConnectionProfiles.ToArray;
+  finally
+    EndRead;
+  end;
 end;
 
 procedure TUniWampConfig.ReplaceConnectionProfiles(const Items: TArray<TConnectionProfile>);
@@ -1173,12 +1330,17 @@ var
   Item: TConnectionProfile;
   Profile: TConnectionProfile;
 begin
-  FConnectionProfiles.Clear;
-  for Item in Items do
-  begin
-    Profile := NormalizeConnectionProfile(Item);
-    if Profile.Name <> '' then
-      FConnectionProfiles.Add(Profile);
+  BeginWrite;
+  try
+    FConnectionProfiles.Clear;
+    for Item in Items do
+    begin
+      Profile := NormalizeConnectionProfile(Item);
+      if Profile.Name <> '' then
+        FConnectionProfiles.Add(Profile);
+    end;
+  finally
+    EndWrite;
   end;
 end;
 
@@ -1190,27 +1352,42 @@ begin
   Profile := NormalizeConnectionProfile(Item);
   if Profile.Name = '' then
     Exit;
-  for I := 0 to FConnectionProfiles.Count - 1 do
-    if SameText(FConnectionProfiles[I].Name, Profile.Name) then
-    begin
-      FConnectionProfiles[I] := Profile;
-      Exit;
-    end;
-  FConnectionProfiles.Add(Profile);
+  BeginWrite;
+  try
+    for I := 0 to FConnectionProfiles.Count - 1 do
+      if SameText(FConnectionProfiles[I].Name, Profile.Name) then
+      begin
+        FConnectionProfiles[I] := Profile;
+        Exit;
+      end;
+    FConnectionProfiles.Add(Profile);
+  finally
+    EndWrite;
+  end;
 end;
 
 procedure TUniWampConfig.DeleteConnectionProfile(const Name: string);
 var
   I: Integer;
 begin
-  for I := FConnectionProfiles.Count - 1 downto 0 do
-    if SameText(FConnectionProfiles[I].Name, Name) then
-      FConnectionProfiles.Delete(I);
+  BeginWrite;
+  try
+    for I := FConnectionProfiles.Count - 1 downto 0 do
+      if SameText(FConnectionProfiles[I].Name, Name) then
+        FConnectionProfiles.Delete(I);
+  finally
+    EndWrite;
+  end;
 end;
 
 function TUniWampConfig.SyncProfiles: TArray<TSyncProfile>;
 begin
-  Result := FSyncProfiles.ToArray;
+  BeginRead;
+  try
+    Result := FSyncProfiles.ToArray;
+  finally
+    EndRead;
+  end;
 end;
 
 procedure TUniWampConfig.ReplaceSyncProfiles(const Items: TArray<TSyncProfile>);
@@ -1218,12 +1395,17 @@ var
   I: Integer;
   Profile: TSyncProfile;
 begin
-  FSyncProfiles.Clear;
-  for I := Low(Items) to High(Items) do
-  begin
-    Profile := NormalizeSyncProfile(Items[I]);
-    if Profile.Name <> '' then
-      FSyncProfiles.Add(Profile);
+  BeginWrite;
+  try
+    FSyncProfiles.Clear;
+    for I := Low(Items) to High(Items) do
+    begin
+      Profile := NormalizeSyncProfile(Items[I]);
+      if Profile.Name <> '' then
+        FSyncProfiles.Add(Profile);
+    end;
+  finally
+    EndWrite;
   end;
 end;
 
@@ -1235,58 +1417,88 @@ begin
   Profile := NormalizeSyncProfile(Item);
   if Profile.Name = '' then
     Exit;
-  for I := 0 to FSyncProfiles.Count - 1 do
-    if SameText(FSyncProfiles[I].Name, Profile.Name) then
-    begin
-      FSyncProfiles[I] := Profile;
-      Exit;
-    end;
-  FSyncProfiles.Add(Profile);
+  BeginWrite;
+  try
+    for I := 0 to FSyncProfiles.Count - 1 do
+      if SameText(FSyncProfiles[I].Name, Profile.Name) then
+      begin
+        FSyncProfiles[I] := Profile;
+        Exit;
+      end;
+    FSyncProfiles.Add(Profile);
+  finally
+    EndWrite;
+  end;
 end;
 
 procedure TUniWampConfig.DeleteSyncProfile(const Name: string);
 var
   I: Integer;
 begin
-  for I := FSyncProfiles.Count - 1 downto 0 do
-    if SameText(FSyncProfiles[I].Name, Name) then
-      FSyncProfiles.Delete(I);
+  BeginWrite;
+  try
+    for I := FSyncProfiles.Count - 1 downto 0 do
+      if SameText(FSyncProfiles[I].Name, Name) then
+        FSyncProfiles.Delete(I);
+  finally
+    EndWrite;
+  end;
 end;
 
 function TUniWampConfig.VHosts: TArray<TVHostEntry>;
 begin
-  Result := FVHosts.ToArray;
+  BeginRead;
+  try
+    Result := FVHosts.ToArray;
+  finally
+    EndRead;
+  end;
 end;
 
 procedure TUniWampConfig.ReplaceVHosts(const Items: TArray<TVHostEntry>);
 var
   Entry: TVHostEntry;
 begin
-  FVHosts.Clear;
-  for Entry in Items do
-    FVHosts.Add(Entry);
+  BeginWrite;
+  try
+    FVHosts.Clear;
+    for Entry in Items do
+      FVHosts.Add(Entry);
+  finally
+    EndWrite;
+  end;
 end;
 
 procedure TUniWampConfig.AddOrUpdateVHost(const Item: TVHostEntry);
 var
   I: Integer;
 begin
-  for I := 0 to FVHosts.Count - 1 do
-    if SameText(FVHosts[I].ServerName, Item.ServerName) then
-    begin
-      FVHosts[I] := Item;
-      Exit;
-    end;
-  FVHosts.Add(Item);
+  BeginWrite;
+  try
+    for I := 0 to FVHosts.Count - 1 do
+      if SameText(FVHosts[I].ServerName, Item.ServerName) then
+      begin
+        FVHosts[I] := Item;
+        Exit;
+      end;
+    FVHosts.Add(Item);
+  finally
+    EndWrite;
+  end;
 end;
 
 procedure TUniWampConfig.DeleteVHost(const ServerName: string);
 var
   I: Integer;
 begin
-  for I := FVHosts.Count - 1 downto 0 do
-    if SameText(FVHosts[I].ServerName, ServerName) then
-      FVHosts.Delete(I);
+  BeginWrite;
+  try
+    for I := FVHosts.Count - 1 downto 0 do
+      if SameText(FVHosts[I].ServerName, ServerName) then
+        FVHosts.Delete(I);
+  finally
+    EndWrite;
+  end;
 end;
 
 end.

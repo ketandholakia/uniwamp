@@ -127,6 +127,7 @@ uses
   Core.UniWamp.HostsFileService,
   Core.UniWamp.PackageManager,
   Core.UniWamp.Secrets,
+  Core.UniWamp.AtomicFile,
   Core.UniWamp.Diagnostics;
 
 
@@ -1287,7 +1288,9 @@ begin
     EnsureDirectory(ProfileDir);
     TargetCmd := TPath.Combine(ProfileDir, 'uniwamp_env.cmd');
     ProfileText := TFile.ReadAllText(FPaths.EnvBatFile, TEncoding.UTF8);
-    TFile.WriteAllText(TargetCmd, ProfileText, TEncoding.ASCII);
+    if not StartsText('@chcp ', TrimLeft(ProfileText)) then
+      ProfileText := '@chcp 65001 >nul' + sLineBreak + ProfileText;
+    TFile.WriteAllText(TargetCmd, ProfileText, UTF8NoBom);
 
     Result.Success := ShellExecuteInWorkingDir(TerminalExe, '/START ' + QuoteForCmd(WorkingDir), '');
     if Result.Success then

@@ -329,7 +329,9 @@ begin
   StartResult := TProcessManager.StartDetached(
     MariaDbExe,
     '--defaults-file="' + FPaths.MariaDbIniFile + '" --console',
-    FPaths.MariaDbBinDir);
+    FPaths.MariaDbBinDir,
+    '',
+    True);
 
   Result.Success := StartResult.Success;
   if StartResult.Success then
@@ -344,6 +346,7 @@ begin
     end
     else
     begin
+      TProcessManager.StopProcess(StartResult.ProcessId, 2000);
       FailMariaDbStart(ErrorMessage);
       Result.Success := False;
       Result.Message := ErrorMessage;
@@ -399,7 +402,10 @@ begin
     end;
   end;
 
-  Result.Success := TServiceProcessSupervisor.StopOwnedProcess(State);
+  if TProcessManager.WaitForExit(State.ProcessId, 8000) then
+    Result.Success := True
+  else
+    Result.Success := TServiceProcessSupervisor.StopOwnedProcess(State);
   if not TProcessManager.IsRunning(State.ProcessId) then
     ClearMariaDbState;
   if Result.Success then

@@ -34,6 +34,13 @@ type
 
 implementation
 
+function SanitizeConfigValue(const Value: string): string;
+begin
+  Result := StringReplace(Value, #13, '', [rfReplaceAll]);
+  Result := StringReplace(Result, #10, '', [rfReplaceAll]);
+  Result := Trim(Result);
+end;
+
 constructor TConfigurationGenerator.Create(const Paths: TAppPaths; Config: TUniWampConfig);
 begin
   inherited Create;
@@ -52,13 +59,13 @@ begin
   try
     for ModuleFileName in FConfig.ApacheModules do
     begin
-      ModulePath := TPath.Combine(ApacheModuleDir, ModuleFileName);
+      ModulePath := TPath.Combine(ApacheModuleDir, SanitizeConfigValue(ModuleFileName));
       if not FileExists(ModulePath) then
         Continue;
       ModuleSymbol := TPath.GetFileNameWithoutExtension(ModuleFileName);
       if StartsText('mod_', ModuleSymbol) then
         Delete(ModuleSymbol, 1, 4);
-      Lines.Add('LoadModule ' + ModuleSymbol + '_module "' + ModulePath + '"');
+      Lines.Add('LoadModule ' + SanitizeConfigValue(ModuleSymbol) + '_module "' + SanitizeConfigValue(ModulePath) + '"');
     end;
     Result := TrimRight(Lines.Text);
   finally
@@ -79,7 +86,7 @@ begin
     ExtensionDir := TPath.Combine(SelectedPhpDir, 'ext');
     for Item in FConfig.PhpExtensions do
     begin
-      ExtensionName := Trim(Item);
+      ExtensionName := SanitizeConfigValue(Item);
       if ExtensionName = '' then
         Continue;
 
@@ -87,7 +94,9 @@ begin
       if not FileExists(ExtensionPath) then
         Continue;
 
-      if SameText(ExtensionName, 'php_opcache.dll') then
+      if SameText(ExtensionName, 'php_opcache.dll') or
+         SameText(ExtensionName, 'php_xdebug.dll') or
+         SameText(ExtensionName, 'xdebug.dll') then
         Block.Add('zend_extension=' + ExtensionName)
       else
         Block.Add('extension=' + ExtensionName);
@@ -153,6 +162,11 @@ begin
         if Trim(NormalizedAliases) <> '' then
           Block.Add('  ServerAlias ' + NormalizedAliases);
         Block.Add('  DocumentRoot "' + NormalizedDocumentRoot + '"');
+        Block.Add('  <Directory "' + NormalizedDocumentRoot + '">');
+        Block.Add('    AllowOverride All');
+        Block.Add('    DirectoryIndex index.php index.html');
+        Block.Add('    Require all granted');
+        Block.Add('  </Directory>');
         Block.Add('  SSLEngine on');
         if (Entry.SslCertFile <> '') and FileExists(Entry.SslCertFile) then
           Block.Add('  SSLCertificateFile "' + Entry.SslCertFile + '"')
@@ -185,19 +199,19 @@ begin
 
   Values := TDictionary<string, string>.Create;
   try
-    Values.Add('APACHE_DIR', FPaths.ApacheDir);
+    Values.Add('APACHE_DIR', SanitizeConfigValue(FPaths.ApacheDir));
     Values.Add('HTTP_PORT', FConfig.HttpPort.ToString);
-    Values.Add('HOST_NAME', FConfig.HostName);
-    Values.Add('DOCUMENT_ROOT', FConfig.DocumentRoot);
-    Values.Add('DASHBOARD_DIR', FPaths.DashboardDir);
-    Values.Add('ADMINER_DIR', FPaths.AdminerDir);
+    Values.Add('HOST_NAME', SanitizeConfigValue(FConfig.HostName));
+    Values.Add('DOCUMENT_ROOT', SanitizeConfigValue(FConfig.DocumentRoot));
+    Values.Add('DASHBOARD_DIR', SanitizeConfigValue(FPaths.DashboardDir));
+    Values.Add('ADMINER_DIR', SanitizeConfigValue(FPaths.AdminerDir));
     Values.Add('APACHE_MODULE_LINES', RenderApacheModuleLines(ApacheModuleDir));
-    Values.Add('PHP_MODULE', PhpModule);
-    Values.Add('PHP_MODULE_NAME', PhpModuleName);
-    Values.Add('GENERATED_DIR', FPaths.GeneratedConfigDir);
-    Values.Add('LOGS_DIR', FPaths.LogsDir);
+    Values.Add('PHP_MODULE', SanitizeConfigValue(PhpModule));
+    Values.Add('PHP_MODULE_NAME', SanitizeConfigValue(PhpModuleName));
+    Values.Add('GENERATED_DIR', SanitizeConfigValue(FPaths.GeneratedConfigDir));
+    Values.Add('LOGS_DIR', SanitizeConfigValue(FPaths.LogsDir));
     if FConfig.EnableSsl then
-      Values.Add('SSL_INCLUDE', 'IncludeOptional "' + FPaths.ApacheSslConfFile + '"')
+      Values.Add('SSL_INCLUDE', 'IncludeOptional "' + SanitizeConfigValue(FPaths.ApacheSslConfFile) + '"')
     else
       Values.Add('SSL_INCLUDE', '');
     TTemplateRenderer.RenderToFile(FPaths.ApacheTemplateFile, FPaths.ApacheHttpdConfFile, Values);
@@ -206,11 +220,11 @@ begin
     begin
       Values.Clear;
       Values.Add('HTTPS_PORT', FConfig.HttpsPort.ToString);
-      Values.Add('DOCUMENT_ROOT', FConfig.DocumentRoot);
-      Values.Add('HOST_NAME', FConfig.HostName);
-      Values.Add('SSL_CERT_FILE', TPath.Combine(FPaths.SslDir, 'server.crt'));
-      Values.Add('SSL_KEY_FILE', TPath.Combine(FPaths.SslDir, 'server.key'));
-      Values.Add('LOGS_DIR', FPaths.LogsDir);
+      Values.Add('DOCUMENT_ROOT', SanitizeConfigValue(FConfig.DocumentRoot));
+      Values.Add('HOST_NAME', SanitizeConfigValue(FConfig.HostName));
+      Values.Add('SSL_CERT_FILE', SanitizeConfigValue(TPath.Combine(FPaths.SslDir, 'server.crt')));
+      Values.Add('SSL_KEY_FILE', SanitizeConfigValue(TPath.Combine(FPaths.SslDir, 'server.key')));
+      Values.Add('LOGS_DIR', SanitizeConfigValue(FPaths.LogsDir));
       TTemplateRenderer.RenderToFile(FPaths.ApacheSslTemplateFile, FPaths.ApacheSslConfFile, Values);
     end;
   finally
@@ -253,26 +267,27 @@ var
   Values: TDictionary<string, string>;
   DefaultDisplayErrors: string;
 begin
+  EnsureDirectory(TPath.Combine(FPaths.TmpDir, 'sessions'));
   Values := TDictionary<string, string>.Create;
   try
     if SameText(FConfig.PhpProfile, 'production') then
       DefaultDisplayErrors := 'Off'
     else
       DefaultDisplayErrors := 'On';
-    Values.Add('DISPLAY_ERRORS', FConfig.PhpSettingValue('display_errors', DefaultDisplayErrors));
-    Values.Add('ERROR_REPORTING', FConfig.PhpSettingValue('error_reporting', 'E_ALL'));
-    Values.Add('LOG_ERRORS', FConfig.PhpSettingValue('log_errors', 'On'));
-    Values.Add('SHORT_OPEN_TAG', FConfig.PhpSettingValue('short_open_tag', 'Off'));
-    Values.Add('EXPOSE_PHP', FConfig.PhpSettingValue('expose_php', 'Off'));
-    Values.Add('MEMORY_LIMIT', FConfig.PhpSettingValue('memory_limit', '256M'));
-    Values.Add('UPLOAD_MAX_FILESIZE', FConfig.PhpSettingValue('upload_max_filesize', '32M'));
-    Values.Add('POST_MAX_SIZE', FConfig.PhpSettingValue('post_max_size', '32M'));
-    Values.Add('MAX_EXECUTION_TIME', FConfig.PhpSettingValue('max_execution_time', '120'));
-    Values.Add('MAX_INPUT_VARS', FConfig.PhpSettingValue('max_input_vars', '3000'));
-    Values.Add('PHP_EXT_DIR', TPath.Combine(SelectedPhpDir, 'ext'));
+    Values.Add('DISPLAY_ERRORS', SanitizeConfigValue(FConfig.PhpSettingValue('display_errors', DefaultDisplayErrors)));
+    Values.Add('ERROR_REPORTING', SanitizeConfigValue(FConfig.PhpSettingValue('error_reporting', 'E_ALL')));
+    Values.Add('LOG_ERRORS', SanitizeConfigValue(FConfig.PhpSettingValue('log_errors', 'On')));
+    Values.Add('SHORT_OPEN_TAG', SanitizeConfigValue(FConfig.PhpSettingValue('short_open_tag', 'Off')));
+    Values.Add('EXPOSE_PHP', SanitizeConfigValue(FConfig.PhpSettingValue('expose_php', 'Off')));
+    Values.Add('MEMORY_LIMIT', SanitizeConfigValue(FConfig.PhpSettingValue('memory_limit', '256M')));
+    Values.Add('UPLOAD_MAX_FILESIZE', SanitizeConfigValue(FConfig.PhpSettingValue('upload_max_filesize', '32M')));
+    Values.Add('POST_MAX_SIZE', SanitizeConfigValue(FConfig.PhpSettingValue('post_max_size', '32M')));
+    Values.Add('MAX_EXECUTION_TIME', SanitizeConfigValue(FConfig.PhpSettingValue('max_execution_time', '120')));
+    Values.Add('MAX_INPUT_VARS', SanitizeConfigValue(FConfig.PhpSettingValue('max_input_vars', '3000')));
+    Values.Add('PHP_EXT_DIR', SanitizeConfigValue(TPath.Combine(SelectedPhpDir, 'ext')));
     Values.Add('PHP_EXTENSION_LINES', RenderPhpExtensionLines(SelectedPhpDir));
-    Values.Add('TMP_DIR', FPaths.TmpDir);
-    Values.Add('LOGS_DIR', FPaths.LogsDir);
+    Values.Add('TMP_DIR', SanitizeConfigValue(FPaths.TmpDir));
+    Values.Add('LOGS_DIR', SanitizeConfigValue(FPaths.LogsDir));
     TTemplateRenderer.RenderToFile(FPaths.PhpTemplateFile, FPaths.ActivePhpIniFile, Values);
   finally
     Values.Free;

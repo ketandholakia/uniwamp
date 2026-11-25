@@ -79,9 +79,9 @@ begin
   Result := TPath.Combine(SecretDirectory, RootHash + '.dat');
 end;
 
-function SecretInstallMarkerFile: string;
+function SecretInstallMarkerFile(const Paths: TAppPaths): string;
 begin
-  Result := TPath.Combine(SecretDirectory, 'install.hash');
+  Result := TPath.Combine(TPath.Combine(Paths.ConfigDir, 'secrets'), 'install.hash');
 end;
 
 function CurrentAppRootHash(const Paths: TAppPaths): string;
@@ -89,13 +89,13 @@ begin
   Result := THashSHA2.GetHashString(LowerCase(ExpandFileName(Paths.AppRoot)));
 end;
 
-function ReadSecretInstallHash(out InstallHash: string): Boolean;
+function ReadSecretInstallHash(const Paths: TAppPaths; out InstallHash: string): Boolean;
 var
   FileName: string;
 begin
   Result := False;
   InstallHash := '';
-  FileName := SecretInstallMarkerFile;
+  FileName := SecretInstallMarkerFile(Paths);
   if not FileExists(FileName) then
     Exit;
   try
@@ -109,12 +109,14 @@ end;
 function WriteSecretInstallHash(const Paths: TAppPaths; out ErrorMessage: string): Boolean;
 var
   FileName: string;
+  MarkerDir: string;
 begin
   Result := False;
   ErrorMessage := '';
-  FileName := SecretInstallMarkerFile;
+  FileName := SecretInstallMarkerFile(Paths);
+  MarkerDir := ExtractFileDir(FileName);
   try
-    EnsureDirectory(SecretDirectory);
+    EnsureDirectory(MarkerDir);
     TFile.WriteAllText(FileName, CurrentAppRootHash(Paths), TEncoding.UTF8);
     Result := True;
   except
@@ -332,7 +334,7 @@ var
   InstallHash: string;
 begin
   Result := False;
-  if not ReadSecretInstallHash(InstallHash) then
+  if not ReadSecretInstallHash(Paths, InstallHash) then
     Exit;
   Result := not SameText(InstallHash, CurrentAppRootHash(Paths));
 end;

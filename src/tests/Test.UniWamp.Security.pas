@@ -21,6 +21,8 @@ type
     procedure TestValidateZipArchiveStructureRejectsDuplicateEntry;
     [Test]
     procedure TestValidateZipArchiveStructureRejectsOversizedEntry;
+    [Test]
+    procedure TestValidateServerNameRejectsTrailingAndDoubleDots;
   end;
 
 implementation
@@ -274,6 +276,19 @@ begin
     if TDirectory.Exists(RootDir) then
       TDirectory.Delete(RootDir, True);
   end;
+end;
+
+procedure TSecurityTests.TestValidateServerNameRejectsTrailingAndDoubleDots;
+var
+  Normalized: string;
+  ErrorMessage: string;
+begin
+  Assert.IsFalse(ValidateServerName('site.', Normalized, ErrorMessage), 'Trailing dot must be rejected.');
+  Assert.IsFalse(ValidateServerName('.site', Normalized, ErrorMessage), 'Leading dot must be rejected.');
+  Assert.IsFalse(ValidateServerName('a..b', Normalized, ErrorMessage), 'Double dot must be rejected.');
+  Assert.IsTrue(ValidateServerName('site.local', Normalized, ErrorMessage), 'Valid hostname must pass.');
+  Assert.IsTrue(ValidateServerName('localhost', Normalized, ErrorMessage), 'localhost must pass.');
+  Assert.IsTrue(ValidateServerName('127.0.0.1', Normalized, ErrorMessage), 'IPv4 must pass.');
 end;
 
 initialization

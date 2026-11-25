@@ -33,7 +33,7 @@ type
     FStarting: Boolean;
     FShuttingDown: Boolean;
     FResultInfo: TRuntimeActionResult;
-    FUiUpdateQueueThread: TThread;
+    FLifetimeToken: ILifetimeToken;
     FStartupThread: TThread;
     HeaderPanel: TPanel;
     StatusPanel: TPanel;
@@ -113,10 +113,7 @@ begin
   DetailsMemo.ReadOnly := True;
   DetailsMemo.ScrollBars := ssVertical;
   DetailsMemo.WordWrap := True;
-  FUiUpdateQueueThread := TThread.CreateAnonymousThread(
-    procedure
-    begin
-    end);
+  FLifetimeToken := TLifetimeToken.Create;
 
   OnShow := FormShow;
   OnCloseQuery := FormCloseQuery;
@@ -125,14 +122,14 @@ end;
 destructor TStartProgressForm.Destroy;
 begin
   FShuttingDown := True;
+  if Assigned(FLifetimeToken) then
+    FLifetimeToken.Invalidate;
   if Assigned(FStartupThread) then
   begin
     FStartupThread.WaitFor;
     FStartupThread.Free;
     FStartupThread := nil;
   end;
-  TThread.RemoveQueuedEvents(FUiUpdateQueueThread);
-  FUiUpdateQueueThread.Free;
   inherited;
 end;
 
@@ -274,9 +271,12 @@ begin
 end;
 
 procedure TStartProgressForm.RunStartup;
+var
+  Token: ILifetimeToken;
 begin
   FStarting := True;
   FShuttingDown := False;
+  Token := FLifetimeToken;
   FResultInfo.Success := False;
   FResultInfo.Message := 'MariaDB startup failed.';
   ProgressBar.Position := 15;
@@ -287,45 +287,45 @@ begin
     var
       ResultInfo: TRuntimeActionResult;
     begin
-      if FShuttingDown then
+      if not Token.IsAlive or FShuttingDown then
         Exit;
       try
-        TThread.Queue(FUiUpdateQueueThread,
+        TThread.Queue(nil,
           procedure
           begin
-            if FShuttingDown then
+            if not Token.IsAlive or FShuttingDown then
               Exit;
             SyncCheckingMariaDbFiles;
           end);
-        TThread.Queue(FUiUpdateQueueThread,
+        TThread.Queue(nil,
           procedure
           begin
-            if FShuttingDown then
+            if not Token.IsAlive or FShuttingDown then
               Exit;
             SyncStartingMariaDb;
           end);
         ResultInfo := FRuntime.StartMariaDb;
-        if FShuttingDown then
+        if not Token.IsAlive or FShuttingDown then
           Exit;
         FResultInfo := ResultInfo;
-        TThread.Queue(FUiUpdateQueueThread,
+        TThread.Queue(nil,
           procedure
           begin
-            if FShuttingDown then
+            if not Token.IsAlive or FShuttingDown then
               Exit;
             SyncStartupFinished;
           end);
       except
         on E: Exception do
         begin
-          if FShuttingDown then
+          if not Token.IsAlive or FShuttingDown then
             Exit;
           FResultInfo.Success := False;
           FResultInfo.Message := E.Message;
-          TThread.Queue(FUiUpdateQueueThread,
+          TThread.Queue(nil,
             procedure
             begin
-              if FShuttingDown then
+              if not Token.IsAlive or FShuttingDown then
                 Exit;
               SyncStartupFailed;
             end);

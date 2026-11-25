@@ -42,8 +42,6 @@ type
     function HasRequiredApacheVisualCRuntime(out ErrorMessage: string): Boolean;
     function HasAppLocalApacheVisualCRuntime(out ErrorMessage: string): Boolean;
     class function ReadPeMachineType(const FileName: string; out Machine: Word): Boolean;
-    function PushPhpRuntimeToPath(const PhpDir: string; out OldPath: string): Boolean;
-    procedure RestorePath(const OldPath: string);
     function ValidateApachePorts(out ErrorMessage: string): Boolean;
     function ValidateApacheConfiguration(out ErrorMessage: string): Boolean;
     function WaitForApacheStartup(const ProcessId: Cardinal; out ErrorMessage: string): Boolean;
@@ -331,28 +329,6 @@ begin
   Result := False;
 end;
 
-function TApacheManager.PushPhpRuntimeToPath(const PhpDir: string; out OldPath: string): Boolean;
-var
-  NewPath: string;
-begin
-  OldPath := GetEnvironmentVariable('PATH');
-  Result := Trim(PhpDir) <> '';
-  if not Result then
-    Exit;
-
-  NewPath := PhpDir;
-  if DirectoryExists(TPath.Combine(PhpDir, 'ext')) then
-    NewPath := NewPath + ';' + TPath.Combine(PhpDir, 'ext');
-  if Trim(OldPath) <> '' then
-    NewPath := NewPath + ';' + OldPath;
-  Result := SetEnvironmentVariable('PATH', PChar(NewPath));
-end;
-
-procedure TApacheManager.RestorePath(const OldPath: string);
-begin
-  SetEnvironmentVariable('PATH', PChar(OldPath));
-end;
-
 function TApacheManager.ValidateApachePorts(out ErrorMessage: string): Boolean;
 var
   ApacheRunningNow: Boolean;
@@ -452,7 +428,7 @@ var
   StartResult: TProcessStartResult;
   ErrorMessage: string;
   VHostManager: TVHostManager;
-  OldPath: string;
+  EnvBlock: string;
 begin
   if FConfig.ApacheRunning and not IsRunning then
   begin
@@ -521,21 +497,23 @@ begin
     Exit;
   end;
   AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'apache-error.log'), 'Starting Apache: ' + ApacheExe);
-  if not PushPhpRuntimeToPath(SelectedPhpDir, OldPath) then
+  if Trim(SelectedPhpDir) = '' then
   begin
     FailApacheStart('Unable to prepare PHP runtime environment for Apache.');
     Result.Success := False;
     Result.Message := 'Unable to prepare PHP runtime environment for Apache.';
     Exit;
   end;
-  try
-    StartResult := TProcessManager.StartDetached(
-      ApacheExe,
-      '-f "' + FPaths.ApacheHttpdConfFile + '"',
-      FPaths.ApacheBinDir);
-  finally
-    RestorePath(OldPath);
-  end;
+  EnvBlock := TProcessManager.BuildEnvironmentWithPrependedPath([
+    SelectedPhpDir,
+    TPath.Combine(SelectedPhpDir, 'ext')
+  ]);
+  StartResult := TProcessManager.StartDetached(
+    ApacheExe,
+    '-f "' + FPaths.ApacheHttpdConfFile + '"',
+    FPaths.ApacheBinDir,
+    EnvBlock,
+    True);
 
   Result.Success := StartResult.Success;
   if StartResult.Success then
@@ -551,6 +529,7 @@ begin
     end
     else
     begin
+      TProcessManager.StopProcess(StartResult.ProcessId, 2000);
       FailApacheStart(ErrorMessage);
       Result.Success := False;
       Result.Message := ErrorMessage;
@@ -564,11 +543,29 @@ begin
   end;
 end;
 
+function SignalApacheShutdownEvent(const Pid: Cardinal): Boolean;
+var
+  EventHandle: THandle;
+begin
+  Result := False;
+  if Pid = 0 then
+    Exit;
+  EventHandle := OpenEvent(EVENT_MODIFY_STATE, False, PChar(Format('ap%u_shutdown', [Pid])));
+  if EventHandle = 0 then
+    Exit;
+  try
+    Result := SetEvent(EventHandle);
+  finally
+    CloseHandle(EventHandle);
+  end;
+end;
+
 function TApacheManager.Stop: TRuntimeActionResult;
 var
   StartResult: TProcessStartResult;
   State: TServiceProcessState;
   SystemRoot: string;
+  GracefulExited: Boolean;
 begin
   Result.Success := True;
   AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'apache-error.log'), 'Initiating Apache shutdown...');
@@ -583,41 +580,26 @@ begin
     AppendTextToLogFile(TPath.Combine(FPaths.LogsDir, 'apache-error.log'), Result.Message);
     Exit;
   end;
-  if FileExists(ApacheExe) then
+
+  GracefulExited := False;
+  if SignalApacheShutdownEvent(State.ProcessId) then
+    GracefulExited := TProcessManager.WaitForExit(State.ProcessId, 8000);
+
+  if not GracefulExited then
   begin
-    StartResult := TProcessManager.StartDetached(
-      ApacheExe,
-      '-k stop -f "' + FPaths.ApacheHttpdConfFile + '"',
-      FPaths.ApacheBinDir);
-    if StartResult.Success then
-      TProcessManager.WaitForExit(StartResult.ProcessId, 4000);
+    Result.Success := TServiceProcessSupervisor.StopOwnedProcess(State) and Result.Success;
+
+    if (State.ProcessId <> 0) and TProcessManager.IsRunning(State.ProcessId) then
+    begin
+      SystemRoot := TPath.Combine(GetEnvironmentVariable('SystemRoot'), 'System32');
+      StartResult := TProcessManager.StartDetached(
+        TPath.Combine(SystemRoot, 'taskkill.exe'),
+        '/PID ' + State.ProcessId.ToString + ' /T /F',
+        SystemRoot);
+      if StartResult.Success then
+        TProcessManager.WaitForExit(StartResult.ProcessId, 4000);
+    end;
   end;
-
-  Result.Success := TServiceProcessSupervisor.StopOwnedProcess(State) and Result.Success;
-
-  if (State.ProcessId <> 0) and not IsTcpPortAvailable(FConfig.HttpPort) then
-  begin
-    SystemRoot := TPath.Combine(GetEnvironmentVariable('SystemRoot'), 'System32');
-    StartResult := TProcessManager.StartDetached(
-      TPath.Combine(SystemRoot, 'taskkill.exe'),
-      '/PID ' + State.ProcessId.ToString + ' /T /F',
-      SystemRoot);
-    if StartResult.Success then
-      TProcessManager.WaitForExit(StartResult.ProcessId, 4000);
-  end;
-
-  if (State.ProcessId <> 0) and FConfig.EnableSsl and (not IsTcpPortAvailable(FConfig.HttpsPort)) then
-  begin
-    SystemRoot := TPath.Combine(GetEnvironmentVariable('SystemRoot'), 'System32');
-    StartResult := TProcessManager.StartDetached(
-      TPath.Combine(SystemRoot, 'taskkill.exe'),
-      '/PID ' + State.ProcessId.ToString + ' /T /F',
-      SystemRoot);
-    if StartResult.Success then
-      TProcessManager.WaitForExit(StartResult.ProcessId, 4000);
-  end;
-
-  Sleep(1000);
 
   ClearApacheState;
   Result.Success := Result.Success and IsTcpPortAvailable(FConfig.HttpPort) and

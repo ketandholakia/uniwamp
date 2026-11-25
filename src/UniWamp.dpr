@@ -10,6 +10,8 @@ uses
   madListModules,
 {$ENDIF}
   System.Classes,
+  System.SysUtils,
+  System.IOUtils,
   Vcl.Forms,
   Vcl.StdCtrls,
   Ui.UniWamp.MainForm in 'Ui\Ui.UniWamp.MainForm.pas',
@@ -40,14 +42,49 @@ uses
   Core.UniWamp.ServiceLocator in 'Core\Core.UniWamp.ServiceLocator.pas',
   Core.UniWamp.Secrets in 'Core\Core.UniWamp.Secrets.pas',
   Core.UniWamp.ServiceSupervisor in 'Core\Core.UniWamp.ServiceSupervisor.pas',
+  Core.UniWamp.AtomicFile in 'Core\Core.UniWamp.AtomicFile.pas',
   Core.UniWamp.Types in 'Core\Core.UniWamp.Types.pas';
 
 {$R *.res}
 {$R UniWampAssets.res}
 
+function TryHandleElevatedHostsSync: Boolean;
+var
+  TempHostsFile: string;
+  SystemRoot: string;
+  TargetHostsFile: string;
+  Content: string;
+begin
+  Result := False;
+  if (ParamCount >= 2) and SameText(ParamStr(1), '--sync-hosts') then
+  begin
+    Result := True;
+    TempHostsFile := ParamStr(2);
+    SystemRoot := GetEnvironmentVariable('SystemRoot');
+    if SystemRoot = '' then
+      SystemRoot := 'C:\Windows';
+    TargetHostsFile := TPath.Combine(SystemRoot, 'System32\drivers\etc\hosts');
+    try
+      if not FileExists(TempHostsFile) then
+      begin
+        ExitCode := 1;
+        Exit;
+      end;
+      Content := TFile.ReadAllText(TempHostsFile, TEncoding.ASCII);
+      AtomicWriteTextFile(TargetHostsFile, Content, TEncoding.ASCII, TargetHostsFile + '.bak');
+      ExitCode := 0;
+    except
+      ExitCode := 1;
+    end;
+  end;
+end;
+
 var
   hMutex: THandle;
 begin
+  if TryHandleElevatedHostsSync then
+    Exit;
+
   hMutex := CreateMutex(nil, True, 'UniWamp_SingleInstance_Mutex');
   if (hMutex <> 0) and (GetLastError = ERROR_ALREADY_EXISTS) then
   begin

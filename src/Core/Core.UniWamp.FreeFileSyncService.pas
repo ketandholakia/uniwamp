@@ -32,7 +32,8 @@ type
     function ResolveLocalPath(const Profile: TSyncProfile; const Entry: TVHostEntry;
       out LocalPath: string; out ErrorMessage: string): Boolean;
     function ResolveFreeFileSyncExe(out ErrorMessage: string): string;
-    function BuildJobSpec(const Profile: TSyncProfile; const Entry: TVHostEntry): TFreeFileSyncJobSpec;
+    function BuildJobSpec(const Profile: TSyncProfile; const Entry: TVHostEntry;
+      const IncludeSecrets: Boolean = True): TFreeFileSyncJobSpec;
   public
     constructor Create(const Paths: TAppPaths; Config: TUniWampConfig);
     function BuildCommandPreview(const ProfileName: string; UseDryRun: Boolean;
@@ -221,20 +222,28 @@ begin
 end;
 
 function TFreeFileSyncService.BuildJobSpec(const Profile: TSyncProfile;
-  const Entry: TVHostEntry): TFreeFileSyncJobSpec;
+  const Entry: TVHostEntry; const IncludeSecrets: Boolean): TFreeFileSyncJobSpec;
 var
   RemotePath: string;
 begin
   Result.Credentials := BuildCredentials(Profile);
-  if Trim(Profile.ConnectionProfileName) <> '' then
+  if IncludeSecrets then
   begin
-    Result.Password := LoadConnectionPassword(FPaths, Profile.ConnectionProfileName);
-    Result.Credentials.KeyPassphrase := LoadConnectionKeyPassphrase(FPaths, Profile.ConnectionProfileName);
+    if Trim(Profile.ConnectionProfileName) <> '' then
+    begin
+      Result.Password := LoadConnectionPassword(FPaths, Profile.ConnectionProfileName);
+      Result.Credentials.KeyPassphrase := LoadConnectionKeyPassphrase(FPaths, Profile.ConnectionProfileName);
+    end
+    else
+    begin
+      Result.Password := LoadConnectionPassword(FPaths, Profile.Name);
+      Result.Credentials.KeyPassphrase := LoadConnectionKeyPassphrase(FPaths, Profile.Name);
+    end;
   end
   else
   begin
-    Result.Password := LoadConnectionPassword(FPaths, Profile.Name);
-    Result.Credentials.KeyPassphrase := LoadConnectionKeyPassphrase(FPaths, Profile.Name);
+    Result.Password := '';
+    Result.Credentials.KeyPassphrase := '';
   end;
   RemotePath := Profile.RemotePath;
   if Entry.ServerName <> '' then
@@ -311,7 +320,7 @@ begin
   GuiFilePath := TPath.Combine(FPaths.TmpDir,
     TPath.Combine('ffs', LowerCase(SafeProfileName) + '.ffs_gui'));
 
-  Spec := BuildJobSpec(Profile, Entry);
+  Spec := BuildJobSpec(Profile, Entry, False);
   Spec.LocalPath := LocalPath;
 
   try
@@ -427,7 +436,7 @@ begin
     TPath.Combine('ffs', LowerCase(SafeProfileName) + '.ffs_batch'));
   LogFilePath := TPath.Combine(FPaths.LogsDir, 'sync-' + LowerCase(SafeProfileName) + '.log');
 
-  Spec := BuildJobSpec(Profile, Entry);
+  Spec := BuildJobSpec(Profile, Entry, False);
   Spec.LocalPath := LocalPath;
   Spec.LogFilePath := LogFilePath;
 

@@ -22,6 +22,7 @@ type
 
     procedure RegisterService<I: IInterface>(const Service: I);
     function GetService<I: IInterface>: I;
+    procedure Clear;
   end;
 
 implementation
@@ -45,6 +46,11 @@ begin
   if FInstance = nil then
     FInstance := TServiceLocator.Create;
   Result := FInstance;
+end;
+
+procedure TServiceLocator.Clear;
+begin
+  FServices.Clear;
 end;
 
 procedure TServiceLocator.RegisterService<I>(const Service: I);

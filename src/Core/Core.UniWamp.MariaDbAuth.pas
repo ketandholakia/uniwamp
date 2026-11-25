@@ -52,7 +52,7 @@ begin
     try
       Contents.Add('[client]');
       Contents.Add('password="' + EscapeOptionValue(Password) + '"');
-      AtomicWriteTextFile(FileName, Contents.Text, TEncoding.ASCII);
+      AtomicWriteTextFile(FileName, Contents.Text, UTF8NoBom);
     finally
       Contents.Free;
     end;

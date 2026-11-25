@@ -29,6 +29,8 @@ type
     procedure TestGeneratedPhpIniHasNoUtf8Bom;
     [Test]
     procedure TestGeneratedMariaDbIniIsUtf8WithoutBom;
+    [Test]
+    procedure TestMakePortableRelativePath;
   end;
 
 implementation
@@ -144,6 +146,16 @@ begin
   finally
     Generator.Free;
   end;
+end;
+
+procedure TConfigGeneratorTests.TestMakePortableRelativePath;
+begin
+  Assert.AreEqual('www\site',
+    MakePortableRelativePath('C:\UniWamp\www\site', 'C:\UniWamp'));
+  Assert.AreEqual('.',
+    MakePortableRelativePath('C:\UniWamp', 'C:\UniWamp'));
+  Assert.AreEqual('D:\Projects\site',
+    MakePortableRelativePath('D:\Projects\site', 'C:\UniWamp'));
 end;
 
 initialization

@@ -30,6 +30,9 @@ type
     FPaths: TAppPaths;
     FExecuted: Boolean;
     FSuccess: Boolean;
+    FStopping: Boolean;
+    FLifetimeToken: ILifetimeToken;
+    FShutdownThread: TThread;
     HeaderPanel: TPanel;
     StatusPanel: TPanel;
     DetailsMemo: TMemo;
@@ -37,10 +40,12 @@ type
     procedure AddMessage(const Text: string);
     procedure AppendActivityLog(const Text: string);
     procedure FormShow(Sender: TObject);
+    procedure FormCloseQuery(Sender: TObject; var CanClose: Boolean);
     procedure RunShutdown;
     procedure WmRunShutdown(var Message: TMessage); message WM_RUN_SHUTDOWN;
   public
     constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
     class function ExecuteShutdown(AOwner: TComponent; Runtime: TUniWampRuntime;
       Config: TUniWampConfig; const Paths: TAppPaths): Boolean; static;
   end;
@@ -107,8 +112,28 @@ begin
   DetailsMemo.ReadOnly := True;
   DetailsMemo.ScrollBars := ssVertical;
   DetailsMemo.WordWrap := True;
+  FLifetimeToken := TLifetimeToken.Create;
 
   OnShow := FormShow;
+  OnCloseQuery := FormCloseQuery;
+end;
+
+destructor TShutdownProgressForm.Destroy;
+begin
+  if Assigned(FLifetimeToken) then
+    FLifetimeToken.Invalidate;
+  if Assigned(FShutdownThread) then
+  begin
+    FShutdownThread.WaitFor;
+    FShutdownThread.Free;
+    FShutdownThread := nil;
+  end;
+  inherited;
+end;
+
+procedure TShutdownProgressForm.FormCloseQuery(Sender: TObject; var CanClose: Boolean);
+begin
+  CanClose := not FStopping;
 end;
 
 class function TShutdownProgressForm.ExecuteShutdown(AOwner: TComponent;
@@ -158,61 +183,124 @@ end;
 procedure TShutdownProgressForm.WmRunShutdown(var Message: TMessage);
 begin
   RunShutdown;
-  if FSuccess then
-    ModalResult := mrOk
-  else
-    ModalResult := mrCancel;
 end;
 
 procedure TShutdownProgressForm.RunShutdown;
 var
-  ResultInfo: TRuntimeActionResult;
+  Token: ILifetimeToken;
+  NeedMariaDbStop: Boolean;
+  NeedApacheStop: Boolean;
 begin
+  FStopping := True;
   FSuccess := True;
+  Token := FLifetimeToken;
   ProgressBar.Position := 15;
   AddMessage('Shutdown sequence started.');
 
-  if FConfig.MariaDbRunning or TProcessManager.IsRunning(FConfig.MariaDbPid) then
-  begin
-    AddMessage('Stopping MariaDB service...');
-    ResultInfo := FRuntime.StopMariaDb;
-    ProgressBar.Position := 45;
-    AddMessage(ResultInfo.Message);
-    AppendActivityLog('Shutdown cleanup: ' + ResultInfo.Message);
-    FSuccess := FSuccess and ResultInfo.Success;
-  end
-  else
-  begin
-    ProgressBar.Position := 45;
-    AddMessage('MariaDB is already stopped.');
-  end;
+  NeedMariaDbStop := FConfig.MariaDbRunning or TProcessManager.IsRunning(FConfig.MariaDbPid);
+  NeedApacheStop := FConfig.ApacheRunning or TProcessManager.IsRunning(FConfig.ApachePid);
 
-  if FConfig.ApacheRunning or TProcessManager.IsRunning(FConfig.ApachePid) then
-  begin
-    AddMessage('Stopping Apache service...');
-    ResultInfo := FRuntime.StopApache;
-    ProgressBar.Position := 80;
-    AddMessage(ResultInfo.Message);
-    AddMessage('PHP runtime unloaded with Apache shutdown.');
-    AppendActivityLog('Shutdown cleanup: ' + ResultInfo.Message);
-    FSuccess := FSuccess and ResultInfo.Success;
-  end
-  else
-  begin
-    ProgressBar.Position := 80;
-    AddMessage('Apache is already stopped. PHP runtime is not active.');
-  end;
+  FShutdownThread := TThread.CreateAnonymousThread(
+    procedure
+    var
+      OverallSuccess: Boolean;
+      MariaResult: TRuntimeActionResult;
+      ApacheResult: TRuntimeActionResult;
+    begin
+      OverallSuccess := True;
+      try
+        if NeedMariaDbStop then
+        begin
+          TThread.Queue(nil,
+            procedure
+            begin
+              if Token.IsAlive then
+                AddMessage('Stopping MariaDB service...');
+            end);
+          MariaResult := FRuntime.StopMariaDb;
+          OverallSuccess := OverallSuccess and MariaResult.Success;
+          TThread.Queue(nil,
+            procedure
+            begin
+              if not Token.IsAlive then Exit;
+              ProgressBar.Position := 45;
+              AddMessage(MariaResult.Message);
+              AppendActivityLog('Shutdown cleanup: ' + MariaResult.Message);
+            end);
+        end
+        else
+          TThread.Queue(nil,
+            procedure
+            begin
+              if not Token.IsAlive then Exit;
+              ProgressBar.Position := 45;
+              AddMessage('MariaDB is already stopped.');
+            end);
 
-  if FSuccess then
-  begin
-    AddMessage('Shutdown cleanup completed. Closing application.');
-    ProgressBar.Position := ProgressBar.Max;
-  end
-  else
-  begin
-    AddMessage('Shutdown cleanup failed. Application will remain open.');
-    ProgressBar.Position := ProgressBar.Max div 2;
-  end;
+        if NeedApacheStop then
+        begin
+          TThread.Queue(nil,
+            procedure
+            begin
+              if Token.IsAlive then
+                AddMessage('Stopping Apache service...');
+            end);
+          ApacheResult := FRuntime.StopApache;
+          OverallSuccess := OverallSuccess and ApacheResult.Success;
+          TThread.Queue(nil,
+            procedure
+            begin
+              if not Token.IsAlive then Exit;
+              ProgressBar.Position := 80;
+              AddMessage(ApacheResult.Message);
+              AddMessage('PHP runtime unloaded with Apache shutdown.');
+              AppendActivityLog('Shutdown cleanup: ' + ApacheResult.Message);
+            end);
+        end
+        else
+          TThread.Queue(nil,
+            procedure
+            begin
+              if not Token.IsAlive then Exit;
+              ProgressBar.Position := 80;
+              AddMessage('Apache is already stopped. PHP runtime is not active.');
+            end);
+      except
+        on E: Exception do
+        begin
+          OverallSuccess := False;
+          var ErrMsg := E.Message;
+          TThread.Queue(nil,
+            procedure
+            begin
+              if Token.IsAlive then
+                AddMessage('Shutdown error: ' + ErrMsg);
+            end);
+        end;
+      end;
+
+      TThread.Queue(nil,
+        procedure
+        begin
+          if not Token.IsAlive then Exit;
+          FSuccess := OverallSuccess;
+          FStopping := False;
+          if FSuccess then
+          begin
+            AddMessage('Shutdown cleanup completed. Closing application.');
+            ProgressBar.Position := ProgressBar.Max;
+            ModalResult := mrOk;
+          end
+          else
+          begin
+            AddMessage('Shutdown cleanup failed. Application will remain open.');
+            ProgressBar.Position := ProgressBar.Max div 2;
+            ModalResult := mrCancel;
+          end;
+        end);
+    end);
+  FShutdownThread.FreeOnTerminate := False;
+  FShutdownThread.Start;
 end;
 
 end.

@@ -62,7 +62,7 @@ type
     FProgressBar: TProgressBar;
     FCreateDatabaseCheck: TCheckBox;
     FInstallLogFile: string;
-    FUiUpdateQueueThread: TThread;
+    FLifetimeToken: ILifetimeToken;
     FRecentOutputTail: string;
     FCurrentInteractiveSession: IInteractiveProcessSession;
     FInteractivePromptVisible: Boolean;
@@ -159,10 +159,7 @@ begin
   inherited Create(AOwner);
   FPaths := Paths;
   FCatalog := TScriptCatalog.LoadFromFile(TPath.Combine(FPaths.AppRoot, 'scripts\catalog.json'));
-  FUiUpdateQueueThread := TThread.CreateAnonymousThread(
-    procedure
-    begin
-    end);
+  FLifetimeToken := TLifetimeToken.Create;
   OnCloseQuery := FormCloseQuery;
 end;
 
@@ -283,8 +280,8 @@ end;
 
 destructor TScriptManagerForm.Destroy;
 begin
-  TThread.RemoveQueuedEvents(FUiUpdateQueueThread);
-  FUiUpdateQueueThread.Free;
+  if Assigned(FLifetimeToken) then
+    FLifetimeToken.Invalidate;
   FCatalog.Free;
   inherited;
 end;
@@ -747,13 +744,17 @@ begin
 end;
 
 procedure TScriptManagerForm.AppendOutput(const Text: string);
+var
+  Token: ILifetimeToken;
 begin
   FRecentOutputTail := Copy(FRecentOutputTail + Text, Max(1, Length(FRecentOutputTail + Text) - 511), 512);
   FPendingOutputText := Text;
-  TThread.Queue(FUiUpdateQueueThread,
+  Token := FLifetimeToken;
+  TThread.Queue(nil,
     procedure
     begin
-      SyncAppendOutput;
+      if Assigned(Token) and Token.IsAlive then
+        SyncAppendOutput;
     end);
 end;
 
@@ -984,10 +985,12 @@ begin
       FPendingCompletionMessage := '';
       FPendingCompletionOutput := '';
       FPendingCompletionSuccess := False;
-      TThread.Queue(FUiUpdateQueueThread,
+      var Token := FLifetimeToken;
+      TThread.Queue(nil,
         procedure
         begin
-          SetInteractiveSession(nil);
+          if Assigned(Token) and Token.IsAlive then
+            SetInteractiveSession(nil);
         end);
       Runtime := nil;
       try
@@ -1033,11 +1036,15 @@ begin
                 AppendOutput(Text);
               end,
               procedure(const Session: IInteractiveProcessSession)
+              var
+                Token: ILifetimeToken;
               begin
-                TThread.Queue(FUiUpdateQueueThread,
+                Token := FLifetimeToken;
+                TThread.Queue(nil,
                   procedure
                   begin
-                    SetInteractiveSession(Session);
+                    if Assigned(Token) and Token.IsAlive then
+                      SetInteractiveSession(Session);
                   end);
               end,
               CreateDatabase);
@@ -1137,15 +1144,17 @@ begin
       Config.Free;
       if InstallSucceeded then
         FPendingCompletionOutput := '';
-      TThread.Queue(FUiUpdateQueueThread,
+      TThread.Queue(nil,
         procedure
         begin
-          SetInteractiveSession(nil);
+          if Assigned(Token) and Token.IsAlive then
+            SetInteractiveSession(nil);
         end);
-      TThread.Queue(FUiUpdateQueueThread,
+      TThread.Queue(nil,
         procedure
         begin
-          SyncInstallFinished;
+          if Assigned(Token) and Token.IsAlive then
+            SyncInstallFinished;
         end);
     end;
     end).Start;

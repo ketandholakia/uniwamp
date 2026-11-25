@@ -14,7 +14,8 @@ uses
   Vcl.ExtCtrls,
   Vcl.Forms,
   Vcl.Graphics,
-  Vcl.StdCtrls;
+  Vcl.StdCtrls,
+  Core.UniWamp.Paths;
 
 type
   TApacheModuleInfo = record
@@ -40,7 +41,7 @@ type
     FAllModules: TList<TApacheModuleInfo>;
     FModuleStates: TDictionary<string, Boolean>;
     procedure BuildUi;
-    procedure PopulateModules;
+    procedure PopulateModules(const ModulesDir: string = '');
     procedure RebuildVisibleModules;
     procedure SyncStatesFromList;
     procedure UpdateDescription;
@@ -54,9 +55,7 @@ type
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     class function Execute(AOwner: TComponent; const CurrentModules: TArray<string>; out UpdatedModules: TArray<string>): Boolean; overload; static;
-    class function Execute(AOwner: TComponent; const Arg1; const Arg2): Boolean; overload; static;
-    class function Execute(AOwner: TComponent; const Arg1; const Arg2; const Arg3): Boolean; overload; static;
-    class function Execute(AOwner: TComponent; const AppPaths; const CurrentModules: TArray<string>; out UpdatedModules: TArray<string>): Boolean; overload; static;
+    class function Execute(AOwner: TComponent; const Paths: TAppPaths; const CurrentModules: TArray<string>; out UpdatedModules: TArray<string>): Boolean; overload; static;
     property EnabledModules: TArray<string> read GetEnabledModules write SetEnabledModules;
     property SelectedModules: TArray<string> read GetEnabledModules write SetEnabledModules;
     property Modules: TArray<string> read GetEnabledModules write SetEnabledModules;
@@ -67,6 +66,9 @@ type
   TApacheModulesForm = TUniWampApacheModulesForm;
 
 implementation
+
+uses
+  System.IOUtils;
 
 const
   CDefaultModules: array[0..19] of TApacheModuleInfo = (
@@ -108,7 +110,7 @@ begin
   FModuleStates := TDictionary<string, Boolean>.Create;
 
   BuildUi;
-  PopulateModules;
+  PopulateModules('');
   RebuildVisibleModules;
 end;
 
@@ -217,13 +219,44 @@ begin
   FOkButton.ModalResult := mrOk;
 end;
 
-procedure TUniWampApacheModulesForm.PopulateModules;
+procedure TUniWampApacheModulesForm.PopulateModules(const ModulesDir: string);
 var
   ModuleInfo: TApacheModuleInfo;
+  Found: Boolean;
+  FileName: string;
+  BaseName: string;
+  KnownIndex: Integer;
+  ScannedInfo: TApacheModuleInfo;
 begin
   FAllModules.Clear;
-  for ModuleInfo in CDefaultModules do
-    FAllModules.Add(ModuleInfo);
+  if (ModulesDir <> '') and TDirectory.Exists(ModulesDir) then
+  begin
+    for FileName in TDirectory.GetFiles(ModulesDir, 'mod_*.so', TSearchOption.soTopDirectoryOnly) do
+    begin
+      BaseName := TPath.GetFileName(FileName);
+      Found := False;
+      for KnownIndex := Low(CDefaultModules) to High(CDefaultModules) do
+      begin
+        if SameText(CDefaultModules[KnownIndex].Name, BaseName) then
+        begin
+          FAllModules.Add(CDefaultModules[KnownIndex]);
+          Found := True;
+          Break;
+        end;
+      end;
+      if not Found then
+      begin
+        ScannedInfo.Name := BaseName;
+        ScannedInfo.DisplayName := NormalizeModuleName(BaseName) + '_module';
+        ScannedInfo.Description := 'Apache module ' + BaseName;
+        FAllModules.Add(ScannedInfo);
+      end;
+    end;
+  end;
+
+  if FAllModules.Count = 0 then
+    for ModuleInfo in CDefaultModules do
+      FAllModules.Add(ModuleInfo);
 end;
 
 procedure TUniWampApacheModulesForm.RebuildVisibleModules;
@@ -324,20 +357,24 @@ end;
 
 function TUniWampApacheModulesForm.GetEnabledModules: TArray<string>;
 var
-  Pair: TPair<string, Boolean>;
-  Count: Integer;
+  Info: TApacheModuleInfo;
+  IsEnabled: Boolean;
+  List: TList<string>;
 begin
-  Count := 0;
-  SetLength(Result, FModuleStates.Count);
-  for Pair in FModuleStates do
-  begin
-    if Pair.Value then
+  List := TList<string>.Create;
+  try
+    for Info in FAllModules do
     begin
-      Result[Count] := Pair.Key;
-      Inc(Count);
+      IsEnabled := False;
+      if not FModuleStates.TryGetValue(Info.Name, IsEnabled) then
+        FModuleStates.TryGetValue(NormalizeModuleName(Info.Name), IsEnabled);
+      if IsEnabled and (List.IndexOf(Info.Name) < 0) then
+        List.Add(Info.Name);
     end;
+    Result := List.ToArray;
+  finally
+    List.Free;
   end;
-  SetLength(Result, Count);
 end;
 
 procedure TUniWampApacheModulesForm.SetEnabledModules(const Modules: TArray<string>);
@@ -370,19 +407,24 @@ begin
   end;
 end;
 
-class function TUniWampApacheModulesForm.Execute(AOwner: TComponent; const Arg1; const Arg2): Boolean;
+class function TUniWampApacheModulesForm.Execute(AOwner: TComponent; const Paths: TAppPaths; const CurrentModules: TArray<string>; out UpdatedModules: TArray<string>): Boolean;
+var
+  Form: TUniWampApacheModulesForm;
+  ModulesDir: string;
 begin
-  Result := False;
-end;
-
-class function TUniWampApacheModulesForm.Execute(AOwner: TComponent; const Arg1; const Arg2; const Arg3): Boolean;
-begin
-  Result := False;
-end;
-
-class function TUniWampApacheModulesForm.Execute(AOwner: TComponent; const AppPaths; const CurrentModules: TArray<string>; out UpdatedModules: TArray<string>): Boolean;
-begin
-  Result := Execute(AOwner, CurrentModules, UpdatedModules);
+  Form := TUniWampApacheModulesForm.Create(AOwner);
+  try
+    ModulesDir := TPath.Combine(Paths.ApacheDir, 'modules');
+    Form.PopulateModules(ModulesDir);
+    Form.SetEnabledModules(CurrentModules);
+    Result := Form.ShowModal = mrOk;
+    if Result then
+      UpdatedModules := Form.GetEnabledModules
+    else
+      UpdatedModules := CurrentModules;
+  finally
+    Form.Free;
+  end;
 end;
 
 class function TUniWampApacheModulesForm.NormalizeModuleName(const Value: string): string;

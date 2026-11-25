@@ -2,6 +2,11 @@
 <VirtualHost _default_:{{HTTPS_PORT}}>
   DocumentRoot "{{DOCUMENT_ROOT}}"
   ServerName {{HOST_NAME}}:{{HTTPS_PORT}}
+  <Directory "{{DOCUMENT_ROOT}}">
+    AllowOverride All
+    DirectoryIndex index.php index.html
+    Require all granted
+  </Directory>
   SSLEngine on
   SSLCertificateFile "{{SSL_CERT_FILE}}"
   SSLCertificateKeyFile "{{SSL_KEY_FILE}}"
