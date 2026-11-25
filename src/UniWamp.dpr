@@ -53,7 +53,8 @@ var
   TempHostsFile: string;
   SystemRoot: string;
   TargetHostsFile: string;
-  Content: string;
+  Bytes: TBytes;
+  Stream: TFileStream;
 begin
   Result := False;
   if (ParamCount >= 2) and SameText(ParamStr(1), '--sync-hosts') then
@@ -70,8 +71,18 @@ begin
         ExitCode := 1;
         Exit;
       end;
-      Content := TFile.ReadAllText(TempHostsFile, TEncoding.ASCII);
-      AtomicWriteTextFile(TargetHostsFile, Content, TEncoding.ASCII, TargetHostsFile + '.bak');
+      Bytes := TFile.ReadAllBytes(TempHostsFile);
+      if FileExists(TargetHostsFile) then
+        Stream := TFileStream.Create(TargetHostsFile, fmOpenReadWrite or fmShareDenyWrite)
+      else
+        Stream := TFileStream.Create(TargetHostsFile, fmCreate or fmShareDenyWrite);
+      try
+        Stream.Size := 0;
+        if Length(Bytes) > 0 then
+          Stream.WriteBuffer(Bytes[0], Length(Bytes));
+      finally
+        Stream.Free;
+      end;
       ExitCode := 0;
     except
       ExitCode := 1;

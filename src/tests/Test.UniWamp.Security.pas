@@ -23,6 +23,8 @@ type
     procedure TestValidateZipArchiveStructureRejectsOversizedEntry;
     [Test]
     procedure TestValidateServerNameRejectsTrailingAndDoubleDots;
+    [Test]
+    procedure TestCanWriteHostsTarget;
   end;
 
 implementation
@@ -32,6 +34,7 @@ uses
   System.IOUtils,
   System.SysUtils,
   System.Zip,
+  Core.UniWamp.HostsFileService,
   Core.UniWamp.Security;
 
 function CreateTempRoot(const Name: string): string;
@@ -289,6 +292,25 @@ begin
   Assert.IsTrue(ValidateServerName('site.local', Normalized, ErrorMessage), 'Valid hostname must pass.');
   Assert.IsTrue(ValidateServerName('localhost', Normalized, ErrorMessage), 'localhost must pass.');
   Assert.IsTrue(ValidateServerName('127.0.0.1', Normalized, ErrorMessage), 'IPv4 must pass.');
+end;
+
+procedure TSecurityTests.TestCanWriteHostsTarget;
+var
+  RootDir: string;
+  WritableFile: string;
+begin
+  RootDir := CreateTempRoot('hosts-writable');
+  try
+    WritableFile := TPath.Combine(RootDir, 'hosts');
+    TFile.WriteAllText(WritableFile, '127.0.0.1 localhost' + sLineBreak, TEncoding.ASCII);
+    Assert.IsTrue(CanWriteHostsTarget(WritableFile),
+      'CanWriteHostsTarget should return True for a writable temp file.');
+    Assert.IsTrue(CanWriteHostsTarget(TPath.Combine(RootDir, 'hosts-missing')),
+      'CanWriteHostsTarget should return True when parent directory is writable.');
+  finally
+    if TDirectory.Exists(RootDir) then
+      TDirectory.Delete(RootDir, True);
+  end;
 end;
 
 initialization

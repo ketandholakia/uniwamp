@@ -23,12 +23,15 @@ type
   private
     FPaths: TAppPaths;
     FConfig: TUniWampConfig;
+    function TryWriteElevated(const HostsText: string; out ErrorMessage: string): Boolean;
   public
     function HostsFilePath: string;
     constructor Create(const Paths: TAppPaths; Config: TUniWampConfig);
     function SyncHostsFile(out ErrorMessage: string): Boolean;
     function RenderManagedHostsBlock: string;
   end;
+
+function CanWriteHostsTarget(const HostsPath: string): Boolean;
 
 implementation
 
@@ -58,14 +61,71 @@ begin
   FConfig := Config;
 end;
 
+function CanWriteHostsTarget(const HostsPath: string): Boolean;
+var
+  Handle: THandle;
+  ParentDir: string;
+  ProbeFile: string;
+  GuidVal: TGUID;
+begin
+  Result := False;
+  if Trim(HostsPath) = '' then
+    Exit;
+
+  if FileExists(HostsPath) then
+  begin
+    Handle := CreateFileW(
+      PChar(HostsPath),
+      GENERIC_WRITE,
+      FILE_SHARE_READ or FILE_SHARE_WRITE,
+      nil,
+      OPEN_EXISTING,
+      FILE_ATTRIBUTE_NORMAL,
+      0);
+    if Handle <> INVALID_HANDLE_VALUE then
+    begin
+      CloseHandle(Handle);
+      Result := True;
+    end;
+    Exit;
+  end;
+
+  ParentDir := ExtractFileDir(HostsPath);
+  if (ParentDir = '') or not TDirectory.Exists(ParentDir) then
+    Exit;
+
+  CreateGUID(GuidVal);
+  ProbeFile := TPath.Combine(ParentDir,
+    '.uniwamp-write-probe-' + GUIDToString(GuidVal).Replace('{', '').Replace('}', '') + '.tmp');
+  Handle := CreateFileW(
+    PChar(ProbeFile),
+    GENERIC_WRITE,
+    0,
+    nil,
+    CREATE_NEW,
+    FILE_ATTRIBUTE_TEMPORARY or FILE_FLAG_DELETE_ON_CLOSE,
+    0);
+  if Handle <> INVALID_HANDLE_VALUE then
+  begin
+    CloseHandle(Handle);
+    Result := True;
+  end;
+end;
+
 function TryElevatedHostsSync(const TempHostsFile: string; out ErrorMessage: string): Boolean;
 var
   SEI: TShellExecuteInfo;
   ExitCode: DWORD;
   WaitRes: DWORD;
+  LastErr: DWORD;
 begin
   Result := False;
   ErrorMessage := '';
+  if not SameText(ExtractFileName(ParamStr(0)), 'UniWamp.exe') then
+  begin
+    ErrorMessage := 'Elevated hosts sync is only available from UniWamp.exe.';
+    Exit;
+  end;
   ZeroMemory(@SEI, SizeOf(SEI));
   SEI.cbSize := SizeOf(SEI);
   SEI.fMask := SEE_MASK_NOCLOSEPROCESS;
@@ -75,7 +135,11 @@ begin
   SEI.nShow := SW_HIDE;
   if not ShellExecuteEx(@SEI) then
   begin
-    ErrorMessage := SysErrorMessage(GetLastError);
+    LastErr := GetLastError;
+    if LastErr = ERROR_CANCELLED then
+      ErrorMessage := 'Hosts file update was cancelled at the UAC prompt.'
+    else
+      ErrorMessage := SysErrorMessage(LastErr);
     Exit;
   end;
   try
@@ -102,6 +166,37 @@ begin
   end;
 end;
 
+function THostsFileService.TryWriteElevated(const HostsText: string; out ErrorMessage: string): Boolean;
+var
+  TempHostsFile: string;
+  ElevError: string;
+  GuidVal: TGUID;
+begin
+  Result := False;
+  ErrorMessage := '';
+  CreateGUID(GuidVal);
+  TempHostsFile := TPath.Combine(FPaths.TmpDir,
+    'hosts-sync-' + GUIDToString(GuidVal).Replace('{', '').Replace('}', '') + '.tmp');
+  try
+    EnsureDirectory(FPaths.TmpDir);
+    AtomicWriteTextFile(TempHostsFile, HostsText, TEncoding.ASCII);
+    if TryElevatedHostsSync(TempHostsFile, ElevError) then
+    begin
+      FConfig.LastHostsSyncStatus := 'Hosts synced (elevated)';
+      Result := True;
+      Exit;
+    end;
+    FConfig.LastHostsSyncStatus := 'Hosts update requires Administrator';
+    if ElevError = 'Hosts file update was cancelled at the UAC prompt.' then
+      ErrorMessage := ElevError
+    else
+      ErrorMessage := 'Hosts file update failed: ' + ElevError;
+  finally
+    if FileExists(TempHostsFile) then
+      TFile.Delete(TempHostsFile);
+  end;
+end;
+
 function THostsFileService.SyncHostsFile(out ErrorMessage: string): Boolean;
 var
   HostsPath: string;
@@ -110,12 +205,13 @@ var
   StartPos: Integer;
   EndPos: Integer;
   ManagedBlock: string;
-  TempHostsFile: string;
-  ElevError: string;
-  GuidVal: TGUID;
   function IsAccessDenied(const E: Exception): Boolean;
   begin
-    Result := (E is EOSError) and (EOSError(E).ErrorCode = ERROR_ACCESS_DENIED);
+    Result :=
+      ((E is EOSError) and (EOSError(E).ErrorCode = ERROR_ACCESS_DENIED)) or
+      (((E is EFCreateError) or (E is EInOutError) or (E is EOSError)) and
+        ((GetLastError = ERROR_ACCESS_DENIED) or
+         (Pos('access is denied', LowerCase(E.Message)) > 0)));
   end;
 begin
   Result := False;
@@ -147,6 +243,14 @@ begin
     if HostsText <> '' then
       HostsText := HostsText + sLineBreak + sLineBreak;
     HostsText := HostsText + ManagedBlock;
+
+    if (Trim(GetEnvironmentVariable('UNIWAMP_HOSTS_FILE')) = '') and
+       not CanWriteHostsTarget(HostsPath) then
+    begin
+      Result := TryWriteElevated(HostsText, ErrorMessage);
+      Exit;
+    end;
+
     AtomicWriteTextFile(HostsPath, HostsText, TEncoding.ASCII, BackupPath);
     FConfig.LastHostsSyncStatus := 'Hosts synced';
     Result := True;
@@ -155,24 +259,7 @@ begin
     begin
       if IsAccessDenied(E) and (Trim(GetEnvironmentVariable('UNIWAMP_HOSTS_FILE')) = '') then
       begin
-        CreateGUID(GuidVal);
-        TempHostsFile := TPath.Combine(FPaths.TmpDir,
-          'hosts-sync-' + GUIDToString(GuidVal).Replace('{', '').Replace('}', '') + '.tmp');
-        try
-          EnsureDirectory(FPaths.TmpDir);
-          AtomicWriteTextFile(TempHostsFile, HostsText, TEncoding.ASCII);
-          if TryElevatedHostsSync(TempHostsFile, ElevError) then
-          begin
-            FConfig.LastHostsSyncStatus := 'Hosts synced (elevated)';
-            Result := True;
-            Exit;
-          end;
-          FConfig.LastHostsSyncStatus := 'Hosts update requires Administrator';
-          ErrorMessage := 'Hosts file update failed: ' + ElevError;
-        finally
-          if FileExists(TempHostsFile) then
-            TFile.Delete(TempHostsFile);
-        end;
+        Result := TryWriteElevated(HostsText, ErrorMessage);
         Exit;
       end;
 
