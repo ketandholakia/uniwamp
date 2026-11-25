@@ -1,25 +1,25 @@
 ﻿{
     "schemaVersion":  1,
     "repository":  "https://github.com/ketandholakia/uniwamp",
-    "releaseVersion":  "v0.2.0-alpha",
+    "releaseVersion":  "v0.3.0-alpha",
     "app":  {
                 "name":  "UniWamp",
-                "version":  "0.2.0.0",
-                "displayVersion":  "v0.2.0-alpha",
+                "version":  "0.3.0.0",
+                "displayVersion":  "v0.3.0-alpha",
                 "sourcePath":  "src\\tmpbuild\\bin\\UniWamp.exe",
                 "targetPath":  "{app}\\UniWamp.exe",
-                "sha256":  "317ba313352d48c9c2694a67c3f661acb7bd407724a75c6a1e32fa27e2490666"
+                "sha256":  "1cf0df0ea6034644698a443d2f6640577a7689cbf707f4e7de2b1bbcea7521f4"
             },
     "components":  [
                        {
                            "name":  "UniWamp",
-                           "version":  "v0.2.0-alpha",
+                           "version":  "v0.3.0-alpha",
                            "sourceUrl":  "https://github.com/ketandholakia/uniwamp",
                            "license":  "MIT",
                            "sourcePath":  "src\\tmpbuild\\bin\\UniWamp.exe",
                            "targetPath":  "{app}\\UniWamp.exe",
                            "primaryArtifact":  "src\\tmpbuild\\bin\\UniWamp.exe",
-                           "sha256":  "317ba313352d48c9c2694a67c3f661acb7bd407724a75c6a1e32fa27e2490666"
+                           "sha256":  "1cf0df0ea6034644698a443d2f6640577a7689cbf707f4e7de2b1bbcea7521f4"
                        },
                        {
                            "name":  "Apache HTTP Server",
